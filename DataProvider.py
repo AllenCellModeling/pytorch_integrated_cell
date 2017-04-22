@@ -7,15 +7,19 @@ from PIL import Image
 import torch
 
 
+import pdb
+
 class DataProvider(object):
     
     def __init__(self, image_parent, opts={}):
         self.data = {}
         
-        opts_default = {'rotate': False, 'hold_out': 1/20, 'out_size': -1, 'verbose': False}
+        opts_default = {'rotate': False, 'hold_out': 1/20, 'out_size': -1, 'verbose': False, 'pattern': '*.png'}
         
         # set default values if they are missing
-        for key in opts_default.keys(): opts[key] = opts.get(key, opts_default[key])
+        for key in opts_default.keys(): 
+            if key not in opts: 
+                opts[key] = opts.get(key, opts_default[key])
         
         self.opts = opts
 
@@ -24,7 +28,7 @@ class DataProvider(object):
 
         image_paths = list()
         for image_dir in image_dirs:
-            image_paths += natsorted(glob.glob(image_dir + os.sep + '*.png'))
+            image_paths += natsorted(glob.glob(image_dir + os.sep + opts['pattern']))
 
         image_classes = [os.path.basename(os.path.dirname(image_path)) for image_path in image_paths]
 
