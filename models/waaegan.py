@@ -102,6 +102,8 @@ class EncD(nn.Module):
         x = self.nl1(self.bn1(self.linear1(x)))
         x = self.nl2(self.bn2(self.linear2(x)))
         x = self.nl3(self.linear3(x))
+        x = x.mean(0)
+        x.view(1)
         
         return x        
 
