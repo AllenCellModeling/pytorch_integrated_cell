@@ -44,7 +44,8 @@ parser.add_argument('--clamp_upper', type=float, default=0.01, help='upper clamp
 parser.add_argument('--save_dir', default='./waae/', help='save dir')
 parser.add_argument('--saveProgressIter', type=int, default=1, help='number of iterations between saving progress')
 parser.add_argument('--saveStateIter', type=int, default=5, help='number of iterations between saving progress')
-parser.add_argument('--imsize', type=int, default=64, help='pixel size of images used')                  
+parser.add_argument('--imsize', type=int, default=64, help='pixel size of images used')   
+parser.add_argument('--imdir', default='/root/images/release_4_1_17_2D', help='location of images')
 opt = parser.parse_args()
 print(opt)
 
@@ -54,8 +55,6 @@ if not os.path.exists(opt.save_dir):
 DP = importlib.reload(DP)
 
 np.random.seed(opt.myseed)
-
-image_dir = '/root/data/'
 
 opts = {}
 opts['verbose'] = True
@@ -67,8 +66,10 @@ data_path = './data_' + str(opts['out_size'][0]) + 'x' + str(opts['out_size'][1]
 if os.path.exists(data_path):
     dp = torch.load(data_path)
 else:
-    dp = DP.DataProvider(image_dir, opts)
+    dp = DP.DataProvider(opt.imdir, opts)
     torch.save(dp, data_path)
+
+pdb.set_trace()
 
 def tensor2img(img):
 #     img = img / 2 + 0.5 # unnormalize
