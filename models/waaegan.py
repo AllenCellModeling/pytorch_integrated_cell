@@ -107,3 +107,28 @@ class EncD(nn.Module):
         
         return x        
 
+class DecD(nn.Module):
+    def __init__(self, nout):
+        super(DecD, self).__init__()
+        
+        self.model = nn.Sequential(
+            nn.Conv2d(3, 64, ksize, dstep, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(64, 128, ksize, dstep, 1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(128, 256, ksize, dstep, 1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(256, 512, ksize, dstep, 1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(512*3*3, nout),
+        )
+    def forward(self, x):
+        output = self.model(x)
+        output = output.mean(0)
+        return output.view(1)
+    
+

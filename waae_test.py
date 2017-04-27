@@ -26,7 +26,6 @@ import models.waaegan as waaegan
 
 import pdb
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--Diters', type=int, default=5, help='niters for the encD')
 parser.add_argument('--DitersAlt', type=int, default=5, help='niters for the encD')
@@ -69,11 +68,7 @@ else:
     dp = DP.DataProvider(opt.imdir, opts)
     torch.save(dp, data_path)
 
-pdb.set_trace()
-
 def tensor2img(img):
-#     img = img / 2 + 0.5 # unnormalize
-
     img = img.numpy()
     if img.ndim == 3:
         img = np.expand_dims(img, 0)
