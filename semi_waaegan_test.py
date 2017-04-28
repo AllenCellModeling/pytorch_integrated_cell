@@ -22,22 +22,22 @@ import matplotlib.pyplot as plt
 from IPython import display
 import time
 
-import models.semi_waaegan as waaegan
+import models.semi_waaegan2 as waaegan
 
 import pdb
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--Diters', type=int, default=5, help='niters for the encD')
-parser.add_argument('--DitersAlt', type=int, default=100, help='niters for the encD')
+parser.add_argument('--Diters', type=int, default=15, help='niters for the encD')
+parser.add_argument('--DitersAlt', type=int, default=500, help='niters for the encD')
 parser.add_argument('--gpu_id', type=int, default=0, help='gpu id')
 parser.add_argument('--myseed', type=int, default=0, help='random seed')
 parser.add_argument('--nlatentdim', type=int, default=32, help='number of latent dimensions')
 parser.add_argument('--lrEnc', type=float, default=0.001, help='learning rate for encoder')
 parser.add_argument('--lrDec', type=float, default=0.001, help='learning rate for decoder')
-parser.add_argument('--lrEncD', type=float, default=0.0001, help='learning rate for encD')
-parser.add_argument('--lrDecD', type=float, default=0.0001, help='learning rate for decD')
-parser.add_argument('--encDRatio', type=float, default=1, help='scalar applied to the update gradient from encD')
-parser.add_argument('--decDRatio', type=float, default=1E-5, help='scalar applied to the update gradient from decD')
+parser.add_argument('--lrEncD', type=float, default=0.00001, help='learning rate for encD')
+parser.add_argument('--lrDecD', type=float, default=0.00001, help='learning rate for decD')
+parser.add_argument('--encDRatio', type=float, default=1E-3, help='scalar applied to the update gradient from encD')
+parser.add_argument('--decDRatio', type=float, default=1E-3, help='scalar applied to the update gradient from decD')
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
 parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
