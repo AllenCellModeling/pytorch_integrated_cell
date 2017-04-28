@@ -89,30 +89,21 @@ class EncD(nn.Module):
         
         nfc = 1024
         
-        self.linear0 = nn.Linear(nlatentdim, nfc)
-        self.bn0 = nn.BatchNorm1d(nfc)        
-        self.nl0 = nn.LeakyReLU(0.2, inplace=True)       
-        
-        self.linear1 = nn.Linear(nfc, nfc)
-        self.bn1 = nn.BatchNorm1d(nfc)
-        self.nl1 = nn.LeakyReLU(0.2, inplace=True)       
-        
-        self.linear2 = nn.Linear(nfc, 512)
-        self.bn2 = nn.BatchNorm1d(512) 
-        self.nl2 = nn.LeakyReLU(0.2, inplace=True)                    
-        
-        self.linear3 = nn.Linear(512, 1)
-#         self.bn3 = nn.BatchNorm1d(1)        
-        # self.nl3 = nn.Sigmoid()         
+        self.model = nn.Sequential(
+            nn.Linear(nlatentdim, nfc),
+            # nn.BatchNorm1d(nfc),        
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(nfc, nfc),
+            # nn.BatchNorm1d(nfc),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(nfc, 512),
+            # nn.BatchNorm1d(512),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(512, 1)
+        )
           
     def forward(self, x):
-        x = self.nl0(self.linear0(x))
-        x = self.nl1(self.bn1(self.linear1(x)))
-        x = self.nl2(self.bn2(self.linear2(x)))
-        x = self.linear3(x)
-        x = x.mean(0)
-        x.view(1)
-        
+        x = self.model(x)
         return x        
 
 class DecD(nn.Module):
@@ -123,16 +114,16 @@ class DecD(nn.Module):
         
         self.model = nn.Sequential(
             nn.Conv2d(3, 64, ksize, dstep, 1, bias=False),
-            nn.BatchNorm2d(64),
+            # nn.BatchNorm2d(64),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(64, 128, ksize, dstep, 1, bias=False),
-            nn.BatchNorm2d(128),
+            # nn.BatchNorm2d(128),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(128, 256, ksize, dstep, 1, bias=False),
-            nn.BatchNorm2d(256),
+            # nn.BatchNorm2d(256),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(256, 512, ksize, dstep, 1, bias=False),
-            nn.BatchNorm2d(512),
+            # nn.BatchNorm2d(512),
             nn.LeakyReLU(0.2, inplace=True)
         )
         
@@ -142,7 +133,8 @@ class DecD(nn.Module):
         x = self.model(x)
         x = x.view(x.size()[0], 512*int(self.fcsize**2))
         x = self.fc(x)
-        output = x.mean(0)
-        return output.view(1)
+        # x = x.mean(0)
+        # x = x.view(1)
+        return x
     
 

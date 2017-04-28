@@ -22,31 +22,39 @@ import matplotlib.pyplot as plt
 from IPython import display
 import time
 
-import models.waaegan as waaegan
+import models.semi_waaegan as waaegan
 
 import pdb
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--Diters', type=int, default=5, help='niters for the encD')
-parser.add_argument('--DitersAlt', type=int, default=5, help='niters for the encD')
+parser.add_argument('--DitersAlt', type=int, default=100, help='niters for the encD')
 parser.add_argument('--gpu_id', type=int, default=0, help='gpu id')
 parser.add_argument('--myseed', type=int, default=0, help='random seed')
 parser.add_argument('--nlatentdim', type=int, default=32, help='number of latent dimensions')
-parser.add_argument('--lrEnc', type=float, default=0.005, help='learning rate for encoder')
-parser.add_argument('--lrDec', type=float, default=0.005, help='learning rate for decoder')
-parser.add_argument('--lrEncD', type=float, default=0.00001, help='learning rate for encD')
+parser.add_argument('--lrEnc', type=float, default=0.001, help='learning rate for encoder')
+parser.add_argument('--lrDec', type=float, default=0.001, help='learning rate for decoder')
+parser.add_argument('--lrEncD', type=float, default=0.0001, help='learning rate for encD')
+parser.add_argument('--lrDecD', type=float, default=0.0001, help='learning rate for decD')
 parser.add_argument('--encDRatio', type=float, default=1, help='scalar applied to the update gradient from encD')
+parser.add_argument('--decDRatio', type=float, default=1E-5, help='scalar applied to the update gradient from decD')
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
 parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
 parser.add_argument('--clamp_upper', type=float, default=0.01, help='upper clamp for wasserstein gan')
-parser.add_argument('--save_dir', default='./waae/', help='save dir')
+parser.add_argument('--save_dir', default='./semi_waaegan/', help='save dir')
 parser.add_argument('--saveProgressIter', type=int, default=1, help='number of iterations between saving progress')
 parser.add_argument('--saveStateIter', type=int, default=5, help='number of iterations between saving progress')
-parser.add_argument('--imsize', type=int, default=64, help='pixel size of images used')   
+parser.add_argument('--imsize', type=int, default=128, help='pixel size of images used')   
 parser.add_argument('--imdir', default='/root/images/release_4_1_17_2D', help='location of images')
 opt = parser.parse_args()
 print(opt)
+
+lipcon = 1
+penalty_weight = 0.1 
+
+torch.manual_seed(opt.myseed)
+torch.cuda.manual_seed(opt.myseed)
 
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
@@ -98,10 +106,12 @@ def weights_init(m):
 enc = waaegan.Enc(opt.nlatentdim, opt.imsize)
 dec = waaegan.Dec(opt.nlatentdim, opt.imsize)
 encD = waaegan.EncD(opt.nlatentdim)
+decD = waaegan.DecD(1, opt.imsize)
 
 enc.apply(weights_init)
 dec.apply(weights_init)
 encD.apply(weights_init)
+decD.apply(weights_init)
 
 gpu_id = opt.gpu_id
 nlatentdim = opt.nlatentdim
@@ -109,22 +119,28 @@ nlatentdim = opt.nlatentdim
 enc.cuda(gpu_id)
 dec.cuda(gpu_id)
 encD.cuda(gpu_id)
+decD.cuda(gpu_id)
 
 criterion = nn.BCELoss()
 
-optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
-optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
-optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
+# optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
+# optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
+# optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
+# optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
+
+optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.9))
+optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, betas=(0.5, 0.9))
+optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.9))
+optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.9))
 
 ndat = dp.get_n_train()
 ndat = 1000
 
-logger = SimpleLogger.SimpleLogger(('epoch', 'iter', 'reconLoss', 'minimaxLoss', 'advLoss', 'time'), '[%d][%d] loss: %.6f minimaxLoss: %.6f advLoss: %.6f time: %.2f')
+logger = SimpleLogger.SimpleLogger(('epoch', 'iter', 'reconLoss', 'minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time'), '[%d][%d] reconLoss: %.6f mmEncD: %.6f encD: %.6f mmDecD: %.6f decD: %.6f time: %.2f')
 
 one = torch.FloatTensor([1]).cuda(gpu_id)
 mone = one * -1
 
-gen_iterations = 0
 iteration = 0
 for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
 
@@ -151,9 +167,11 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
         for p in encD.parameters(): # reset requires_grad
             p.requires_grad = True # they are set to False below in netG update
 
+        for p in decD.parameters():
+            p.requires_grad = True
 
         # train the discriminator Diters times
-        if gen_iterations < 25 or gen_iterations % 500 == 0:
+        if epoch <= 5 or iteration % 25 == 0:
             Diters = opt.DitersAlt
         else:
             Diters = opt.Diters
@@ -169,29 +187,71 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
             # clamp parameters to a cube
             for p in encD.parameters():
                 p.data.clamp_(opt.clamp_lower, opt.clamp_upper)
+            
+            for p in decD.parameters():
+                p.data.clamp_(opt.clamp_lower, opt.clamp_upper)
                 
-            x = Variable(dp.get_images(next(inds_encD),'train')).cuda(gpu_id)
+            dat_inds = next(inds_encD)
+            x = Variable(dp.get_images(dat_inds,'train')).cuda(gpu_id)
             
             zFake = enc(x)
             #pick a distribution that is obvious when you plot it
-            zReal = Variable(torch.Tensor(batsize, nlatentdim).uniform_(-2, 2)).cuda(gpu_id)
+            zReal = Variable(torch.Tensor(len(dat_inds), nlatentdim).uniform_(-2, 2)).cuda(gpu_id)
             
             optEnc.zero_grad()
+            optDec.zero_grad()
             optEncD.zero_grad()
+            optDecD.zero_grad()
 
             # train with real
-            errD_real = encD(zReal)
-            errD_real.backward(one)
+            errEncD_real_vec = encD(zReal)
+            errEncD_real = errEncD_real_vec.mean(0).view(1)
+            errEncD_real.backward(one, retain_variables=True)
 
             # train with fake
-            errD_fake = encD(zFake)
-            errD_fake.backward(mone)
-            latentLoss = errD_real - errD_fake
+            errEncD_fake_vec = encD(zFake)
+            errEncD_fake = errEncD_fake_vec.mean(0).view(1)
+            errEncD_fake.backward(mone, retain_variables=True)
+            encDLoss = errEncD_real - errEncD_fake
+            
+            if lipcon:
+                # pdb.set_trace()
+                dist = ((zReal-zFake)**2).sum(1)**0.5
+                lip_est = (errEncD_real_vec-errEncD_fake_vec).abs()/(dist+1e-8)
+                lip_loss = penalty_weight*((1.0-lip_est)**2).mean(0).view(1)
+                lip_loss.backward(one, retain_variables=True)
+                encDLoss = encDLoss + lip_loss    
+            
             optEncD.step()
+            
+            
+            xHat = dec(zFake)
+            
+            errDecD_real_vec = decD(x)
+            errDecD_real = errDecD_real_vec.mean(0).view(1)
+            errDecD_real.backward(one, retain_variables=True)
+            
+            errDecD_fake_vec = decD(xHat)
+            errDecD_fake = errDecD_fake_vec.mean(0).view(1)
+            errDecD_fake.backward(mone, retain_variables=True)
+            
+            decDLoss = errDecD_real - errDecD_fake
+            
+            if lipcon:
+                dist = ((x-xHat)**2).sum(1).sum(2).sum(3)**0.5
+                # pdb.set_trace()
+                lip_est = (errDecD_real_vec-errDecD_fake_vec).abs()/(dist+1e-8)
+                lip_loss = penalty_weight*((1.0-lip_est)**2).mean(0).view(1)
+                lip_loss.backward(one, retain_variables=True)
+                decDLoss = decDLoss + lip_loss
+            
+            optDecD.step()
+            
             
         optEnc.zero_grad()
         optDec.zero_grad()
         optEncD.zero_grad()  
+        optDecD.zero_grad()          
         
 #         x = Variable(dp.get_images(i, 'train')).cuda(gpu_id)
         
@@ -203,11 +263,27 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
         
         for p in encD.parameters():
             p.requires_grad = False
+            
+        for p in decD.parameters():
+            p.requires_grad = False
         
-        minimaxLoss = encD(zFake)
-        minimaxLoss.backward(one*opt.encDRatio)
+        minimaxEncDLoss_vec = encD(zFake)
+        minimaxEncDLoss = minimaxEncDLoss_vec.mean(0).view(1)
+        minimaxEncDLoss.backward(one*opt.encDRatio, retain_variables=True)
 
         optEnc.step()
+        
+        minimaxDecDLoss_vec = decD(xHat)
+        minimaxDecDLoss = minimaxDecDLoss_vec.mean(0).view(1)
+        minimaxDecDLoss.backward(one*opt.decDRatio, retain_variables=True)
+        
+        zReal = Variable(torch.Tensor(batsize, nlatentdim).uniform_(-2, 2)).cuda(gpu_id)
+        xHat = dec(zReal)
+        
+        minimaxDecDLoss2_vec = decD(xHat)
+        minimaxDecDLoss2 = minimaxDecDLoss2_vec.mean(0).view(1)
+        minimaxDecDLoss2.backward(one*opt.decDRatio, retain_variables=True)
+        
         optDec.step()
 
         zAll.append(zFake.data)
@@ -215,9 +291,8 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
         stop = time.time()
         deltaT = stop-start
         
-        logger.add((epoch, iteration, reconLoss.data[0], minimaxLoss.data[0][0], latentLoss.data[0][0], deltaT))
+        logger.add((epoch, iteration, reconLoss.data[0], minimaxEncDLoss.data[0], encDLoss.data[0], minimaxDecDLoss.data[0], decDLoss.data[0], deltaT))
 
-    gen_iterations += 1
     
     if (epoch % opt.saveProgressIter) == 0:
 
@@ -226,13 +301,17 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
             
         x = Variable(dp.get_images(np.arange(0,10),'train')).cuda(gpu_id)
         xHat = dec(enc(x))
-        
-#         pdb.set_trace()
-#         out = torchvision.utils.make_grid(x)
         imgX = tensor2img(x.data.cpu())
         imgXHat = tensor2img(xHat.data.cpu())
+        imgTrainOut = np.concatenate((imgX, imgXHat), 0)
         
-        imgOut = np.concatenate((imgX, imgXHat), 0)
+        x = Variable(dp.get_images(np.arange(0,10),'test')).cuda(gpu_id)
+        xHat = dec(enc(x))
+        imgX = tensor2img(x.data.cpu())
+        imgXHat = tensor2img(xHat.data.cpu())
+        imgTestOut = np.concatenate((imgX, imgXHat), 0)
+        
+        imgOut = np.concatenate((imgTrainOut, imgTestOut))
         
         scipy.misc.imsave('./{0}/progress_{1}.png'.format(opt.save_dir, epoch), imgOut)
         
