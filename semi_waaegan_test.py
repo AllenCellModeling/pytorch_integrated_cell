@@ -46,7 +46,7 @@ parser.add_argument('--save_dir', default='./semi_waaegan/', help='save dir')
 parser.add_argument('--saveProgressIter', type=int, default=1, help='number of iterations between saving progress')
 parser.add_argument('--saveStateIter', type=int, default=5, help='number of iterations between saving progress')
 parser.add_argument('--imsize', type=int, default=128, help='pixel size of images used')   
-parser.add_argument('--imdir', default='/root/images/release_4_1_17_2D', help='location of images')
+parser.add_argument('--imdir', default='/root/data/release_4_1_17/release_v2/aligned/2D', help='location of images')
 opt = parser.parse_args()
 print(opt)
 
@@ -339,10 +339,12 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
         torch.save(enc.state_dict(), './{0}/enc.pth'.format(opt.save_dir))
         torch.save(dec.state_dict(), './{0}/dec.pth'.format(opt.save_dir))
         torch.save(encD.state_dict(), './{0}/encD.pth'.format(opt.save_dir))
+        torch.save(decD.state_dict(), './{0}/decD.pth'.format(opt.save_dir))        
         
         torch.save(optEnc.state_dict(), './{0}/optEnc.pth'.format(opt.save_dir))
         torch.save(optDec.state_dict(), './{0}/optDec.pth'.format(opt.save_dir))
         torch.save(optEncD.state_dict(), './{0}/optEncD.pth'.format(opt.save_dir))
+        torch.save(optDecD.state_dict(), './{0}/optDecD.pth'.format(opt.save_dir))        
         
         pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
             
