@@ -31,13 +31,13 @@ parser.add_argument('--Diters', type=int, default=5, help='niters for the encD')
 parser.add_argument('--DitersAlt', type=int, default=100, help='niters for the encD')
 parser.add_argument('--gpu_id', type=int, default=0, help='gpu id')
 parser.add_argument('--myseed', type=int, default=0, help='random seed')
-parser.add_argument('--nlatentdim', type=int, default=32, help='number of latent dimensions')
-parser.add_argument('--lrEnc', type=float, default=0.0005, help='learning rate for encoder')
-parser.add_argument('--lrDec', type=float, default=0.0005, help='learning rate for decoder')
+parser.add_argument('--nlatentdim', type=int, default=16, help='number of latent dimensions')
+parser.add_argument('--lrEnc', type=float, default=0.0001, help='learning rate for encoder')
+parser.add_argument('--lrDec', type=float, default=0.0001, help='learning rate for decoder')
 parser.add_argument('--lrEncD', type=float, default=0.00005, help='learning rate for encD')
 parser.add_argument('--lrDecD', type=float, default=0.00005, help='learning rate for decD')
 parser.add_argument('--encDRatio', type=float, default=1, help='scalar applied to the update gradient from encD')
-parser.add_argument('--decDRatio', type=float, default=1E-4, help='scalar applied to the update gradient from decD')
+parser.add_argument('--decDRatio', type=float, default=1E-6, help='scalar applied to the update gradient from decD')
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
 parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
@@ -120,18 +120,18 @@ decD.cuda(gpu_id)
 
 criterion = nn.BCELoss()
 
-# optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
-# optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
-# optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
-# optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
+optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
+optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
+optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
+optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
 
-optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.999))
-optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, betas=(0.5, 0.999))
-optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.999))
-optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.999))
+# optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.9))
+# optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, betas=(0.5, 0.9))
+# optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.9))
+# optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.9))
 
 ndat = dp.get_n_train()
-ndat = 1000
+# ndat = 1000
 
 logger = SimpleLogger.SimpleLogger(('epoch', 'iter', 'reconLoss', 'minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time'), '[%d][%d] reconLoss: %.6f mmEncD: %.6f encD: %.6f mmDecD: %.6f decD: %.6f time: %.2f')
 
@@ -193,7 +193,8 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
             
             zFake = enc(x)
             #pick a distribution that is obvious when you plot it
-            zReal = Variable(torch.Tensor(batsize, nlatentdim).uniform_(-2, 2)).cuda(gpu_id)
+            # zReal = Variable(torch.Tensor(batsize, nlatentdim).uniform_(-2, 2)).cuda(gpu_id)
+            zReal = Variable(torch.Tensor(batsize, nlatentdim).normal_()).cuda(gpu_id)
             
             optEnc.zero_grad()
             optDec.zero_grad()
@@ -294,16 +295,6 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
         dec.train(True)
         
         zAll = torch.cat(zAll,0).cpu().numpy()
-
-        plt.gca().cla() 
-        plt.scatter(zAll[:,0], zAll[:,1])
-        plt.xlim([-4, 4]) 
-        plt.ylim([-4, 4])     
-        plt.axis('equal')
-        plt.xlabel('z1')
-        plt.ylabel('z2')
-        plt.title('latent space embedding')
-        plt.savefig('./{0}/embedding_{1}.png'.format(opt.save_dir, epoch), dpi=75)
         
         pickle.dump(zAll, open('./{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
         pickle.dump(logger, open('./{0}/logger.pkl'.format(opt.save_dir), 'wb'))
@@ -314,10 +305,12 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
         torch.save(enc.state_dict(), './{0}/enc.pth'.format(opt.save_dir))
         torch.save(dec.state_dict(), './{0}/dec.pth'.format(opt.save_dir))
         torch.save(encD.state_dict(), './{0}/encD.pth'.format(opt.save_dir))
+        torch.save(decD.state_dict(), './{0}/decD.pth'.format(opt.save_dir))
         
         torch.save(optEnc.state_dict(), './{0}/optEnc.pth'.format(opt.save_dir))
         torch.save(optDec.state_dict(), './{0}/optDec.pth'.format(opt.save_dir))
         torch.save(optEncD.state_dict(), './{0}/optEncD.pth'.format(opt.save_dir))
+        torch.save(optDecD.state_dict(), './{0}/optDecD.pth'.format(opt.save_dir))
         
         pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
             
