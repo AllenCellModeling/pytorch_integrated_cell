@@ -10,22 +10,22 @@ class Enc(nn.Module):
         
         self.fcsize = (insize/64) * 4
         
-        self.conv1 = nn.Conv2d(3, 64, ksize, dstep, 1)
+        self.conv1 = nn.Conv2d(3, 64, ksize, dstep, 1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         
-        self.nl1 = nn.PReLU()
-        self.conv2 = nn.Conv2d(64, 128, ksize, dstep, 1)
+        self.nl1 = nn.ELU()
+        self.conv2 = nn.Conv2d(64, 128, ksize, dstep, 1, bias=False)
         self.bn2 = nn.BatchNorm2d(128)
         
-        self.nl2 = nn.PReLU()
-        self.conv3 = nn.Conv2d(128, 256, ksize, dstep, 1)
+        self.nl2 = nn.ELU()
+        self.conv3 = nn.Conv2d(128, 256, ksize, dstep, 1, bias=False)
         self.bn3 = nn.BatchNorm2d(256)
         
-        self.nl3 = nn.PReLU()
-        self.conv4 = nn.Conv2d(256, 512, ksize, dstep, 1)
+        self.nl3 = nn.ELU()
+        self.conv4 = nn.Conv2d(256, 512, ksize, dstep, 1, bias=False)
         self.bn4 = nn.BatchNorm2d(512)
         
-        self.nl4 = nn.PReLU()
+        self.nl4 = nn.ELU()
         
         self.linear5 = nn.Linear(512*int(self.fcsize**2), nlatentdim)
         self.bn5 = nn.BatchNorm1d(nlatentdim)
@@ -53,20 +53,20 @@ class Dec(nn.Module):
         self.linear1 = nn.Linear(nlatentdim, 512*int(self.fcsize**2))
         self.bn1 = nn.BatchNorm1d(512*int(self.fcsize**2))
         
-        self.nl1 = nn.PReLU()        
-        self.conv2 = nn.ConvTranspose2d(512, 256, ksize, dstep, 1)
+        self.nl1 = nn.ELU()        
+        self.conv2 = nn.ConvTranspose2d(512, 256, ksize, dstep, 1, bias=False)
         self.bn2 = nn.BatchNorm2d(256)
         
-        self.nl2 = nn.PReLU()        
-        self.conv3 = nn.ConvTranspose2d(256, 128, ksize, dstep, 1)
+        self.nl2 = nn.ELU()        
+        self.conv3 = nn.ConvTranspose2d(256, 128, ksize, dstep, 1, bias=False)
         self.bn3 = nn.BatchNorm2d(128)
         
-        self.nl3 = nn.PReLU()        
-        self.conv4 = nn.ConvTranspose2d(128, 64, ksize, dstep, 1)
+        self.nl3 = nn.ELU()        
+        self.conv4 = nn.ConvTranspose2d(128, 64, ksize, dstep, 1, bias=False)
         self.bn4 = nn.BatchNorm2d(64)
         
-        self.nl4 = nn.PReLU()        
-        self.conv5 = nn.ConvTranspose2d(64, 3, ksize, dstep, 1)
+        self.nl4 = nn.ELU()        
+        self.conv5 = nn.ConvTranspose2d(64, 3, ksize, dstep, 1, bias=False)
         # self.bn5 = nn.BatchNorm2d(3)
         self.nl5 = nn.Sigmoid()              
             
