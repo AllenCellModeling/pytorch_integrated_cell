@@ -35,9 +35,9 @@ class Enc(nn.Module):
         self.bnEnd = nn.BatchNorm1d(nlatentdim)
         
     def forward(self, x):
-        gpu_ids = None
-        if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
-            gpu_ids = self.gpu_ids
+        # gpu_ids = None
+        # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
+        gpu_ids = self.gpu_ids
             
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
         
@@ -76,9 +76,9 @@ class Dec(nn.Module):
         )
             
     def forward(self, x):
-        gpu_ids = None
-        if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
-            gpu_ids = self.gpu_ids
+        # gpu_ids = None
+        # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
+        gpu_ids = self.gpu_ids
         
         x = self.fc(x)
         x = x.view(x.size()[0], 512, self.fcsize, self.fcsize)
@@ -113,9 +113,9 @@ class EncD(nn.Module):
         # self.nl3 = nn.Sigmoid()         
           
     def forward(self, x):
-        gpu_ids = None
-        if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
-            gpu_ids = self.gpu_ids
+        # gpu_ids = None
+        # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
+        gpu_ids = self.gpu_ids
             
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
         x = x.mean(0).view(1)
@@ -146,9 +146,9 @@ class DecD(nn.Module):
         
         self.fc = nn.Linear(512*int(self.fcsize**2), nout)
     def forward(self, x):
-        gpu_ids = None
-        if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
-            gpu_ids = self.gpu_ids
+        # gpu_ids = None
+        # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
+        gpu_ids = self.gpu_ids
         
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
         x = x.view(x.size()[0], 512*int(self.fcsize**2))
