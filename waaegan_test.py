@@ -29,7 +29,7 @@ import pdb
 parser = argparse.ArgumentParser()
 parser.add_argument('--Diters', type=int, default=5, help='niters for the encD')
 parser.add_argument('--DitersAlt', type=int, default=100, help='niters for the encD')
-parser.add_argument('--gpu_id', type=int, default=0, help='gpu id')
+parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
 parser.add_argument('--myseed', type=int, default=0, help='random seed')
 parser.add_argument('--nlatentdim', type=int, default=16, help='number of latent dimensions')
 parser.add_argument('--lrEnc', type=float, default=0.0001, help='learning rate for encoder')
@@ -100,17 +100,17 @@ def weights_init(m):
         m.bias.data.fill_(0)    
     
     
-enc = waaegan.Enc(opt.nlatentdim, opt.imsize)
-dec = waaegan.Dec(opt.nlatentdim, opt.imsize)
-encD = waaegan.EncD(opt.nlatentdim)
-decD = waaegan.DecD(1, opt.imsize)
+enc = waaegan.Enc(opt.nlatentdim, opt.imsize, opt.gpu_ids)
+dec = waaegan.Dec(opt.nlatentdim, opt.imsize, opt.gpu_ids)
+encD = waaegan.EncD(opt.nlatentdim, opt.gpu_ids)
+decD = waaegan.DecD(1, opt.imsize, opt.gpu_ids)
 
 enc.apply(weights_init)
 dec.apply(weights_init)
 encD.apply(weights_init)
 decD.apply(weights_init)
 
-gpu_id = opt.gpu_id
+gpu_id = opt.gpu_ids[0]
 nlatentdim = opt.nlatentdim
 
 enc.cuda(gpu_id)
@@ -169,16 +169,22 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
             p.requires_grad = True
 
         # train the discriminator Diters times
-        if gen_iterations <= 5 or iteration % 25 == 0:
+        
+        # if epoch == 6:
+        #     pdb.set_trace()
+            
+        
+        if epoch <= 5 or (iteration % 25) == 0:
             Diters = opt.DitersAlt
         else:
             Diters = opt.Diters
-        j = 0
+        
 
         rand_inds_encD = np.random.permutation(ndat)
         niter = len(range(0, len(rand_inds_encD), opt.batch_size))
         inds_encD = (rand_inds_encD[i:i+opt.batch_size] for i in range(0, len(rand_inds_encD), opt.batch_size))
         
+        j = 0
         while j < Diters and j < niter:
             j += 1
 
@@ -235,6 +241,11 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
         
         zFake = enc(x)
         xHat = dec(zFake)
+        optEnc.step()
+        optEnc.step()
+        
+        optEnc.zero_grad()
+        optDec.zero_grad()
     
         reconLoss = criterion(xHat, x)
         reconLoss.backward(retain_variables=True)
@@ -266,7 +277,7 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
         stop = time.time()
         deltaT = stop-start
         
-        logger.add((epoch, iteration, reconLoss.data[0], minimaxEncDLoss.data[0][0], encDLoss.data[0][0], minimaxDecDLoss.data[0], decDLoss.data[0], deltaT))
+        logger.add((epoch, iteration, reconLoss.data[0], minimaxEncDLoss.data[0], encDLoss.data[0], minimaxDecDLoss.data[0], decDLoss.data[0], deltaT))
 
     gen_iterations += 1
     
