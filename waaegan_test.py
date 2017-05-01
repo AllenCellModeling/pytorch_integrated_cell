@@ -32,12 +32,12 @@ parser.add_argument('--DitersAlt', type=int, default=100, help='niters for the e
 parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
 parser.add_argument('--myseed', type=int, default=0, help='random seed')
 parser.add_argument('--nlatentdim', type=int, default=16, help='number of latent dimensions')
-parser.add_argument('--lrEnc', type=float, default=0.0001, help='learning rate for encoder')
-parser.add_argument('--lrDec', type=float, default=0.0001, help='learning rate for decoder')
+parser.add_argument('--lrEnc', type=float, default=0.001, help='learning rate for encoder')
+parser.add_argument('--lrDec', type=float, default=0.001, help='learning rate for decoder')
 parser.add_argument('--lrEncD', type=float, default=0.00005, help='learning rate for encD')
 parser.add_argument('--lrDecD', type=float, default=0.00005, help='learning rate for decD')
 parser.add_argument('--encDRatio', type=float, default=1, help='scalar applied to the update gradient from encD')
-parser.add_argument('--decDRatio', type=float, default=1E-6, help='scalar applied to the update gradient from decD')
+parser.add_argument('--decDRatio', type=float, default=1E-3, help='scalar applied to the update gradient from decD')
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
 parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
@@ -131,7 +131,7 @@ optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
 # optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.9))
 
 ndat = dp.get_n_train()
-# ndat = 1000
+ndat = 1000
 
 logger = SimpleLogger.SimpleLogger(('epoch', 'iter', 'reconLoss', 'minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time'), '[%d][%d] reconLoss: %.6f mmEncD: %.6f encD: %.6f mmDecD: %.6f decD: %.6f time: %.2f')
 
@@ -218,7 +218,7 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
             optEncD.step()
             
             
-            xHat = dec(zFake)
+            xHat = dec(zFake.detach())
             
             errDecD_real = decD(x)
             errDecD_real.backward(one, retain_variables=True)
@@ -226,10 +226,9 @@ for epoch in range(1, opt.nepochs+1): # loop over the dataset multiple times
             errDecD_fake = decD(xHat)
             errDecD_fake.backward(mone, retain_variables=True)
             
-            
-            
             decDLoss = errDecD_real - errDecD_fake
             optDecD.step()
+
             
             
         optEnc.zero_grad()
