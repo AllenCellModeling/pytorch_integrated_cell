@@ -47,6 +47,8 @@ parser.add_argument('--saveProgressIter', type=int, default=1, help='number of i
 parser.add_argument('--saveStateIter', type=int, default=10, help='number of iterations between saving progress')
 parser.add_argument('--imsize', type=int, default=128, help='pixel size of images used')   
 parser.add_argument('--imdir', default='/root/images/release_4_1_17_2D', help='location of images')
+parser.add_argument('--latentDistribution', default='gaussian', help='Distribution of latent space, can be {gaussian, uniform}')
+
 opt = parser.parse_args()
 print(opt)
 
@@ -66,6 +68,12 @@ opts['pattern'] = '*.tif_flat.png'
 opts['out_size'] = [opt.imsize, opt.imsize]
 
 data_path = './data_' + str(opts['out_size'][0]) + 'x' + str(opts['out_size'][1]) + '.pyt'
+
+
+if opt.latentDistribution == 'uniform':
+    def latentSample (batsize, nlatentdim): return torch.Tensor(batsize, nlatentdim).uniform_(-1, 1)
+elif opt.latentDistribution == 'gaussian':
+    def latentSample (batsize, nlatentdim): return torch.Tensor(batsize, nlatentdim).normal_()
 
 if os.path.exists(data_path):
     dp = torch.load(data_path)
@@ -207,7 +215,7 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
             zFake = enc(x)
             #pick a distribution that is obvious when you plot it
             # zReal = Variable(torch.Tensor(batsize, nlatentdim).uniform_(-2, 2)).cuda(gpu_id)
-            zReal = Variable(torch.Tensor(batsize, nlatentdim).normal_()).cuda(gpu_id)
+            zReal = Variable(latentSample(batsize, nlatentdim)).cuda(gpu_id)
             
             optEnc.zero_grad()
             optDec.zero_grad()
@@ -270,7 +278,7 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
         minimaxDecDLoss = decD(xHat)
         minimaxDecDLoss.backward(one*opt.decDRatio, retain_variables=True)
         
-        zReal = Variable(torch.Tensor(batsize, nlatentdim).normal_()).cuda(gpu_id)
+        zReal = Variable(latentSample(batsize, nlatentdim)).cuda(gpu_id)
         xHat = dec(zReal.detach())
         
         minimaxDecDLoss2 = decD(xHat)
