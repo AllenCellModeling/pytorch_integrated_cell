@@ -138,6 +138,7 @@ logger = SimpleLogger.SimpleLogger(('epoch', 'iter', 'reconLoss', 'minimaxEncDLo
 this_epoch = 1
 iteration = 0
 if os.path.exists('./{0}/enc.pth'.format(opt.save_dir)):
+    
     enc.load_state_dict(torch.load('./{0}/enc.pth'.format(opt.save_dir)))
     dec.load_state_dict(torch.load('./{0}/dec.pth'.format(opt.save_dir)))
     encD.load_state_dict(torch.load('./{0}/encD.pth'.format(opt.save_dir)))
@@ -148,21 +149,22 @@ if os.path.exists('./{0}/enc.pth'.format(opt.save_dir)):
     optEncD.load_state_dict(torch.load('./{0}/optEncD.pth'.format(opt.save_dir)))
     optDecD.load_state_dict(torch.load('./{0}/optDecD.pth'.format(opt.save_dir)))
 
+    optEnc.state = set_gpu_recursive(optEnc.state, gpu_id)
+    optDec.state = set_gpu_recursive(optDec.state, gpu_id)
+    optEncD.state = set_gpu_recursive(optEncD.state, gpu_id)
+    optDecD.state = set_gpu_recursive(optDecD.state, gpu_id)
+
+    enc.cuda(gpu_id)
+    dec.cuda(gpu_id)
+    encD.cuda(gpu_id)
+    decD.cuda(gpu_id)                           
+                           
     # opt = pickle.load(open( '{0}/opt.pkl'.format(opt.save_dir), "rb" ))
     logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
 
     this_epoch = max(logger.log['epoch']) + 1
     iteration = max(logger.log['iter'])
 
-optEnc.state = set_gpu_recursive(optEnc.state, gpu_id)
-optDec.state = set_gpu_recursive(optDec.state, gpu_id)
-optEncD.state = set_gpu_recursive(optEncD.state, gpu_id)
-optDecD.state = set_gpu_recursive(optDecD.state, gpu_id)
- 
-enc.cuda(gpu_id)
-dec.cuda(gpu_id)
-encD.cuda(gpu_id)
-decD.cuda(gpu_id)
     
 criterion = nn.BCELoss()
 
