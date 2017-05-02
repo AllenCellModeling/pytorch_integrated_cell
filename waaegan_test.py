@@ -32,12 +32,12 @@ parser.add_argument('--DitersAlt', type=int, default=100, help='niters for the e
 parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
 parser.add_argument('--myseed', type=int, default=0, help='random seed')
 parser.add_argument('--nlatentdim', type=int, default=16, help='number of latent dimensions')
-parser.add_argument('--lrEnc', type=float, default=0.00005, help='learning rate for encoder')
-parser.add_argument('--lrDec', type=float, default=0.00005, help='learning rate for decoder')
+parser.add_argument('--lrEnc', type=float, default=0.001, help='learning rate for encoder')
+parser.add_argument('--lrDec', type=float, default=0.001, help='learning rate for decoder')
 parser.add_argument('--lrEncD', type=float, default=0.00005, help='learning rate for encD')
 parser.add_argument('--lrDecD', type=float, default=0.00005, help='learning rate for decD')
-parser.add_argument('--encDRatio', type=float, default=1E-3, help='scalar applied to the update gradient from encD')
-parser.add_argument('--decDRatio', type=float, default=1E-3, help='scalar applied to the update gradient from decD')
+parser.add_argument('--encDRatio', type=float, default=5E-3, help='scalar applied to the update gradient from encD')
+parser.add_argument('--decDRatio', type=float, default=5E-3, help='scalar applied to the update gradient from decD')
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
 parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
@@ -70,17 +70,16 @@ opts['out_size'] = [opt.imsize, opt.imsize]
 
 data_path = './data_' + str(opts['out_size'][0]) + 'x' + str(opts['out_size'][1]) + '.pyt'
 
-
-if opt.latentDistribution == 'uniform':
-    def latentSample (batsize, nlatentdim): return torch.Tensor(batsize, nlatentdim).uniform_(-1, 1)
-elif opt.latentDistribution == 'gaussian':
-    def latentSample (batsize, nlatentdim): return torch.Tensor(batsize, nlatentdim).normal_()
-
 if os.path.exists(data_path):
     dp = torch.load(data_path)
 else:
     dp = DP.DataProvider(opt.imdir, opts)
     torch.save(dp, data_path)
+
+if opt.latentDistribution == 'uniform':
+    def latentSample (batsize, nlatentdim): return torch.Tensor(batsize, nlatentdim).uniform_(-1, 1)
+elif opt.latentDistribution == 'gaussian':
+    def latentSample (batsize, nlatentdim): return torch.Tensor(batsize, nlatentdim).normal_()
 
 def tensor2img(img):
     img = img.numpy()
@@ -104,7 +103,10 @@ def set_gpu_recursive(var, gpu_id):
             var[key] = set_gpu_recursive(var[key], gpu_id)
         else:
             try:
-                var[key] = var[key].cuda(gpu_id)
+                if gpu_id != -1:
+                    var[key] = var[key].cuda(gpu_id)
+                else:
+                    var[key] = var[key].cpu()
             except:
                 pass
     return var
@@ -132,6 +134,12 @@ optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
 optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
 optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
 optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
+
+# optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.9))
+# optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, betas=(0.5, 0.9))
+# optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.9))
+# optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.9))
+
 
 logger = SimpleLogger.SimpleLogger(('epoch', 'iter', 'reconLoss', 'minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time'), '[%d][%d] reconLoss: %.6f mmEncD: %.6f encD: %.6f mmDecD: %.6f decD: %.6f time: %.2f')
 
@@ -168,10 +176,6 @@ if os.path.exists('./{0}/enc.pth'.format(opt.save_dir)):
     
 criterion = nn.BCELoss()
 
-# optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.9))
-# optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, betas=(0.5, 0.9))
-# optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.9))
-# optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.9))
 
 if opt.ndat == -1:
     ndat = dp.get_n_train()
@@ -217,7 +221,7 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
         #     pdb.set_trace()
             
         
-        if epoch <= 5 or (iteration % 25) == 0:
+        if epoch <= 1 or (iteration % 25) == 0:
             Diters = opt.DitersAlt
         else:
             Diters = opt.Diters
@@ -355,6 +359,17 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
     if (epoch % opt.saveStateIter) == 0:
 #         for saving and loading see:
 #         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
+        
+        enc = enc.cpu()
+        dec = dec.cpu()
+        encD = encD.cpu()
+        decD = decD.cpu()
+        
+        optEnc.state = set_gpu_recursive(optEnc.state, -1)
+        optDec.state = set_gpu_recursive(optDec.state, -1)
+        optEncD.state = set_gpu_recursive(optEncD.state, -1)
+        optDecD.state = set_gpu_recursive(optDecD.state, -1)
+        
         torch.save(enc.state_dict(), './{0}/enc.pth'.format(opt.save_dir))
         torch.save(dec.state_dict(), './{0}/dec.pth'.format(opt.save_dir))
         torch.save(encD.state_dict(), './{0}/encD.pth'.format(opt.save_dir))
@@ -364,6 +379,18 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
         torch.save(optDec.state_dict(), './{0}/optDec.pth'.format(opt.save_dir))
         torch.save(optEncD.state_dict(), './{0}/optEncD.pth'.format(opt.save_dir))
         torch.save(optDecD.state_dict(), './{0}/optDecD.pth'.format(opt.save_dir))
+        
+        enc.cuda(gpu_id)
+        dec.cuda(gpu_id)
+        encD.cuda(gpu_id)
+        decD.cuda(gpu_id)
+        
+        optEnc.state = set_gpu_recursive(optEnc.state, gpu_id)
+        optDec.state = set_gpu_recursive(optDec.state, gpu_id)
+        optEncD.state = set_gpu_recursive(optEncD.state, gpu_id)
+        optDecD.state = set_gpu_recursive(optDecD.state, gpu_id)
+        
+        
         
         pickle.dump(zAll, open('./{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
         pickle.dump(logger, open('./{0}/logger.pkl'.format(opt.save_dir), 'wb'))
