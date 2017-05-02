@@ -48,6 +48,7 @@ parser.add_argument('--saveStateIter', type=int, default=10, help='number of ite
 parser.add_argument('--imsize', type=int, default=128, help='pixel size of images used')   
 parser.add_argument('--imdir', default='/root/images/release_4_1_17_2D', help='location of images')
 parser.add_argument('--latentDistribution', default='gaussian', help='Distribution of latent space, can be {gaussian, uniform}')
+parser.add_argument('--ndat', type=int, default=-1, help='Number of data points to use')
 
 opt = parser.parse_args()
 print(opt)
@@ -97,6 +98,18 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)    
     
+def set_gpu_recursive(var, gpu_id):
+    for key in var:
+        if isinstance(var[key], dict):
+            var[key] = set_gpu_recursive(var[key], gpu_id)
+        else:
+            try:
+                var[key] = var[key].cuda(gpu_id)
+            except:
+                pass
+    return var
+                
+    
 enc = waaegan.Enc(opt.nlatentdim, opt.imsize, opt.gpu_ids)
 dec = waaegan.Dec(opt.nlatentdim, opt.imsize, opt.gpu_ids)
 encD = waaegan.EncD(opt.nlatentdim, opt.gpu_ids)
@@ -135,12 +148,22 @@ if os.path.exists('./{0}/enc.pth'.format(opt.save_dir)):
     optEncD.load_state_dict(torch.load('./{0}/optEncD.pth'.format(opt.save_dir)))
     optDecD.load_state_dict(torch.load('./{0}/optDecD.pth'.format(opt.save_dir)))
 
-    opt = pickle.load(open( '{0}/opt.pkl'.format(opt.save_dir), "rb" ))
+    # opt = pickle.load(open( '{0}/opt.pkl'.format(opt.save_dir), "rb" ))
     logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
 
     this_epoch = max(logger.log['epoch']) + 1
     iteration = max(logger.log['iter'])
 
+optEnc.state = set_gpu_recursive(optEnc.state, gpu_id)
+optDec.state = set_gpu_recursive(optDec.state, gpu_id)
+optEncD.state = set_gpu_recursive(optEncD.state, gpu_id)
+optDecD.state = set_gpu_recursive(optDecD.state, gpu_id)
+ 
+enc.cuda(gpu_id)
+dec.cuda(gpu_id)
+encD.cuda(gpu_id)
+decD.cuda(gpu_id)
+    
 criterion = nn.BCELoss()
 
 # optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.9))
@@ -148,8 +171,11 @@ criterion = nn.BCELoss()
 # optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.9))
 # optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.9))
 
-ndat = dp.get_n_train()
-ndat = 1000
+if opt.ndat == -1:
+    ndat = dp.get_n_train()
+else:
+    ndat = opt.ndat
+# ndat = 100
 
 
 one = torch.FloatTensor([1]).cuda(gpu_id)
@@ -230,8 +256,8 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
             errEncD_fake = encD(zFake)
             errEncD_fake.backward(mone, retain_variables=True)
             encDLoss = errEncD_real - errEncD_fake
-            optEncD.step()
             
+            optEncD.step()
             
             xHat = dec(zFake.detach())
             
@@ -321,8 +347,8 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
         
         zAll = torch.cat(zAll,0).cpu().numpy()
         
-        pickle.dump(zAll, open('./{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
-        pickle.dump(logger, open('./{0}/logger.pkl'.format(opt.save_dir), 'wb'))
+        pickle.dump(zAll, open('./{0}/embedding_tmp.pkl'.format(opt.save_dir), 'wb'))
+        pickle.dump(logger, open('./{0}/logger_tmp.pkl'.format(opt.save_dir), 'wb'))
 
     if (epoch % opt.saveStateIter) == 0:
 #         for saving and loading see:
@@ -337,7 +363,8 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
         torch.save(optEncD.state_dict(), './{0}/optEncD.pth'.format(opt.save_dir))
         torch.save(optDecD.state_dict(), './{0}/optDecD.pth'.format(opt.save_dir))
         
-        
+        pickle.dump(zAll, open('./{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
+        pickle.dump(logger, open('./{0}/logger.pkl'.format(opt.save_dir), 'wb'))
         pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
         
 #     optEnc.param_groups[0]['lr'] = learningRate*(0.999**epoch)
