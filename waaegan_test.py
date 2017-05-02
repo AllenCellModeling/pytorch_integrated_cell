@@ -270,7 +270,7 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
         minimaxDecDLoss = decD(xHat)
         minimaxDecDLoss.backward(one*opt.decDRatio, retain_variables=True)
         
-        zReal = Variable(torch.Tensor(batsize, nlatentdim).uniform_(-2, 2)).cuda(gpu_id)
+        zReal = Variable(torch.Tensor(batsize, nlatentdim).normal_()).cuda(gpu_id)
         xHat = dec(zReal.detach())
         
         minimaxDecDLoss2 = decD(xHat)
