@@ -22,8 +22,6 @@ import matplotlib.pyplot as plt
 from IPython import display
 import time
 
-import models.waaegan as waaegan
-
 import pdb
 
 parser = argparse.ArgumentParser()
@@ -37,11 +35,12 @@ parser.add_argument('--lrDec', type=float, default=0.0005, help='learning rate f
 parser.add_argument('--lrEncD', type=float, default=0.00005, help='learning rate for encD')
 parser.add_argument('--lrDecD', type=float, default=0.00005, help='learning rate for decD')
 parser.add_argument('--encDRatio', type=float, default=5E-3, help='scalar applied to the update gradient from encD')
-parser.add_argument('--decDRatio', type=float, default=5E-3, help='scalar applied to the update gradient from decD')
+parser.add_argument('--decDRatio', type=float, default=1E-4, help='scalar applied to the update gradient from decD')
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
 parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
 parser.add_argument('--clamp_upper', type=float, default=0.01, help='upper clamp for wasserstein gan')
+parser.add_argument('--model_name', default='waaegan', help='name of the model module')
 parser.add_argument('--save_dir', default='./waaegan/', help='save dir')
 parser.add_argument('--saveProgressIter', type=int, default=1, help='number of iterations between saving progress')
 parser.add_argument('--saveStateIter', type=int, default=10, help='number of iterations between saving progress')
@@ -52,6 +51,8 @@ parser.add_argument('--ndat', type=int, default=-1, help='Number of data points 
 
 opt = parser.parse_args()
 print(opt)
+
+waaegan = importlib.import_module("models." + opt.model_name)
 
 torch.manual_seed(opt.myseed)
 torch.cuda.manual_seed(opt.myseed)
@@ -215,18 +216,18 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
         for p in decD.parameters():
             p.requires_grad = True
 
-        # train the discriminator Diters times
-        
-        # if epoch == 6:
-        #     pdb.set_trace()
+        for p in enc.parameters():
+            p.requires_grad = False
+
+        for p in dec.parameters():
+            p.requires_grad = False
             
-        
+        # train the discriminator Diters times        
         if epoch <= 1 or (iteration % 25) == 0:
             Diters = opt.DitersAlt
         else:
             Diters = opt.Diters
         
-
         rand_inds_encD = np.random.permutation(ndat)
         niter = len(range(0, len(rand_inds_encD), opt.batch_size))
         inds_encD = (rand_inds_encD[i:i+opt.batch_size] for i in range(0, len(rand_inds_encD), opt.batch_size))
@@ -276,7 +277,17 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
             decDLoss = errDecD_real - errDecD_fake
             optDecD.step()
 
+        for p in enc.parameters():
+            p.requires_grad = True
+
+        for p in dec.parameters():
+            p.requires_grad = True  
             
+        for p in encD.parameters():
+            p.requires_grad = False
+            
+        for p in decD.parameters():
+            p.requires_grad = False
             
         optEnc.zero_grad()
         optDec.zero_grad()
@@ -287,25 +298,19 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
         
         zFake = enc(x)
         xHat = dec(zFake)
-        optEnc.step()
-        optEnc.step()
-        
-        optEnc.zero_grad()
-        optDec.zero_grad()
-    
         reconLoss = criterion(xHat, x)
         reconLoss.backward(retain_variables=True)
-        
-        for p in encD.parameters():
-            p.requires_grad = False
-            
-        for p in decD.parameters():
-            p.requires_grad = False
         
         minimaxEncDLoss = encD(zFake)
         minimaxEncDLoss.backward(one*opt.encDRatio, retain_variables=True)
 
         optEnc.step()
+        
+        # optDec.step()
+        # optDec.zero_grad()
+        
+        for p in enc.parameters():
+            p.requires_grad = False
         
         minimaxDecDLoss = decD(xHat)
         minimaxDecDLoss.backward(one*opt.decDRatio, retain_variables=True)
