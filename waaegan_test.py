@@ -52,7 +52,7 @@ parser.add_argument('--ndat', type=int, default=-1, help='Number of data points 
 opt = parser.parse_args()
 print(opt)
 
-waaegan = importlib.import_module("models." + opt.model_name)
+model = importlib.import_module("models." + opt.model_name)
 
 torch.manual_seed(opt.myseed)
 torch.cuda.manual_seed(opt.myseed)
@@ -113,10 +113,10 @@ def set_gpu_recursive(var, gpu_id):
     return var
                 
     
-enc = waaegan.Enc(opt.nlatentdim, opt.imsize, opt.gpu_ids)
-dec = waaegan.Dec(opt.nlatentdim, opt.imsize, opt.gpu_ids)
-encD = waaegan.EncD(opt.nlatentdim, opt.gpu_ids)
-decD = waaegan.DecD(1, opt.imsize, opt.gpu_ids)
+enc = model.Enc(opt.nlatentdim, opt.imsize, opt.gpu_ids)
+dec = model.Dec(opt.nlatentdim, opt.imsize, opt.gpu_ids)
+encD = model.EncD(opt.nlatentdim, opt.gpu_ids)
+decD = model.DecD(1, opt.imsize, opt.gpu_ids)
 
 enc.apply(weights_init)
 dec.apply(weights_init)
@@ -196,11 +196,9 @@ for epoch in range(this_epoch, opt.nepochs+1): # loop over the dataset multiple 
     
     zAll = list()
     
-    c = 0
     for i in inds:
         start = time.time()
         
-        c += 1
         iteration += 1
         
         batsize = len(i)
