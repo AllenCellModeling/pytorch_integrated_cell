@@ -14,7 +14,7 @@ class DataProvider(object):
     def __init__(self, image_parent, opts={}):
         self.data = {}
         
-        opts_default = {'rotate': False, 'hold_out': 1/20, 'out_size': -1, 'verbose': False, 'pattern': '*.png'}
+        opts_default = {'rotate': False, 'hold_out': 1/20, 'out_size': -1, 'verbose': False, 'pattern': '*.png', 'channelInds': [0,1,2]}
         
         # set default values if they are missing
         for key in opts_default.keys(): 
@@ -92,16 +92,26 @@ class DataProvider(object):
         
     def get_images(self, inds, train_or_test):
         dims = list(self.images[0].size())
+        dims[0] = len(self.opts['channelInds'])
+        
         dims.insert(0, len(inds))
         
         images = torch.zeros(tuple(dims))
         
         c = 0
         for i in inds:
-            images[c] = self.images[self.data[train_or_test]['inds'][i]].clone()
+            image = self.images[self.data[train_or_test]['inds'][i]]
+            images[c] = image.index_select(0, torch.LongTensor(self.opts['channelInds'])).clone()
             c += 1
         
         return images
+    
+    def get_rand_images(self, batsize, train_or_test):
+        ndat = self.data[train_or_test]['inds']
+        
+        inds = np.random.choice(ndat, batsize)
+        
+        return self.get_images(inds, train_or_test)
     
     def get_labels(self, inds, train_or_test, index_or_onehot = 'index'):
         
