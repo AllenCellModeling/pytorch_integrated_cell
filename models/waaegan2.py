@@ -6,14 +6,14 @@ ksize = 4
 dstep = 2
 
 class Enc(nn.Module):
-    def __init__(self, nlatentdim, insize, gpu_ids):
+    def __init__(self, nlatentdim, insize, nch, gpu_ids):
         super(Enc, self).__init__()
         
         self.gpu_ids = gpu_ids
         self.fcsize = (insize/64) * 2
         
         self.main = nn.Sequential(
-            nn.Conv2d(3, 64, ksize, dstep, 1, bias=False),
+            nn.Conv2d(nch, 64, ksize, dstep, 1, bias=False),
             nn.BatchNorm2d(64),
         
             nn.ELU(),
@@ -51,7 +51,7 @@ class Enc(nn.Module):
         return x
     
 class Dec(nn.Module):
-    def __init__(self, nlatentdim, insize, gpu_ids):
+    def __init__(self, nlatentdim, insize, nch, gpu_ids):
         super(Dec, self).__init__()
         
         self.gpu_ids = gpu_ids
@@ -78,7 +78,7 @@ class Dec(nn.Module):
             nn.BatchNorm2d(64),
         
             nn.ELU(),
-            nn.ConvTranspose2d(64, 3, ksize, dstep, 1, bias=False),
+            nn.ConvTranspose2d(64, nch, ksize, dstep, 1, bias=False),
             # self.bn5 = nn.BatchNorm2d(3)
             nn.Sigmoid()             
         )
@@ -131,14 +131,14 @@ class EncD(nn.Module):
         return x        
 
 class DecD(nn.Module):
-    def __init__(self, nout, insize, gpu_ids):
+    def __init__(self, nout, insize, nch, gpu_ids):
         super(DecD, self).__init__()
         
         self.gpu_ids = gpu_ids
         self.fcsize = int((insize/64) * 2)
         
         self.main = nn.Sequential(
-            nn.Conv2d(3, 64, ksize, dstep, 1, bias=False),
+            nn.Conv2d(nch, 64, ksize, dstep, 1, bias=False),
             nn.BatchNorm2d(64),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(64, 128, ksize, dstep, 1, bias=False),
