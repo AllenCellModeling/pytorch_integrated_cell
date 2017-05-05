@@ -15,7 +15,7 @@ def set_gpu_recursive(var, gpu_id):
     return var  
 
 def sampleUniform (batsize, nlatentdim): 
-    return torch.Tensor(opt.batch_size, nlatentdim).uniform_(-1, 1)
+    return torch.Tensor(batsize, nlatentdim).uniform_(-1, 1)
 
 def sampleGaussian (batsize, nlatentdim): 
-    return torch.Tensor(opt.batch_size, nlatentdim).normal_()
+    return torch.Tensor(batsize, nlatentdim).normal_()
