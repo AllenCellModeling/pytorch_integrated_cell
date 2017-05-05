@@ -91,11 +91,21 @@ else:
 
         
 def tensor2img(img):
-    img = img.numpy()
+    
+    imresize = list(img.size())
+    imresize[1] = 3
+    
+    img_out = torch.zeros(tuple(imresize))
+    
+    img_tmp = np.zeros(imresize)
+    img_tmp[:, opt.channelInds] = img.numpy()
+    img = img_tmp
+    
     if img.ndim == 3:
         img = np.expand_dims(img, 0)
     img = np.transpose(img, [0,2,3,1])
     img = np.concatenate(img[:], 1)
+    
     return img
 
 
@@ -183,14 +193,18 @@ def saveState(models, optimizers, logger, zAll, opt):
     pickle.dump(logger, open('./{0}/logger.pkl'.format(opt.save_dir), 'wb'))
     pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
         
-
+opt.channelInds = [0,2]
+dp.opts['channelInds'] = opt.channelInds
+opt.nch = len(opt.channelInds)
+        
 models, optimizers, criterions, logger, opt = train_module.load(model_provider, opt)
 
 start_iter = len(logger.log['iter'])
 
+
 zAll = list()
 for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepochs):
-    epoch = math.ceil(this_iter/(opt.ndat/opt.batch_size))
+    epoch = this_iter/(opt.ndat/opt.batch_size)
     
     start = time.time()
     
@@ -200,8 +214,6 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
     
     stop = time.time()
     deltaT = stop-start
-    
-    
     
     
     logger.add((epoch, this_iter) + errors +(deltaT,))
