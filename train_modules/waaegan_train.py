@@ -23,10 +23,10 @@ def weights_init(m):
 def load(model_provider, opt):
     model = importlib.import_module("models." + opt.model_name)
  
-    enc = model_provider.Enc(opt.nlatentdim, opt.imsize, opt.gpu_ids)
-    dec = model_provider.Dec(opt.nlatentdim, opt.imsize, opt.gpu_ids)
+    enc = model_provider.Enc(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids)
+    dec = model_provider.Dec(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids)
     encD = model_provider.EncD(opt.nlatentdim, opt.gpu_ids)
-    decD = model_provider.DecD(1, opt.imsize, opt.gpu_ids)
+    decD = model_provider.DecD(1, opt.imsize, opt.nch, opt.gpu_ids)
 
     enc.apply(weights_init)
     dec.apply(weights_init)
@@ -90,9 +90,11 @@ def load(model_provider, opt):
     criterions = ([nn.BCELoss()])
 
     if opt.latentDistribution == 'uniform':
-        def latentSample (batsize, nlatentdim): return torch.Tensor(opt.batch_size, nlatentdim).uniform_(-1, 1)
+        from model_utils import sampleUniform as latentSample
+        
     elif opt.latentDistribution == 'gaussian':
-        def latentSample (batsize, nlatentdim): return torch.Tensor(opt.batch_size, nlatentdim).normal_()
+        from model_utils import sampleGaussian as latentSample
+        
 
     opt.latentSample = latentSample   
     
