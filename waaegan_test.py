@@ -48,6 +48,7 @@ parser.add_argument('--imsize', type=int, default=128, help='pixel size of image
 parser.add_argument('--imdir', default='/root/data/release_4_1_17/release_v2/aligned/2D', help='location of images')
 parser.add_argument('--latentDistribution', default='gaussian', help='Distribution of latent space, can be {gaussian, uniform}')
 parser.add_argument('--ndat', type=int, default=-1, help='Number of data points to use')
+parser.add_argument('--channelInds', nargs='+', type=int, default=[0,1,2], help='image channels used in training')
 
 opt = parser.parse_args()
 print(opt)
@@ -77,6 +78,8 @@ else:
     dp = DP.DataProvider(opt.imdir, opts)
     torch.save(dp, data_path)
 
+dp.opts['channelInds'] = opt.channelInds
+    
 if opt.latentDistribution == 'uniform':
     def latentSample (batsize, nlatentdim): return torch.Tensor(batsize, nlatentdim).uniform_(-1, 1)
 elif opt.latentDistribution == 'gaussian':
@@ -113,10 +116,10 @@ def set_gpu_recursive(var, gpu_id):
     return var
                 
     
-enc = model.Enc(opt.nlatentdim, opt.imsize, opt.gpu_ids)
-dec = model.Dec(opt.nlatentdim, opt.imsize, opt.gpu_ids)
+enc = model.Enc(opt.nlatentdim, opt.imsize, 3, opt.gpu_ids)
+dec = model.Dec(opt.nlatentdim, opt.imsize, 3, opt.gpu_ids)
 encD = model.EncD(opt.nlatentdim, opt.gpu_ids)
-decD = model.DecD(1, opt.imsize, opt.gpu_ids)
+decD = model.DecD(1, opt.imsize, 3, opt.gpu_ids)
 
 enc.apply(weights_init)
 dec.apply(weights_init)
