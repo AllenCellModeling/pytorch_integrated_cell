@@ -54,6 +54,7 @@ parser.add_argument('--imdir', default='/root/data/release_4_1_17/release_v2/ali
 parser.add_argument('--latentDistribution', default='gaussian', help='Distribution of latent space, can be {gaussian, uniform}')
 parser.add_argument('--ndat', type=int, default=-1, help='Number of data points to use')
 
+parser.add_argument('--optimizer', default='adam', help='type of optimizer, can be {adam, RMSprop}')
 parser.add_argument('--train_module', default='waaegan_train', help='training module')
 opt = parser.parse_args()
 print(opt)
@@ -61,15 +62,17 @@ print(opt)
 model_provider = importlib.import_module("models." + opt.model_name)
 train_module = importlib.import_module("train_modules." + opt.train_module)
 
-torch.manual_seed(opt.myseed)
-torch.cuda.manual_seed(opt.myseed)
 
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
 
-DP = importlib.reload(DP)
+pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
+torch.manual_seed(opt.myseed)
+torch.cuda.manual_seed(opt.myseed)
 np.random.seed(opt.myseed)
+
+DP = importlib.reload(DP)
 
 opts = {}
 opts['verbose'] = True
@@ -191,7 +194,7 @@ def saveState(models, optimizers, logger, zAll, opt):
 
     pickle.dump(zAll, open('./{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
     pickle.dump(logger, open('./{0}/logger.pkl'.format(opt.save_dir), 'wb'))
-    pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
+    
         
 opt.channelInds = [0,2]
 dp.opts['channelInds'] = opt.channelInds
@@ -203,8 +206,10 @@ start_iter = len(logger.log['iter'])
 
 
 zAll = list()
+
 for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepochs):
-    epoch = this_iter/(opt.ndat/opt.batch_size)
+    epoch = np.floor(this_iter/(opt.ndat/opt.batch_size))
+    epoch_next = np.floor((this_iter+1)/(opt.ndat/opt.batch_size))
     
     start = time.time()
     
@@ -218,7 +223,7 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
     
     logger.add((epoch, this_iter) + errors +(deltaT,))
     
-    if (epoch % opt.saveProgressIter) == 0 or (this_iter % opt.saveStateIter) == 0:
+    if epoch != epoch_next and ((epoch % opt.saveProgressIter) == 0 or (this_iter % opt.saveStateIter) == 0):
         zAll = torch.cat(zAll,0).cpu().numpy()
         
         if (epoch % opt.saveProgressIter) == 0:
@@ -229,6 +234,7 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
             
         zAll = list()
           
+
 print('Finished Training')
 
 
