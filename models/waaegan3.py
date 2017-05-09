@@ -99,7 +99,7 @@ class Dec(nn.Module):
         x = self.fc(x)
         x = x.view(x.size()[0], 1024, self.fcsize, self.fcsize)
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
- 
+
         return x    
     
 class EncD(nn.Module):
@@ -123,8 +123,7 @@ class EncD(nn.Module):
             nn.BatchNorm1d(512),
             nn.LeakyReLU(0.2, inplace=True),
         
-            nn.Linear(512, 1),
-            nn.Sigmoid()
+            nn.Linear(512, 1)
         )
 #         self.bn3 = nn.BatchNorm1d(1)        
         # self.nl3 = nn.Sigmoid()         
@@ -135,8 +134,7 @@ class EncD(nn.Module):
         gpu_ids = self.gpu_ids
             
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
-        # x.view(1)
-        # x = x.mean(0).view(1)
+        x = x.mean(0).view(1)
         
         return x        
 
@@ -149,7 +147,7 @@ class DecD(nn.Module):
         
         self.main = nn.Sequential(
             nn.Conv2d(nch, 64, ksize, dstep, 1, bias=False),
-            # nn.BatchNorm2d(64),
+            nn.BatchNorm2d(64),
             
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(64, 128, ksize, dstep, 1, bias=False),
@@ -175,18 +173,15 @@ class DecD(nn.Module):
         )
         
         self.fc = nn.Linear(512*int(self.fcsize**2), nout)
-        self.nlEnd = nn.Sigmoid()
     def forward(self, x):
         # gpu_ids = None
         # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
         gpu_ids = self.gpu_ids
         
-        # pdb.set_trace()
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
         x = x.view(x.size()[0], 512*int(self.fcsize**2))
         x = self.fc(x)
-        x = self.nlEnd(x)
-
-        return x
+        output = x.mean(0)
+        return output.view(1)
     
 

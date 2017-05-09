@@ -10,7 +10,7 @@ class Enc(nn.Module):
         super(Enc, self).__init__()
         
         self.gpu_ids = gpu_ids
-        self.fcsize = insize/128
+        self.fcsize = (insize/64) * 2
         
         self.main = nn.Sequential(
             nn.Conv2d(nch, 64, ksize, dstep, 1, bias=False),
@@ -30,10 +30,6 @@ class Enc(nn.Module):
             
             nn.ELU(),
             nn.Conv2d(512, 1024, ksize, dstep, 1, bias=False),
-            nn.BatchNorm2d(1024),
-            
-            nn.ELU(),
-            nn.Conv2d(1024, 1024, ksize, dstep, 0, bias=False),
             nn.BatchNorm2d(1024),
         
             nn.ELU()
@@ -59,16 +55,12 @@ class Dec(nn.Module):
         super(Dec, self).__init__()
         
         self.gpu_ids = gpu_ids
-        self.fcsize = int(insize/128)
+        self.fcsize = int((insize/64) * 2)
         
         self.fc = nn.Linear(nlatentdim, 1024*int(self.fcsize**2))
         self.main = nn.Sequential(
             nn.BatchNorm2d(1024),
         
-            nn.ELU(),
-            nn.ConvTranspose2d(1024, 1024, ksize, dstep, 0, bias=False),
-            nn.BatchNorm2d(1024),
-            
             nn.ELU(),
             nn.ConvTranspose2d(1024, 512, ksize, dstep, 1, bias=False),
             nn.BatchNorm2d(512),
@@ -123,8 +115,7 @@ class EncD(nn.Module):
             nn.BatchNorm1d(512),
             nn.LeakyReLU(0.2, inplace=True),
         
-            nn.Linear(512, 1),
-            nn.Sigmoid()
+            nn.Linear(512, 1)
         )
 #         self.bn3 = nn.BatchNorm1d(1)        
         # self.nl3 = nn.Sigmoid()         
@@ -135,8 +126,7 @@ class EncD(nn.Module):
         gpu_ids = self.gpu_ids
             
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
-        # x.view(1)
-        # x = x.mean(0).view(1)
+        x = x.mean(0).view(1)
         
         return x        
 
@@ -145,48 +135,36 @@ class DecD(nn.Module):
         super(DecD, self).__init__()
         
         self.gpu_ids = gpu_ids
-        self.fcsize = insize/128
+        self.fcsize = int((insize/64) * 2)
         
         self.main = nn.Sequential(
             nn.Conv2d(nch, 64, ksize, dstep, 1, bias=False),
-            # nn.BatchNorm2d(64),
-            
+            nn.BatchNorm2d(64),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(64, 128, ksize, dstep, 1, bias=False),
             nn.BatchNorm2d(128),
-            
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(128, 256, ksize, dstep, 1, bias=False),
             nn.BatchNorm2d(256),
-            
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(256, 512, ksize, dstep, 1, bias=False),
             nn.BatchNorm2d(512),
-            
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(512, 512, ksize, dstep, 1, bias=False),
-            nn.BatchNorm2d(512),
-            
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(512, 512, ksize, dstep, 0, bias=False),
-            nn.BatchNorm2d(512),
-            
+            nn.Conv2d(512, 1024, ksize, dstep, 1, bias=False),
+            nn.BatchNorm2d(1024),
             nn.LeakyReLU(0.2, inplace=True)
         )
         
-        self.fc = nn.Linear(512*int(self.fcsize**2), nout)
-        self.nlEnd = nn.Sigmoid()
+        self.fc = nn.Linear(1024*int(self.fcsize**2), nout)
     def forward(self, x):
         # gpu_ids = None
         # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
         gpu_ids = self.gpu_ids
         
-        # pdb.set_trace()
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
-        x = x.view(x.size()[0], 512*int(self.fcsize**2))
+        x = x.view(x.size()[0], 1024*int(self.fcsize**2))
         x = self.fc(x)
-        x = self.nlEnd(x)
-
-        return x
+        output = x.mean(0)
+        return output.view(1)
     
 
