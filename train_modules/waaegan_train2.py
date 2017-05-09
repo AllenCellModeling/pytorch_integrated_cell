@@ -10,96 +10,96 @@ import numpy as np
 import pdb
 from model_utils import set_gpu_recursive
 
-def weights_init(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        m.weight.data.normal_(0.0, 0.02)
-    elif classname.find('BatchNorm') != -1:
-        m.weight.data.normal_(1.0, 0.02)
-        m.bias.data.fill_(0)    
+# def weights_init(m):
+#     classname = m.__class__.__name__
+#     if classname.find('Conv') != -1:
+#         m.weight.data.normal_(0.0, 0.02)
+#     elif classname.find('BatchNorm') != -1:
+#         m.weight.data.normal_(1.0, 0.02)
+#         m.bias.data.fill_(0)    
 
       
         
-def load(model_provider, opt):
-    model = importlib.import_module("models." + opt.model_name)
+# def load(model_provider, opt):
+#     model = importlib.import_module("models." + opt.model_name)
  
-    enc = model_provider.Enc(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids)
-    dec = model_provider.Dec(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids)
-    encD = model_provider.EncD(opt.nlatentdim, opt.gpu_ids)
-    decD = model_provider.DecD(1, opt.imsize, opt.nch, opt.gpu_ids)
+#     enc = model_provider.Enc(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids)
+#     dec = model_provider.Dec(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids)
+#     encD = model_provider.EncD(opt.nlatentdim, opt.gpu_ids)
+#     decD = model_provider.DecD(1, opt.imsize, opt.nch, opt.gpu_ids)
 
-    enc.apply(weights_init)
-    dec.apply(weights_init)
-    encD.apply(weights_init)
-    decD.apply(weights_init)
+#     enc.apply(weights_init)
+#     dec.apply(weights_init)
+#     encD.apply(weights_init)
+#     decD.apply(weights_init)
 
-    gpu_id = opt.gpu_ids[0]
-    nlatentdim = opt.nlatentdim
+#     gpu_id = opt.gpu_ids[0]
+#     nlatentdim = opt.nlatentdim
 
-    enc.cuda(gpu_id)
-    dec.cuda(gpu_id)
-    encD.cuda(gpu_id)
-    decD.cuda(gpu_id)
+#     enc.cuda(gpu_id)
+#     dec.cuda(gpu_id)
+#     encD.cuda(gpu_id)
+#     decD.cuda(gpu_id)
 
-    if opt.optimizer == 'RMSprop':
-        optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
-        optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
-        optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
-        optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
-    elif opt.optimizer == 'adam':
-        optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.9))
-        optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, betas=(0.5, 0.9))
-        optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.9))
-        optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.9))
-
-    
-    logger = SimpleLogger.SimpleLogger(('epoch', 'iter', 'reconLoss', 'minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time'), '[%d][%d] reconLoss: %.6f mmEncD: %.6f encD: %.6f mmDecD: %.6f decD: %.6f time: %.2f')
-
-    this_epoch = 1
-    iteration = 0
-    if os.path.exists('./{0}/enc.pth'.format(opt.save_dir)):
-
-        enc.load_state_dict(torch.load('./{0}/enc.pth'.format(opt.save_dir)))
-        dec.load_state_dict(torch.load('./{0}/dec.pth'.format(opt.save_dir)))
-        encD.load_state_dict(torch.load('./{0}/encD.pth'.format(opt.save_dir)))
-        decD.load_state_dict(torch.load('./{0}/decD.pth'.format(opt.save_dir)))
-
-        optEnc.load_state_dict(torch.load('./{0}/optEnc.pth'.format(opt.save_dir)))
-        optDec.load_state_dict(torch.load('./{0}/optDec.pth'.format(opt.save_dir)))
-        optEncD.load_state_dict(torch.load('./{0}/optEncD.pth'.format(opt.save_dir)))
-        optDecD.load_state_dict(torch.load('./{0}/optDecD.pth'.format(opt.save_dir)))
-
-        optEnc.state = set_gpu_recursive(optEnc.state, gpu_id)
-        optDec.state = set_gpu_recursive(optDec.state, gpu_id)
-        optEncD.state = set_gpu_recursive(optEncD.state, gpu_id)
-        optDecD.state = set_gpu_recursive(optDecD.state, gpu_id)
-
-        enc.cuda(gpu_id)
-        dec.cuda(gpu_id)
-        encD.cuda(gpu_id)
-        decD.cuda(gpu_id)                           
-
-        # opt = pickle.load(open( '{0}/opt.pkl'.format(opt.save_dir), "rb" ))
-        logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
-
-        this_epoch = max(logger.log['epoch']) + 1
-        iteration = max(logger.log['iter'])
+#     if opt.optimizer == 'RMSprop':
+#         optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
+#         optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
+#         optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
+#         optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
+#     elif opt.optimizer == 'adam':
+#         optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.9))
+#         optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, betas=(0.5, 0.9))
+#         optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.9))
+#         optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.9))
 
     
-    models = (enc, dec, encD, decD)
-    optimizers = (optEnc, optDec, optEncD, optDecD)
-    criterions = ([nn.BCELoss()])
+#     logger = SimpleLogger.SimpleLogger(('epoch', 'iter', 'reconLoss', 'minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time'), '[%d][%d] reconLoss: %.6f mmEncD: %.6f encD: %.6f mmDecD: %.6f decD: %.6f time: %.2f')
 
-    if opt.latentDistribution == 'uniform':
-        from model_utils import sampleUniform as latentSample
+#     this_epoch = 1
+#     iteration = 0
+#     if os.path.exists('./{0}/enc.pth'.format(opt.save_dir)):
+
+#         enc.load_state_dict(torch.load('./{0}/enc.pth'.format(opt.save_dir)))
+#         dec.load_state_dict(torch.load('./{0}/dec.pth'.format(opt.save_dir)))
+#         encD.load_state_dict(torch.load('./{0}/encD.pth'.format(opt.save_dir)))
+#         decD.load_state_dict(torch.load('./{0}/decD.pth'.format(opt.save_dir)))
+
+#         optEnc.load_state_dict(torch.load('./{0}/optEnc.pth'.format(opt.save_dir)))
+#         optDec.load_state_dict(torch.load('./{0}/optDec.pth'.format(opt.save_dir)))
+#         optEncD.load_state_dict(torch.load('./{0}/optEncD.pth'.format(opt.save_dir)))
+#         optDecD.load_state_dict(torch.load('./{0}/optDecD.pth'.format(opt.save_dir)))
+
+#         optEnc.state = set_gpu_recursive(optEnc.state, gpu_id)
+#         optDec.state = set_gpu_recursive(optDec.state, gpu_id)
+#         optEncD.state = set_gpu_recursive(optEncD.state, gpu_id)
+#         optDecD.state = set_gpu_recursive(optDecD.state, gpu_id)
+
+#         enc.cuda(gpu_id)
+#         dec.cuda(gpu_id)
+#         encD.cuda(gpu_id)
+#         decD.cuda(gpu_id)                           
+
+#         # opt = pickle.load(open( '{0}/opt.pkl'.format(opt.save_dir), "rb" ))
+#         logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
+
+#         this_epoch = max(logger.log['epoch']) + 1
+#         iteration = max(logger.log['iter'])
+
+    
+#     models = (enc, dec, encD, decD)
+#     optimizers = (optEnc, optDec, optEncD, optDecD)
+#     criterions = ([nn.BCELoss()])
+
+#     if opt.latentDistribution == 'uniform':
+#         from model_utils import sampleUniform as latentSample
         
-    elif opt.latentDistribution == 'gaussian':
-        from model_utils import sampleGaussian as latentSample
+#     elif opt.latentDistribution == 'gaussian':
+#         from model_utils import sampleGaussian as latentSample
         
 
-    opt.latentSample = latentSample   
+#     opt.latentSample = latentSample   
     
-    return models, optimizers, criterions, logger, opt
+#     return models, optimizers, criterions, logger, opt
 
 def iteration(models, optimizers, criterions, dataProvider, iteration, opt):
     gpu_id = opt.gpu_ids[0]
