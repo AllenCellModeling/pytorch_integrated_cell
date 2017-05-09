@@ -72,7 +72,7 @@ def iteration(models, optimizers, criterions, dataProvider, iteration, opt):
     errDecD_real.backward(retain_variables=True)
 
     yHatFake = decD(xHat)
-    errDecD_fake = criterion(yHatReal, yFake)
+    errDecD_fake = criterion(yHatFake, yFake)
     errDecD_fake.backward(retain_variables=True)
 
     decDLoss = errDecD_real + errDecD_fake
@@ -107,15 +107,20 @@ def iteration(models, optimizers, criterions, dataProvider, iteration, opt):
     (minimaxEncDLoss.mul(opt.encDRatio)).backward(retain_variables=True)
 
     optEnc.step()
-
     
     for p in enc.parameters():
         p.requires_grad = False
+    
+#     #this is optionsl
+#     optDec.step()
+#     optDec.zero_grad()
+#     xHat = dec(zFake.detach())
+    
+
 
     #update wrt decD(dec(enc(X)))
     yHatFake = decD(xHat)
     minimaxDecDLoss = criterion(yHatFake, yReal)
-    
     (minimaxDecDLoss.mul(opt.decDRatio)).backward(retain_variables=True)
     
     #update wrt decD(dec(Z))
