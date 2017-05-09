@@ -149,7 +149,7 @@ class DecD(nn.Module):
         
         self.main = nn.Sequential(
             nn.Conv2d(nch, 64, ksize, dstep, 1, bias=False),
-            nn.BatchNorm2d(64),
+            # nn.BatchNorm2d(64),
             
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(64, 128, ksize, dstep, 1, bias=False),
