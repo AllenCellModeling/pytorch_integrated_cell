@@ -11,36 +11,36 @@ class Enc(nn.Module):
         super(Enc, self).__init__()
         
         self.gpu_ids = gpu_ids
-        self.fcsize = insize/128
+        self.fcsize = insize/64
         
         self.main = nn.Sequential(
-            nn.Conv2d(nch, 64, ksize, dstep, 1, bias=False),
+            nn.Conv2d(nch, 64, ksize, dstep, 1),
             nn.BatchNorm2d(64),
         
-            nn.ELU(),
-            nn.Conv2d(64, 128, ksize, dstep, 1, bias=False),
+            nn.PReLU(),
+            nn.Conv2d(64, 128, ksize, dstep, 1),
             nn.BatchNorm2d(128),
         
-            nn.ELU(),
-            nn.Conv2d(128, 256, ksize, dstep, 1, bias=False),
+            nn.PReLU(),
+            nn.Conv2d(128, 256, ksize, dstep, 1),
             nn.BatchNorm2d(256),
         
-            nn.ELU(),
-            nn.Conv2d(256, 512, ksize, dstep, 1, bias=False),
+            nn.PReLU(),
+            nn.Conv2d(256, 512, ksize, dstep, 1),
             nn.BatchNorm2d(512),
             
-            nn.ELU(),
-            nn.Conv2d(512, 1024, ksize, dstep, 1, bias=False),
+            nn.PReLU(),
+            nn.Conv2d(512, 1024, ksize, dstep, 1),
             nn.BatchNorm2d(1024),
             
-            nn.ELU(),
-            nn.Conv2d(1024, 1024, ksize, dstep, 0, bias=False),
+            nn.PReLU(),
+            nn.Conv2d(1024, 1024, ksize, dstep, 1),
             nn.BatchNorm2d(1024),
         
-            nn.ELU()
+            nn.PReLU()
         )
         
-        self.fc = nn.Linear(1024*int(3**2), nlatentdim)
+        self.fc = nn.Linear(1024*int(self.fcsize**2), nlatentdim)
         self.bnEnd = nn.BatchNorm1d(nlatentdim)
         
     def forward(self, x):
@@ -50,7 +50,7 @@ class Enc(nn.Module):
             
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
         
-        x = x.view(x.size()[0], 1024*int(3**2))
+        x = x.view(x.size()[0], 1024*int(self.fcsize**2))
         x = self.bnEnd(self.fc(x))
     
         return x
@@ -60,36 +60,36 @@ class Dec(nn.Module):
         super(Dec, self).__init__()
         
         self.gpu_ids = gpu_ids
-        self.fcsize = int(insize/128)
+        self.fcsize = int(insize/64)
         
-        self.fc = nn.Linear(nlatentdim, 1024*int(3**2))
+        self.fc = nn.Linear(nlatentdim, 1024*int(self.fcsize**2))
         self.main = nn.Sequential(
-            nn.BatchNorm2d(1024),
+            # nn.BatchNorm2d(1024),
         
-            nn.ELU(),
-            nn.ConvTranspose2d(1024, 1024, ksize, dstep, 0, bias=False),
+            nn.PReLU(),
+            nn.ConvTranspose2d(1024, 1024, ksize, dstep, 1),
             nn.BatchNorm2d(1024),
             
-            nn.ELU(),
-            nn.ConvTranspose2d(1024, 512, ksize, dstep, 1, bias=False),
+            nn.PReLU(),
+            nn.ConvTranspose2d(1024, 512, ksize, dstep, 1),
             nn.BatchNorm2d(512),
             
-            nn.ELU(),
-            nn.ConvTranspose2d(512, 256, ksize, dstep, 1, bias=False),
+            nn.PReLU(),
+            nn.ConvTranspose2d(512, 256, ksize, dstep, 1),
             nn.BatchNorm2d(256),
         
-            nn.ELU(),
-            nn.ConvTranspose2d(256, 128, ksize, dstep, 1, bias=False),
+            nn.PReLU(),
+            nn.ConvTranspose2d(256, 128, ksize, dstep, 1),
             nn.BatchNorm2d(128),
         
-            nn.ELU(),
-            nn.ConvTranspose2d(128, 64, ksize, dstep, 1, bias=False),
+            nn.PReLU(),
+            nn.ConvTranspose2d(128, 64, ksize, dstep, 1),
             nn.BatchNorm2d(64),
         
-            nn.ELU(),
-            nn.ConvTranspose2d(64, nch, ksize, dstep, 1, bias=False),
+            nn.PReLU(),
+            nn.ConvTranspose2d(64, nch, ksize, dstep, 1),
             # self.bn5 = nn.BatchNorm2d(3)
-            nn.Tanh()             
+            nn.Sigmoid()             
         )
             
     def forward(self, x):
@@ -98,7 +98,7 @@ class Dec(nn.Module):
         gpu_ids = self.gpu_ids
         
         x = self.fc(x)
-        x = x.view(x.size()[0], 1024, 3, 3)
+        x = x.view(x.size()[0], 1024, self.fcsize, self.fcsize)
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
  
         return x    
@@ -148,38 +148,38 @@ class DecD(nn.Module):
         self.opt = init_opts(opt, opt_default)
         
         self.gpu_ids = gpu_ids
-        self.fcsize = insize/128
+        self.fcsize = insize/64
         
         self.noise = torch.zeros(0)
         
         self.main = nn.Sequential(
-            nn.Conv2d(nch, 64, ksize, dstep, 1, bias=False),
+            nn.Conv2d(nch, 64, ksize, dstep, 1),
             # nn.BatchNorm2d(64),
             
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(64, 128, ksize, dstep, 1, bias=False),
+            nn.Conv2d(64, 128, ksize, dstep, 1),
             nn.BatchNorm2d(128),
             
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(128, 256, ksize, dstep, 1, bias=False),
+            nn.Conv2d(128, 256, ksize, dstep, 1),
             nn.BatchNorm2d(256),
             
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(256, 512, ksize, dstep, 1, bias=False),
+            nn.Conv2d(256, 512, ksize, dstep, 1),
             nn.BatchNorm2d(512),
             
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(512, 512, ksize, dstep, 1, bias=False),
+            nn.Conv2d(512, 512, ksize, dstep, 1),
             nn.BatchNorm2d(512),
             
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(512, 512, ksize, dstep, 0, bias=False),
+            nn.Conv2d(512, 512, ksize, dstep, 1),
             nn.BatchNorm2d(512),
             
             nn.LeakyReLU(0.2, inplace=True)
         )
         
-        self.fc = nn.Linear(512*int(3**2), nout)
+        self.fc = nn.Linear(512*int(self.fcsize**2), nout)
 
         if nout == 1:
             self.nlEnd = nn.Sigmoid()
@@ -204,7 +204,7 @@ class DecD(nn.Module):
             x = x + noise
         
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
-        x = x.view(x.size()[0], 512*int(3**2))
+        x = x.view(x.size()[0], 512*int(self.fcsize**2))
         x = self.fc(x)
         x = self.nlEnd(x)
 
