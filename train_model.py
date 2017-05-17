@@ -54,6 +54,8 @@ parser.add_argument('--ndat', type=int, default=-1, help='Number of data points 
 
 parser.add_argument('--optimizer', default='adam', help='type of optimizer, can be {adam, RMSprop}')
 parser.add_argument('--train_module', default='waaegan_train', help='training module')
+
+parser.add_argument('--noise', type=float, default=0, help='Noise added to the decD')
 opt = parser.parse_args()
 print(opt)
 
@@ -69,6 +71,7 @@ if not os.path.exists(opt.save_dir):
 
 pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
+#previously i use an object with attributes, and now i use a dict... fix this
 opts = {}
 opts['verbose'] = True
 opts['pattern'] = '*.tif_flat.png'
