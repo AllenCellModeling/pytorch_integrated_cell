@@ -104,8 +104,8 @@ class DataProvider(object):
             images[c] = image.index_select(0, torch.LongTensor(self.opts['channelInds'])).clone()
             c += 1
         
-        images *= 2
-        images -= 1
+        # images *= 2
+        # images -= 1
         
         return images
     
