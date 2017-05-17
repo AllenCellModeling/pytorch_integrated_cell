@@ -9,7 +9,13 @@ import numpy as np
 import scipy.misc
 import pickle
 
-        
+def init_opts(opt, opt_default):
+    vars_default = vars(opt_default)
+    for var in vars_default:
+        if not hasattr(opt, var):
+            setattr(opt, var, getattr(opt_default, var))
+    return opt
+
 def tensor2img(img, opt):
     
     imresize = list(img.size())
@@ -17,8 +23,12 @@ def tensor2img(img, opt):
     
     img_out = torch.zeros(tuple(imresize))
     
+    img = img.numpy()
+    # img += 1
+    # img /= 2
+    
     img_tmp = np.zeros(imresize)
-    img_tmp[:, opt.channelInds] = img.numpy()
+    img_tmp[:, opt.channelInds] = img
     img = img_tmp
     
     if img.ndim == 3:
@@ -60,10 +70,10 @@ def weights_init(m):
 def load_model(model_provider, opt):
     model = importlib.import_module("models." + opt.model_name)
  
-    enc = model_provider.Enc(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids)
-    dec = model_provider.Dec(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids)
-    encD = model_provider.EncD(opt.nlatentdim, opt.gpu_ids)
-    decD = model_provider.DecD(1, opt.imsize, opt.nch, opt.gpu_ids)
+    enc = model_provider.Enc(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids, opt)
+    dec = model_provider.Dec(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids, opt)
+    encD = model_provider.EncD(opt.nlatentdim, opt.gpu_ids, opt)
+    decD = model_provider.DecD(1, opt.imsize, opt.nch, opt.gpu_ids, opt)
 
     enc.apply(weights_init)
     dec.apply(weights_init)
@@ -84,10 +94,10 @@ def load_model(model_provider, opt):
         optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
         optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
     elif opt.optimizer == 'adam':
-        optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.9))
-        optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, betas=(0.5, 0.9))
-        optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.9))
-        optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.9))
+        optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.999))
+        optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, betas=(0.5, 0.999))
+        optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.999))
+        optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.999))
     
     logger = SimpleLogger.SimpleLogger(('epoch', 'iter', 'reconLoss', 'minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time'), '[%d][%d] reconLoss: %.6f mmEncD: %.6f encD: %.6f mmDecD: %.6f decD: %.6f time: %.2f')
 
