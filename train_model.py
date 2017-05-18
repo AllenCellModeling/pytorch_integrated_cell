@@ -23,7 +23,7 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display
 import time
-from model_utils import set_gpu_recursive, load_model, save_state, save_progress
+from model_utils import set_gpu_recursive, load_model, save_state, save_progress, get_latent_embeddings
 
 import pdb
 
@@ -59,6 +59,8 @@ parser.add_argument('--noise', type=float, default=0, help='Noise added to the d
 opt = parser.parse_args()
 print(opt)
 
+opt.save_parent = opt.save_dir
+
 model_provider = importlib.import_module("models." + opt.model_name)
 train_module = importlib.import_module("train_modules." + opt.train_module)
 
@@ -85,14 +87,20 @@ else:
     torch.save(dp, data_path)
     
 if opt.ndat == -1:
-    opt.ndat = dp.get_n_train()    
-else:
-    dp.set_n_train(opt.ndat)
+    opt.ndat = dp.get_n_dat('train')    
+
+    
+opt.save_dir = opt.save_parent + os.sep + 'ref_model'
+if not os.path.exists(opt.save_dir):
+    os.makedirs(opt.save_dir)
 
 opt.channelInds = [0,2]
 dp.opts['channelInds'] = opt.channelInds
 opt.nch = len(opt.channelInds)
         
+opt.nClasses = 0
+opt.nRef = 0
+    
 models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
 
 start_iter = len(logger.log['iter'])
@@ -123,7 +131,71 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
             save_state(models, optimizers, logger, zAll, opt)
             
         zAll = list()
-          
+
+#######
+### DONE TRAINING REFERENCE MODEL
+#######
+
+
+embeddings_path = opt.save_dir + os.sep + 'embeddings.pkl'
+if os.path.exists(embeddings_path):
+    embeddings = torch.load(embeddings_path)
+else:
+    embeddings = get_latent_embeddings(models.enc, dp, opt)
+    torch.save(embeddings, embeddings_path)
+
+def get_ref(self, inds, train_or_test='train'):
+    inds = torch.LongTensor(inds)
+    return self.embeddings[train_or_test][inds]
+
+dp.embeddings = embeddings
+
+# do this thing to bind the get_ref method to the dataprovider object
+import types  
+dp.get_ref = types.MethodType(get_ref, dp)
+            
+opt.save_dir = opt.save_parent + os.sep + 'struct_model'
+if not os.path.exists(opt.save_dir):
+    os.makedirs(opt.save_dir)
+    
+opt.channelInds = [0,1, 2]
+dp.opts['channelInds'] = opt.channelInds
+opt.nch = len(opt.channelInds)
+        
+opt.nClasses = dp.get_n_classes()
+opt.nRef = opt.nlatentdim
+
+models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
+
+start_iter = len(logger.log['iter'])
+
+zAll = list()
+for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepochs):
+    epoch = np.floor(this_iter/(opt.ndat/opt.batch_size))
+    epoch_next = np.floor((this_iter+1)/(opt.ndat/opt.batch_size))
+    
+    start = time.time()
+    
+    errors, zfake = train_module.iteration(models, optimizers, criterions, dp, this_iter, opt)
+    
+    zAll.append(zfake)
+    
+    stop = time.time()
+    deltaT = stop-start
+    
+    logger.add((epoch, this_iter) + errors +(deltaT,))
+    
+    if epoch != epoch_next and ((epoch % opt.saveProgressIter) == 0 or (this_iter % opt.saveStateIter) == 0):
+        zAll = torch.cat(zAll,0).cpu().numpy()
+        
+        if (epoch % opt.saveProgressIter) == 0:
+            save_progress(models, dp, logger, zAll, epoch, opt)
+        
+        if (epoch % opt.saveStateIter) == 0:
+            save_state(models, optimizers, logger, zAll, opt)
+            
+        zAll = list()
+            
 print('Finished Training')
 
 
