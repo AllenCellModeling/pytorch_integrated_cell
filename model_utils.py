@@ -9,6 +9,8 @@ import numpy as np
 import scipy.misc
 import pickle
 
+import pdb
+
 def init_opts(opt, opt_default):
     vars_default = vars(opt_default)
     for var in vars_default:
@@ -66,14 +68,39 @@ def weights_init(m):
     elif classname.find('BatchNorm') != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)    
+        
+def get_latent_embeddings(enc, dp, opt):
+    enc.eval()
+    gpu_id = opt.gpu_ids[0]
+    
+    modes = ('test', 'train')
+    
+    embedding = dict()
+    
+    for mode in modes:
+        ndat = dp.get_n_dat(mode)
+        embeddings = torch.zeros(ndat, opt.nlatentdim)
+        
+        inds = list(range(0,ndat))
+        data_iter = [inds[i:i+opt.batch_size] for i in range(0, len(inds), opt.batch_size)]
 
+        for i in range(0, len(data_iter)):
+            x = Variable(dp.get_images(data_iter[i], mode).cuda(gpu_id))
+            zAll = enc(x)
+            
+            embeddings.index_copy_(0, torch.LongTensor(data_iter[i]), zAll[-1].data[:].cpu())
+        
+        embedding[mode] = embeddings
+        
+    return embedding
+        
 def load_model(model_provider, opt):
     model = importlib.import_module("models." + opt.model_name)
  
-    enc = model_provider.Enc(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids, opt)
-    dec = model_provider.Dec(opt.nlatentdim, opt.imsize, opt.nch, opt.gpu_ids, opt)
+    enc = model_provider.Enc(opt.nlatentdim, opt.nClasses, opt.nRef, opt.imsize, opt.nch, opt.gpu_ids, opt)
+    dec = model_provider.Dec(opt.nlatentdim, opt.nClasses, opt.nRef, opt.imsize, opt.nch, opt.gpu_ids, opt)
     encD = model_provider.EncD(opt.nlatentdim, opt.gpu_ids, opt)
-    decD = model_provider.DecD(1, opt.imsize, opt.nch, opt.gpu_ids, opt)
+    decD = model_provider.DecD(opt.nClasses+1, opt.imsize, opt.nch, opt.gpu_ids, opt)
 
     enc.apply(weights_init)
     dec.apply(weights_init)
@@ -99,7 +126,22 @@ def load_model(model_provider, opt):
         optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.999))
         optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.999))
     
-    logger = SimpleLogger.SimpleLogger(('epoch', 'iter', 'reconLoss', 'minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time'), '[%d][%d] reconLoss: %.6f mmEncD: %.6f encD: %.6f mmDecD: %.6f decD: %.6f time: %.2f')
+    
+    columns = ('epoch', 'iter', 'reconLoss',)
+    print_str = '[%d][%d] reconLoss: %.6f'
+    
+    if opt.nClasses > 0:
+        columns += ('classLoss',)
+        print_str += ' classLoss: %.6f'
+        
+    if opt.nRef > 0:
+        columns += ('refLoss',)
+        print_str += ' refLoss: %.6f'
+    
+    columns += ('minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time')
+    print_str += ' mmEncD: %.6f encD: %.6f mmDecD: %.6f decD: %.6f time: %.2f'
+    
+    logger = SimpleLogger.SimpleLogger(columns,  print_str)
 
     this_epoch = 1
     iteration = 0
@@ -131,11 +173,29 @@ def load_model(model_provider, opt):
         this_epoch = max(logger.log['epoch']) + 1
         iteration = max(logger.log['iter'])
 
-    
-    models = (enc, dec, encD, decD)
-    optimizers = (optEnc, optDec, optEncD, optDecD)
-    criterions = ([nn.BCELoss()])
+    def models(): 1
+    models.enc = enc
+    models.dec = dec
+    models.encD = encD
+    models.decD = decD
 
+    def optimizers(): 1
+    optimizers.enc = optEnc
+    optimizers.dec = optDec
+    optimizers.encD = optEncD
+    optimizers.decD = optDecD
+    
+    def criterions(): 1
+    criterions.recon = nn.BCELoss()
+    criterions.zRef = nn.MSELoss()
+    criterions.zClass = nn.NLLLoss()
+    criterions.encD = nn.BCELoss()
+    
+    if opt.nClasses > 0:
+        criterions.decD = nn.NLLLoss()
+    else:
+        criterions.decD = nn.BCELoss()
+ 
     if opt.latentDistribution == 'uniform':
         from model_utils import sampleUniform as latentSample
         
@@ -149,8 +209,8 @@ def load_model(model_provider, opt):
 
 
 def save_progress(models, dataProvider, logger, zAll, epoch, opt):
-    enc = models[0]
-    dec = models[1]
+    enc = models.enc
+    dec = models.dec
     
     gpu_id = opt.gpu_ids[0]
     
@@ -185,15 +245,15 @@ def save_progress(models, dataProvider, logger, zAll, epoch, opt):
 def save_state(models, optimizers, logger, zAll, opt):
 #         for saving and loading see:
 #         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
-    enc = models[0]    
-    dec = models[1]
-    encD = models[2]
-    decD = models[3]
+    enc = models.enc    
+    dec = models.dec
+    encD = models.encD
+    decD = models.decD
     
-    optEnc = optimizers[0]
-    optDec = optimizers[1]
-    optEncD = optimizers[2]
-    optDecD = optimizers[3]
+    optEnc = optimizers.enc
+    optDec = optimizers.dec
+    optEncD = optimizers.encD
+    optDecD = optimizers.decD
     
     gpu_id = opt.gpu_ids[0]
     
