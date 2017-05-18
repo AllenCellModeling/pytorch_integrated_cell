@@ -81,11 +81,15 @@ class DataProvider(object):
         images = torch.FloatTensor(images)
         self.images = images
         
-    def get_n_train(self):
-        return len(self.data['train']['inds'])
+        
+    def get_n_dat(self, train_or_test = 'train'):
+        return len(self.data[train_or_test]['inds'])
     
-    def get_n_test(self):
-        return len(self.data['test']['inds'])
+#     def get_n_train(self):
+#         return len(self.data['train']['inds'])
+    
+#     def get_n_test(self):
+#         return len(self.data['test']['inds'])
     
     def get_n_classes(self):
         return self.labels_onehot.shape[1]
@@ -109,14 +113,7 @@ class DataProvider(object):
         
         return images
     
-    def get_rand_images(self, batsize, train_or_test):
-        ndat = self.data[train_or_test]['inds']
-        
-        inds = np.random.choice(ndat, batsize)
-        
-        return self.get_images(inds, train_or_test)
-    
-    def get_labels(self, inds, train_or_test, index_or_onehot = 'index'):
+    def get_classes(self, inds, train_or_test, index_or_onehot = 'index'):
         
         if index_or_onehot == 'index':
             labels = self.labels[self.data[train_or_test]['inds'][inds]]
@@ -129,3 +126,12 @@ class DataProvider(object):
         
         labels = torch.LongTensor(labels)
         return labels
+    
+    def get_rand_images(self, batsize, train_or_test):
+        ndat = self.data[train_or_test]['inds']
+        
+        inds = np.random.choice(ndat, batsize)
+        
+        return self.get_images(inds, train_or_test)
+    
+    
