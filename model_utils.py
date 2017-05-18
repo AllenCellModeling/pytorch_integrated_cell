@@ -173,28 +173,24 @@ def load_model(model_provider, opt):
         this_epoch = max(logger.log['epoch']) + 1
         iteration = max(logger.log['iter'])
 
-    def models(): 1
-    models.enc = enc
-    models.dec = dec
-    models.encD = encD
-    models.decD = decD
-
-    def optimizers(): 1
-    optimizers.enc = optEnc
-    optimizers.dec = optDec
-    optimizers.encD = optEncD
-    optimizers.decD = optDecD
+    models = {'enc': enc, 'dec': dec, 'encD': encD, 'decD': decD}
     
-    def criterions(): 1
-    criterions.recon = nn.BCELoss()
-    criterions.zRef = nn.MSELoss()
-    criterions.zClass = nn.NLLLoss()
-    criterions.encD = nn.BCELoss()
+    optimizers = dict()
+    optimizers['optEnc'] = optEnc
+    optimizers['optDec'] = optDec
+    optimizers['optEncD'] = optEncD
+    optimizers['optDecD'] = optDecD
+    
+    criterions = dict()
+    criterions['critRecon'] = nn.BCELoss()
+    criterions['critZClass'] = nn.NLLLoss()    
+    criterions['critZRef'] = nn.MSELoss()
+    criterions['critEncD'] = nn.BCELoss()
     
     if opt.nClasses > 0:
-        criterions.decD = nn.NLLLoss()
+        criterions['critDecD'] = nn.NLLLoss()
     else:
-        criterions.decD = nn.BCELoss()
+        criterions['critDecD'] = nn.BCELoss()
  
     if opt.latentDistribution == 'uniform':
         from model_utils import sampleUniform as latentSample
@@ -208,9 +204,7 @@ def load_model(model_provider, opt):
     return models, optimizers, criterions, logger, opt
 
 
-def save_progress(models, dataProvider, logger, zAll, epoch, opt):
-    enc = models.enc
-    dec = models.dec
+def save_progress(enc, dec, dataProvider, logger, zAll, epoch, opt):
     
     gpu_id = opt.gpu_ids[0]
     
@@ -242,19 +236,12 @@ def save_progress(models, dataProvider, logger, zAll, epoch, opt):
     pickle.dump(zAll, open('./{0}/embedding_tmp.pkl'.format(opt.save_dir), 'wb'))
     pickle.dump(logger, open('./{0}/logger_tmp.pkl'.format(opt.save_dir), 'wb'))
     
-def save_state(models, optimizers, logger, zAll, opt):
+def save_state(enc, dec, encD, decD, 
+               optEnc, optDec, optEncD, optDecD, 
+               logger, zAll, opt):
 #         for saving and loading see:
 #         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
-    enc = models.enc    
-    dec = models.dec
-    encD = models.encD
-    decD = models.decD
-    
-    optEnc = optimizers.enc
-    optDec = optimizers.dec
-    optEncD = optimizers.encD
-    optDecD = optimizers.decD
-    
+  
     gpu_id = opt.gpu_ids[0]
     
     enc = enc.cpu()

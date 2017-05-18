@@ -89,7 +89,10 @@ else:
 if opt.ndat == -1:
     opt.ndat = dp.get_n_dat('train')    
 
-    
+#######    
+### TRAIN REFERENCE MODEL
+#######
+
 opt.save_dir = opt.save_parent + os.sep + 'ref_model'
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
@@ -100,7 +103,9 @@ opt.nch = len(opt.channelInds)
         
 opt.nClasses = 0
 opt.nRef = 0
-    
+
+pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
+
 models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
 
 start_iter = len(logger.log['iter'])
@@ -112,7 +117,7 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
     
     start = time.time()
     
-    errors, zfake = train_module.iteration(models, optimizers, criterions, dp, this_iter, opt)
+    errors, zfake = train_module.iteration(**models, **optimizers, **criterions, dataProvider=dp, opt=opt)
     
     zAll.append(zfake)
     
@@ -125,10 +130,10 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
         zAll = torch.cat(zAll,0).cpu().numpy()
         
         if (epoch % opt.saveProgressIter) == 0:
-            save_progress(models, dp, logger, zAll, epoch, opt)
+            save_progress(models['enc'], models['dec'], dp, logger, zAll, epoch, opt)
         
         if (epoch % opt.saveStateIter) == 0:
-            save_state(models, optimizers, logger, zAll, opt)
+            save_state(**models, **optimizers, logger=logger, zAll=zAll, opt=opt)
             
         zAll = list()
 
@@ -136,12 +141,15 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
 ### DONE TRAINING REFERENCE MODEL
 #######
 
+#######    
+### TRAIN STRUCTURE MODEL
+#######
 
 embeddings_path = opt.save_dir + os.sep + 'embeddings.pkl'
 if os.path.exists(embeddings_path):
     embeddings = torch.load(embeddings_path)
 else:
-    embeddings = get_latent_embeddings(models.enc, dp, opt)
+    embeddings = get_latent_embeddings(models['enc'], dp, opt)
     torch.save(embeddings, embeddings_path)
 
 def get_ref(self, inds, train_or_test='train'):
@@ -165,6 +173,8 @@ opt.nch = len(opt.channelInds)
 opt.nClasses = dp.get_n_classes()
 opt.nRef = opt.nlatentdim
 
+pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
+
 models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
 
 start_iter = len(logger.log['iter'])
@@ -176,7 +186,7 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
     
     start = time.time()
     
-    errors, zfake = train_module.iteration(models, optimizers, criterions, dp, this_iter, opt)
+    errors, zfake = train_module.iteration(**models, **optimizers, **criterions, dataProvider=dp, opt=opt)
     
     zAll.append(zfake)
     
@@ -189,14 +199,16 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
         zAll = torch.cat(zAll,0).cpu().numpy()
         
         if (epoch % opt.saveProgressIter) == 0:
-            save_progress(models, dp, logger, zAll, epoch, opt)
+            save_progress(models['enc'], models['dec'], dp, logger, zAll, epoch, opt)
         
         if (epoch % opt.saveStateIter) == 0:
-            save_state(models, optimizers, logger, zAll, opt)
+            save_state(**models, **optimizers, logger=logger, zAll=zAll, opt=opt)
             
         zAll = list()
             
 print('Finished Training')
 
-
+#######    
+### DONE TRAINING STRUCTURE MODEL
+#######
 

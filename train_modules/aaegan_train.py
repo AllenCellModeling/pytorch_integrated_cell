@@ -5,25 +5,11 @@ from torch.autograd import Variable
 import numpy as np
 import pdb
 
-def iteration(models, optimizers, criterions, dataProvider, iteration, opt):
+def iteration(enc, dec, encD, decD, 
+              optEnc, optDec, optEncD, optDecD, 
+              critRecon, critZClass, critZRef, critEncD, critDecD,
+              dataProvider, opt):
     gpu_id = opt.gpu_ids[0]
-    
-    enc = models.enc
-    dec = models.dec
-    encD = models.encD
-    decD = models.decD
-    
-    optEnc = optimizers.enc
-    optDec = optimizers.dec
-    optEncD = optimizers.encD
-    optDecD = optimizers.decD
-    
-    critRecon = criterions.recon
-    critZClass = criterions.zClass
-    critZRef = criterions.zRef
-    critEncD = criterions.encD
-    critDecD = criterions.decD
-
     
     ###update the discriminator
     #maximize log(AdvZ(z)) + log(1 - AdvZ(Enc(x)))
