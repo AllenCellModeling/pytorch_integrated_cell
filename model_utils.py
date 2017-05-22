@@ -213,7 +213,7 @@ def maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
 
         if (epoch_next % opt.saveProgressIter) == 0:
             print('saving progress')
-            save_progress(models['enc'], models['dec'], dp, logger, zAll, epoch, opt)
+            save_progress(models['enc'], models['dec'], dp, logger, zAll, opt)
 
         if (epoch_next % opt.saveStateIter) == 0:
             print('saving state')
@@ -224,9 +224,11 @@ def maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
     return saved
             
 
-def save_progress(enc, dec, dataProvider, logger, zAll, epoch, opt):
+def save_progress(enc, dec, dataProvider, logger, embedding, opt):
     
     gpu_id = opt.gpu_ids[0]
+    
+    epoch = max(logger.log['epoch'])
     
     enc.train(False)
     dec.train(False)
@@ -245,7 +247,7 @@ def save_progress(enc, dec, dataProvider, logger, zAll, epoch, opt):
 
     imgOut = np.concatenate((imgTrainOut, imgTestOut))
 
-    scipy.misc.imsave('./{0}/progress_{1}.png'.format(opt.save_dir, epoch), imgOut)
+    scipy.misc.imsave('./{0}/progress_{1}.png'.format(opt.save_dir, int(epoch)), imgOut)
 
     enc.train(True)
     dec.train(True)
@@ -253,8 +255,77 @@ def save_progress(enc, dec, dataProvider, logger, zAll, epoch, opt):
     # pdb.set_trace()
     # zAll = torch.cat(zAll,0).cpu().numpy()
 
-    pickle.dump(zAll, open('./{0}/embedding_tmp.pkl'.format(opt.save_dir), 'wb'))
+    pickle.dump(embedding, open('./{0}/embedding_tmp.pkl'.format(opt.save_dir), 'wb'))
     pickle.dump(logger, open('./{0}/logger_tmp.pkl'.format(opt.save_dir), 'wb'))
+    
+    
+
+    ### History
+    plt.figure()
+
+    for i in range(2, len(logger.fields)-1):
+        field = logger.fields[i]
+        plt.plot(logger.log['iter'], logger.log[field], label=field)
+
+    plt.legend()
+    plt.title('History')
+    plt.xlabel('iteration')
+    plt.ylabel('loss')
+    plt.savefig('{0}/history.png'.format(opt.save_dir), bbox_inches='tight')
+    plt.close()
+
+    ### Short History
+    history = 10000
+    ydat = [logger.log['encDLoss'], logger.log['decDLoss'], logger.log['minimaxEncDLoss'], logger.log['minimaxDecDLoss']]
+    ymin = np.min(ydat.append(logger.log['reconLoss']))
+    ymax = np.max(ydat)
+    plt.ylim([ymin, ymax])
+
+    x = logger.log['iter'][-history:]
+    y = logger.log['reconLoss'][-history:]
+
+    epochs = np.floor(np.array(logger.log['epoch'][-history:-1]))
+    losses = np.array(logger.log['reconLoss'][-history:-1])
+    iters = np.array(logger.log['iter'][-history:-1])
+    uepochs = np.unique(epochs)
+
+    epoch_losses = np.zeros(len(uepochs))
+    epoch_iters = np.zeros(len(uepochs))
+    i = 0
+    for uepoch in uepochs:
+        inds = np.equal(epochs, uepoch)
+        loss = np.mean(losses[inds])
+        epoch_losses[i] = loss
+        epoch_iters[i] = np.mean(iters[inds])
+        i+=1
+
+    mval = np.mean(losses)
+
+    plt.figure()
+    plt.plot(x, y, label='reconLoss')
+    plt.plot(epoch_iters, epoch_losses, color='darkorange', label='epoch avg')
+    plt.plot([np.min(iters), np.max(iters)], [mval, mval], color='darkorange', linestyle=':', label='window avg')
+
+    plt.legend()
+    plt.title('Short history')
+    plt.xlabel('iteration')
+    plt.ylabel('loss')
+    plt.savefig('{0}/history_short.png'.format(opt.save_dir), bbox_inches='tight')
+    plt.close()
+    
+    ### Embedding figure
+    plt.figure()
+    colors = plt.get_cmap('plasma')(np.linspace(0, 1, embedding.shape[0]))
+    plt.scatter(embedding[:,0], embedding[:,1], s = 2, color = colors)
+    plt.xlim([-4, 4]) 
+    plt.ylim([-4, 4])     
+    plt.axis('equal')
+    plt.xlabel('z1')
+    plt.ylabel('z2')
+    plt.title('latent space embedding')
+    plt.savefig('{0}/embedding.png'.format(opt.save_dir), bbox_inches='tight')
+    plt.close()
+
     
 def save_state(enc, dec, encD, decD, 
                optEnc, optDec, optEncD, optDecD, 
