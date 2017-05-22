@@ -9,6 +9,9 @@ import numpy as np
 import scipy.misc
 import pickle
 
+import matplotlib.pyplot as plt
+from imgToProjection import imgtoprojection
+
 import pdb
 
 def init_opts(opt, opt_default):
@@ -17,28 +20,6 @@ def init_opts(opt, opt_default):
         if not hasattr(opt, var):
             setattr(opt, var, getattr(opt_default, var))
     return opt
-
-def tensor2img(img, opt):
-    
-    imresize = list(img.size())
-    imresize[1] = 3
-    
-    img_out = torch.zeros(tuple(imresize))
-    
-    img = img.numpy()
-    # img += 1
-    # img /= 2
-    
-    img_tmp = np.zeros(imresize)
-    img_tmp[:, opt.channelInds] = img
-    img = img_tmp
-    
-    if img.ndim == 3:
-        img = np.expand_dims(img, 0)
-    img = np.transpose(img, [0,2,3,1])
-    img = np.concatenate(img[:], 1)
-    
-    return img
 
 def set_gpu_recursive(var, gpu_id):
     for key in var:
@@ -60,6 +41,27 @@ def sampleUniform (batsize, nlatentdim):
 def sampleGaussian (batsize, nlatentdim): 
     return torch.Tensor(batsize, nlatentdim).normal_()
 
+def tensor2img(img):
+    
+    img = img.numpy()
+    im_out = list()
+    for i in range(0, img.shape[0]):
+        im_out.append(img[i])
+
+    img = np.concatenate(im_out, 2)
+
+    if len(img.shape) == 3:
+        img = np.expand_dims(img, 3)
+
+    colormap = 'hsv'
+
+    colors = plt.get_cmap(colormap)(np.linspace(0, 1, img.shape[0]+1))
+
+    # img = np.swapaxes(img, 2,3)
+    img = imgtoprojection(np.swapaxes(img, 1, 3), colors = colors, global_adjust=True)
+    img = np.swapaxes(img, 0, 2)
+
+    return img
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -203,6 +205,24 @@ def load_model(model_provider, opt):
     
     return models, optimizers, criterions, logger, opt
 
+def maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
+    saved = False
+    if epoch != epoch_next and ((epoch_next % opt.saveProgressIter) == 0 or (epoch_next % opt.saveStateIter) == 0):
+
+        zAll = torch.cat(zAll,0).cpu().numpy()
+
+        if (epoch_next % opt.saveProgressIter) == 0:
+            print('saving progress')
+            save_progress(models['enc'], models['dec'], dp, logger, zAll, epoch, opt)
+
+        if (epoch_next % opt.saveStateIter) == 0:
+            print('saving state')
+            save_state(**models, **optimizers, logger=logger, zAll=zAll, opt=opt)
+
+        saved = True
+        
+    return saved
+            
 
 def save_progress(enc, dec, dataProvider, logger, zAll, epoch, opt):
     
@@ -213,14 +233,14 @@ def save_progress(enc, dec, dataProvider, logger, zAll, epoch, opt):
 
     x = Variable(dataProvider.get_images(np.arange(0,10),'train')).cuda(gpu_id)
     xHat = dec(enc(x))
-    imgX = tensor2img(x.data.cpu(), opt)
-    imgXHat = tensor2img(xHat.data.cpu(), opt)
+    imgX = tensor2img(x.data.cpu())
+    imgXHat = tensor2img(xHat.data.cpu())
     imgTrainOut = np.concatenate((imgX, imgXHat), 0)
 
     x = Variable(dataProvider.get_images(np.arange(0,10),'test')).cuda(gpu_id)
     xHat = dec(enc(x))
-    imgX = tensor2img(x.data.cpu(), opt)
-    imgXHat = tensor2img(xHat.data.cpu(), opt)
+    imgX = tensor2img(x.data.cpu())
+    imgXHat = tensor2img(xHat.data.cpu())
     imgTestOut = np.concatenate((imgX, imgXHat), 0)
 
     imgOut = np.concatenate((imgTrainOut, imgTestOut))
