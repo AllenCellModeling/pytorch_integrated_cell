@@ -95,7 +95,7 @@ def iteration(enc, dec, encD, decD,
 
     decDLoss = (errDecD_real + (errDecD_fake + errEncD_fake2)/2)/2
     decDLoss.backward(retain_variables=True)
-    optDecD.step()z
+    optDecD.step()
 
     for p in enc.parameters():
         p.requires_grad = True
