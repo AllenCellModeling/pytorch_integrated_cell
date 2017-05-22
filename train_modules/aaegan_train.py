@@ -29,13 +29,14 @@ def iteration(enc, dec, encD, decD,
     niter = len(range(0, len(rand_inds_encD), opt.batch_size))
     inds_encD = (rand_inds_encD[i:i+opt.batch_size] for i in range(0, len(rand_inds_encD), opt.batch_size))
 
-    x = Variable(dataProvider.get_images(next(inds_encD),'train')).cuda(gpu_id)
+    inds = next(inds_encD)
+    x = Variable(dataProvider.get_images(inds,'train')).cuda(gpu_id)
     
     if opt.nClasses > 0:
-        classes = Variable(dataProvider.get_classes(next(inds_encD),'train')).cuda(gpu_id)
+        classes = Variable(dataProvider.get_classes(inds,'train')).cuda(gpu_id)
     
     if opt.nRef > 0:
-        ref = Variable(dataProvider.get_ref(next(inds_encD),'train')).cuda(gpu_id)
+        ref = Variable(dataProvider.get_ref(inds,'train')).cuda(gpu_id)
     
     zAll = enc(x)
     
@@ -66,7 +67,7 @@ def iteration(enc, dec, encD, decD,
     errEncD_fake = critEncD(yHat_zFake, y_zFake)
     errEncD_fake.backward(retain_variables=True)
     
-    encDLoss = errEncD_real + errEncD_fake
+    encDLoss = (errEncD_real + errEncD_fake)/2
 
     ###Train decD 
     if opt.nClasses > 0:
@@ -92,9 +93,9 @@ def iteration(enc, dec, encD, decD,
     errEncD_fake2 = critDecD(yHat_xFake2, y_xFake)
     # errEncD_fake2.backward(retain_variables=True)
 
-    decDLoss = errDecD_real + (errDecD_fake + errEncD_fake2)/2
+    decDLoss = (errDecD_real + (errDecD_fake + errEncD_fake2)/2)/2
     decDLoss.backward(retain_variables=True)
-    optDecD.step()
+    optDecD.step()z
 
     for p in enc.parameters():
         p.requires_grad = True
