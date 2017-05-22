@@ -1,6 +1,5 @@
 import argparse
 
-import DataProvider as DP
 import SimpleLogger as SimpleLogger
 
 import importlib
@@ -23,7 +22,7 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display
 import time
-from model_utils import set_gpu_recursive, load_model, save_state, save_progress, get_latent_embeddings
+from model_utils import set_gpu_recursive, load_model, save_state, save_progress, get_latent_embeddings, maybe_save
 
 import pdb
 
@@ -41,6 +40,7 @@ parser.add_argument('--encDRatio', type=float, default=5E-3, help='scalar applie
 parser.add_argument('--decDRatio', type=float, default=1E-4, help='scalar applied to the update gradient from decD')
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
+parser.add_argument('--nepochs_pt2', type=int, default=250, help='total number of epochs')
 parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
 parser.add_argument('--clamp_upper', type=float, default=0.01, help='upper clamp for wasserstein gan')
 parser.add_argument('--model_name', default='waaegan', help='name of the model module')
@@ -56,11 +56,15 @@ parser.add_argument('--optimizer', default='adam', help='type of optimizer, can 
 parser.add_argument('--train_module', default='waaegan_train', help='training module')
 
 parser.add_argument('--noise', type=float, default=0, help='Noise added to the decD')
+
+parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
+
 opt = parser.parse_args()
 print(opt)
 
 opt.save_parent = opt.save_dir
 
+DP = importlib.import_module("data_providers." + opt.dataProvider)
 model_provider = importlib.import_module("models." + opt.model_name)
 train_module = importlib.import_module("train_modules." + opt.train_module)
 
@@ -89,6 +93,8 @@ else:
 if opt.ndat == -1:
     opt.ndat = dp.get_n_dat('train')    
 
+iters_per_epoch = np.ceil(opt.ndat/opt.batch_size)    
+    
 #######    
 ### TRAIN REFERENCE MODEL
 #######
@@ -111,9 +117,9 @@ models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
 start_iter = len(logger.log['iter'])
 
 zAll = list()
-for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepochs):
-    epoch = np.floor(this_iter/(opt.ndat/opt.batch_size))
-    epoch_next = np.floor((this_iter+1)/(opt.ndat/opt.batch_size))
+for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
+    epoch = np.floor(this_iter/iters_per_epoch)
+    epoch_next = np.floor((this_iter+1)/iters_per_epoch)
     
     start = time.time()
     
@@ -126,15 +132,7 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
     
     logger.add((epoch, this_iter) + errors +(deltaT,))
     
-    if epoch != epoch_next and ((epoch % opt.saveProgressIter) == 0 or (this_iter % opt.saveStateIter) == 0):
-        zAll = torch.cat(zAll,0).cpu().numpy()
-        
-        if (epoch % opt.saveProgressIter) == 0:
-            save_progress(models['enc'], models['dec'], dp, logger, zAll, epoch, opt)
-        
-        if (epoch % opt.saveStateIter) == 0:
-            save_state(**models, **optimizers, logger=logger, zAll=zAll, opt=opt)
-            
+    if maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
         zAll = list()
 
 #######
@@ -166,7 +164,7 @@ opt.save_dir = opt.save_parent + os.sep + 'struct_model'
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
     
-opt.channelInds = [0,1, 2]
+opt.channelInds = [0, 1, 2]
 dp.opts['channelInds'] = opt.channelInds
 opt.nch = len(opt.channelInds)
         
@@ -179,10 +177,10 @@ models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
 
 start_iter = len(logger.log['iter'])
 
-zAll = list()
-for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepochs):
-    epoch = np.floor(this_iter/(opt.ndat/opt.batch_size))
-    epoch_next = np.floor((this_iter+1)/(opt.ndat/opt.batch_size))
+zAll = list() 
+for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs_pt2):
+    epoch = np.floor(this_iter/(iters_per_epoch))
+    epoch_next = np.floor((this_iter+1)/(iters_per_epoch))
     
     start = time.time()
     
@@ -195,15 +193,7 @@ for this_iter in range(start_iter, math.ceil(opt.ndat/opt.batch_size)*opt.nepoch
     
     logger.add((epoch, this_iter) + errors +(deltaT,))
     
-    if epoch != epoch_next and ((epoch % opt.saveProgressIter) == 0 or (this_iter % opt.saveStateIter) == 0):
-        zAll = torch.cat(zAll,0).cpu().numpy()
-        
-        if (epoch % opt.saveProgressIter) == 0:
-            save_progress(models['enc'], models['dec'], dp, logger, zAll, epoch, opt)
-        
-        if (epoch % opt.saveStateIter) == 0:
-            save_state(**models, **optimizers, logger=logger, zAll=zAll, opt=opt)
-            
+    if maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
         zAll = list()
             
 print('Finished Training')
