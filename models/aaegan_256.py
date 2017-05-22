@@ -19,7 +19,7 @@ class Enc(nn.Module):
         
         self.main = nn.Sequential(
             nn.Conv2d(nch, 64, ksize, dstep, 1),
-            nn.BatchNorm2d(64),
+            # nn.BatchNorm2d(64),
         
             nn.PReLU(),
             nn.Conv2d(64, 128, ksize, dstep, 1),
@@ -54,13 +54,13 @@ class Enc(nn.Module):
         if self.nRef > 0:
             self.refOut = nn.Sequential(
                 nn.Linear(1024*int(self.fcsize**2), self.nRef),
-                nn.BatchNorm1d(self.nRef)
+                # nn.BatchNorm1d(self.nRef)
             )
         
         if self.nLatentDim > 0:
             self.latentOut = nn.Sequential(
                 nn.Linear(1024*int(self.fcsize**2), self.nLatentDim),
-                nn.BatchNorm1d(self.nLatentDim)
+                # nn.BatchNorm1d(self.nLatentDim)
             )
             
     def forward(self, x):
@@ -125,7 +125,7 @@ class Dec(nn.Module):
         
             nn.PReLU(),
             nn.ConvTranspose2d(64, nch, ksize, dstep, 1),
-            # self.bn5 = nn.BatchNorm2d(3)
+            # nn.BatchNorm2d(nch),
             nn.Sigmoid()             
         )
             
@@ -152,7 +152,7 @@ class EncD(nn.Module):
         
         self.main = nn.Sequential(
             nn.Linear(nlatentdim, nfc),
-            nn.BatchNorm1d(nfc),
+            # nn.BatchNorm1d(nfc),
             nn.LeakyReLU(0.2, inplace=True),
         
             nn.Linear(nfc, nfc),
