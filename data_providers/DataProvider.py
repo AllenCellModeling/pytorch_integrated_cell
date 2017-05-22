@@ -6,7 +6,6 @@ from natsort import natsorted
 from PIL import Image
 import torch
 
-
 import pdb
 
 class DataProvider(object):
@@ -133,5 +132,4 @@ class DataProvider(object):
         inds = np.random.choice(ndat, batsize)
         
         return self.get_images(inds, train_or_test)
-    
     
