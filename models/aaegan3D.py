@@ -24,9 +24,17 @@ class Enc(nn.Module):
             nn.PReLU(),
             nn.Conv3d(64, 128, ksize, dstep, 1),
             nn.BatchNorm3d(128),
+            
+            nn.PReLU(),
+            nn.Conv3d(128, 128, 1, 1, 0),
+            nn.BatchNorm3d(128),
         
             nn.PReLU(),
             nn.Conv3d(128, 256, ksize, dstep, 1),
+            nn.BatchNorm3d(256),
+            
+            nn.PReLU(),
+            nn.Conv3d(256, 256, 1, 1, 0),
             nn.BatchNorm3d(256),
         
             nn.PReLU(),
@@ -34,7 +42,15 @@ class Enc(nn.Module):
             nn.BatchNorm3d(512),
             
             nn.PReLU(),
+            nn.Conv3d(512, 512, 1, 1, 0),
+            nn.BatchNorm3d(512),
+            
+            nn.PReLU(),
             nn.Conv3d(512, 1024, ksize, dstep, 1),
+            nn.BatchNorm3d(1024),
+            
+            nn.PReLU(),
+            nn.Conv3d(1024, 1024, 1, 1, 0),
             nn.BatchNorm3d(1024),
             
             nn.PReLU(),
@@ -108,19 +124,39 @@ class Dec(nn.Module):
             nn.BatchNorm3d(1024),
             
             nn.PReLU(),
+            nn.Conv3d(1024, 1024, 1, 1, 0),
+            nn.BatchNorm3d(1024),
+            
+            nn.PReLU(),
             nn.ConvTranspose3d(1024, 512, ksize, dstep, 1),
+            nn.BatchNorm3d(512),
+            
+            nn.PReLU(),
+            nn.Conv3d(512, 512, 1, 1, 0),
             nn.BatchNorm3d(512),
             
             nn.PReLU(),
             nn.ConvTranspose3d(512, 256, ksize, dstep, 1),
             nn.BatchNorm3d(256),
+            
+            nn.PReLU(),
+            nn.Conv3d(256, 256, 1, 1, 0),
+            nn.BatchNorm3d(256),
         
             nn.PReLU(),
             nn.ConvTranspose3d(256, 128, ksize, dstep, 1),
             nn.BatchNorm3d(128),
+            
+            nn.PReLU(),
+            nn.Conv3d(128, 128, 1, 1, 0),
+            nn.BatchNorm3d(128),
         
             nn.PReLU(),
             nn.ConvTranspose3d(128, 64, ksize, dstep, 1),
+            nn.BatchNorm3d(64),
+            
+            nn.PReLU(),
+            nn.Conv3d(64, 64, 1, 1, 0),
             nn.BatchNorm3d(64),
         
             nn.PReLU(),
