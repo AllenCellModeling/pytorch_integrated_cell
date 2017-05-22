@@ -40,7 +40,7 @@ parser.add_argument('--encDRatio', type=float, default=5E-3, help='scalar applie
 parser.add_argument('--decDRatio', type=float, default=1E-4, help='scalar applied to the update gradient from decD')
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
-parser.add_argument('--nepochs_pt2', type=int, default=250, help='total number of epochs')
+parser.add_argument('--nepochs_pt2', type=int, default=-1, help='total number of epochs')
 parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
 parser.add_argument('--clamp_upper', type=float, default=0.01, help='upper clamp for wasserstein gan')
 parser.add_argument('--model_name', default='waaegan', help='name of the model module')
@@ -51,12 +51,9 @@ parser.add_argument('--imsize', type=int, default=128, help='pixel size of image
 parser.add_argument('--imdir', default='/root/data/release_4_1_17/release_v2/aligned/2D', help='location of images')
 parser.add_argument('--latentDistribution', default='gaussian', help='Distribution of latent space, can be {gaussian, uniform}')
 parser.add_argument('--ndat', type=int, default=-1, help='Number of data points to use')
-
 parser.add_argument('--optimizer', default='adam', help='type of optimizer, can be {adam, RMSprop}')
 parser.add_argument('--train_module', default='waaegan_train', help='training module')
-
 parser.add_argument('--noise', type=float, default=0, help='Noise added to the decD')
-
 parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
 
 opt = parser.parse_args()
@@ -74,10 +71,12 @@ np.random.seed(opt.myseed)
 
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
+    
+if opt.nepochs_pt2 == -1:
+    opt.nepochs_pt2 = opt.nepochs
 
 pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
-#previously i use an object with attributes, and now i use a dict... fix this
 opts = {}
 opts['verbose'] = True
 opts['pattern'] = '*.tif_flat.png'
@@ -94,7 +93,7 @@ if opt.ndat == -1:
     opt.ndat = dp.get_n_dat('train')    
 
 iters_per_epoch = np.ceil(opt.ndat/opt.batch_size)    
-    
+            
 #######    
 ### TRAIN REFERENCE MODEL
 #######
@@ -110,12 +109,16 @@ opt.nch = len(opt.channelInds)
 opt.nClasses = 0
 opt.nRef = 0
 
+try:
+    train_module = train_module.trainer(dp, opt)
+except:
+    pass    
+
 pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
 models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
 
 start_iter = len(logger.log['iter'])
-
 zAll = list()
 for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
     epoch = np.floor(this_iter/iters_per_epoch)
