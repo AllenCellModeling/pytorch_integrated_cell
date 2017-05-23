@@ -121,6 +121,8 @@ models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
 start_iter = len(logger.log['iter'])
 zAll = list()
 for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
+    opt.iter = this_iter
+    
     epoch = np.floor(this_iter/iters_per_epoch)
     epoch_next = np.floor((this_iter+1)/iters_per_epoch)
     
@@ -182,6 +184,8 @@ start_iter = len(logger.log['iter'])
 
 zAll = list() 
 for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs_pt2):
+    opt.iter = this_iter
+    
     epoch = np.floor(this_iter/(iters_per_epoch))
     epoch_next = np.floor((this_iter+1)/(iters_per_epoch))
     
