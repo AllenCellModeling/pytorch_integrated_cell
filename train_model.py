@@ -48,7 +48,7 @@ parser.add_argument('--save_dir', default='./test_waaegan/waaegan/', help='save 
 parser.add_argument('--saveProgressIter', type=int, default=1, help='number of iterations between saving progress')
 parser.add_argument('--saveStateIter', type=int, default=10, help='number of iterations between saving progress')
 parser.add_argument('--imsize', type=int, default=128, help='pixel size of images used')   
-parser.add_argument('--imdir', default='/root/data/release_4_1_17/release_v2/aligned/2D', help='location of images')
+parser.add_argument('--imdir', default='/root/data/release_4_1_17/results_v2/aligned/2D', help='location of images')
 parser.add_argument('--latentDistribution', default='gaussian', help='Distribution of latent space, can be {gaussian, uniform}')
 parser.add_argument('--ndat', type=int, default=-1, help='Number of data points to use')
 parser.add_argument('--optimizer', default='adam', help='type of optimizer, can be {adam, RMSprop}')
