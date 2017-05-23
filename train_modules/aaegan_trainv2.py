@@ -196,7 +196,10 @@ class trainer(object):
         #update wrt decD(dec(enc(X)))
         yHat_xFake = decD(xHat)
         minimaxDecDLoss = critDecD(yHat_xFake, y_xReal)
-
+        (minimaxDecDLoss.mul(opt.decDRatio)/2).backward(retain_variables=True)
+        minimaxDecDLoss = minimaxDecDLoss.data[0]
+        yHat_xFake = None
+        
         #update wrt decD(dec(Z))
         self.zReal.data.copy_(opt.latentSample(opt.batch_size, opt.nlatentdim))
         zAll[c] = self.zReal
@@ -204,12 +207,15 @@ class trainer(object):
 
         yHat_xFake2 = decD(xHat)
         minimaxDecDLoss2 = critDecD(yHat_xFake2, y_xReal)
-
+        (minimaxDecDLoss2.mul(opt.decDRatio)/2).backward(retain_variables=True)
+        minimaxDecDLoss2 = minimaxDecDLoss2.data[0]
+        yHat_xFake2 = None
+        
         minimaxDecLoss = (minimaxDecDLoss+minimaxDecDLoss2)/2
-
-        (minimaxDecLoss.mul(opt.decDRatio)).backward(retain_variables=True)
-
+        
         optDec.step()
+        
+        
 
         errors = (reconLoss.data[0],)
         if opt.nClasses > 0:
@@ -218,7 +224,7 @@ class trainer(object):
         if opt.nRef > 0:
             errors += (refLoss.data[0],)
 
-        errors += (minimaxEncDLoss, encDLoss, minimaxDecLoss.data[0], decDLoss)
+        errors += (minimaxEncDLoss, encDLoss, minimaxDecLoss, decDLoss)
 
         return errors, zFake.data
     
