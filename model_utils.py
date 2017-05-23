@@ -276,6 +276,10 @@ def save_progress(enc, dec, dataProvider, logger, embedding, opt):
 
     ### Short History
     history = 10000
+    
+    if len(logger.log['epoch']) < history:
+        history = int(len(logger.log['epoch'])/2)
+    
     ydat = [logger.log['encDLoss'], logger.log['decDLoss'], logger.log['minimaxEncDLoss'], logger.log['minimaxDecDLoss']]
     ymin = np.min(ydat.append(logger.log['reconLoss']))
     ymax = np.max(ydat)
