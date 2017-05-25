@@ -173,7 +173,6 @@ class EncD(nn.Module):
         gpu_ids = self.gpu_ids
             
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
-        x = x.mean(0).view(1)
         
         return x        
 
@@ -247,7 +246,6 @@ class DecD(nn.Module):
         x = x.view(x.size()[0], 512*int(self.fcsize**2))
         
         x = self.fc(x)
-        x = x.mean(0)
         # x = self.nlEnd(x)
 
         return x
