@@ -76,12 +76,12 @@ def iteration(enc, dec, encD, decD,
         # train with real
         errEncD_real_vec = encD(zReal)
         errEncD_real = torch.mean(errEncD_real_vec)
-        errEncD_real.backward(one, retain_variables=True)
+        errEncD_real.backward(one, retain_graph=True)
 
         # train with fake
         errEncD_fake_vec = encD(zFake)
         errEncD_fake = torch.mean(errEncD_fake_vec)
-        errEncD_fake.backward(mone, retain_variables=True)
+        errEncD_fake.backward(mone, retain_graph=True)
         
         encDLoss = (errEncD_real - errEncD_fake)
         
@@ -95,11 +95,11 @@ def iteration(enc, dec, encD, decD,
 
         errDecD_real_vec = decD(x)
         errDecD_real = torch.mean(errDecD_real_vec)
-        errDecD_real.backward(one, retain_variables=True)
+        errDecD_real.backward(one, retain_graph=True)
 
         errDecD_fake_vec = decD(xHat)
         errDecD_fake = torch.mean(errDecD_fake_vec)
-        errDecD_fake.backward(mone, retain_variables=True)
+        errDecD_fake.backward(mone, retain_graph=True)
             
         if opt.improved:
             improved_penalty(interp_alpha, x, xHat, decD, opt)
@@ -109,12 +109,12 @@ def iteration(enc, dec, encD, decD,
         xHat2 = dec(zAll)
         errDecD_fake2_vec = decD(xHat2)
         errDecD_fake2 = torch.mean(errDecD_fake2_vec)
-        errDecD_fake2.backward(interp_alpha, mone, retain_variables=True)
+        errDecD_fake2.backward(mone, retain_graph=True)
 
         decDLoss = errDecD_real - (errDecD_fake + errDecD_fake2)/2
         
         if opt.improved:
-            improved_penalty(x, xHat2, decD, opt)
+            improved_penalty(interp_alpha, x, xHat2, decD, opt)
         
         optDecD.step()
 
@@ -149,21 +149,21 @@ def iteration(enc, dec, encD, decD,
     c = 0        
     if opt.nClasses > 0:
         classLoss = critZClass(zAll[c], classes)
-        classLoss.backward(retain_variables=True)        
+        classLoss.backward(retain_graph=True)        
         c += 1
         
     if opt.nRef > 0:
         refLoss = critZRef(zAll[c], ref)
-        refLoss.backward(retain_variables=True)        
+        refLoss.backward(retain_graph=True)        
         c += 1
         
     reconLoss = critRecon(xHat, x)
-    reconLoss.backward(retain_variables=True)        
+    reconLoss.backward(retain_graph=True)        
 
     #update wrt encD
     minimaxEncDLoss_vec = encD(zAll[c])
     minimaxEncDLoss = torch.mean(minimaxEncDLoss_vec)
-    minimaxEncDLoss.backward(one*opt.encDRatio, retain_variables=True)
+    minimaxEncDLoss.backward(one*opt.encDRatio, retain_graph=True)
     
     optEnc.step()
     
@@ -173,14 +173,14 @@ def iteration(enc, dec, encD, decD,
     #update wrt decD(dec(enc(X)))
     minimaxDecDLoss_vec = decD(xHat)
     minimaxDecDLoss = torch.mean(minimaxDecDLoss_vec)
-    minimaxDecDLoss.backward(one*opt.decDRatio, retain_variables=True)
+    minimaxDecDLoss.backward(one*opt.decDRatio, retain_graph=True)
     
     #update wrt decD(dec(Z))
     zAll[c] = Variable(opt.latentSample(opt.batch_size, opt.nlatentdim)).cuda(gpu_id)
 
     minimaxDecDLoss2_vec = decD(dec(zAll))
     minimaxDecDLoss2 = torch.mean(minimaxDecDLoss2_vec)
-    minimaxDecDLoss2.backward(one*opt.decDRatio, retain_variables=True)
+    minimaxDecDLoss2.backward(one*opt.decDRatio, retain_graph=True)
     
     optDec.step()
     minimaxDecDLoss = (minimaxDecDLoss+minimaxDecDLoss2)/2
