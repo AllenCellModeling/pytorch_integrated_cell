@@ -60,10 +60,12 @@ def iteration(enc, dec, encD, decD,
 
         # train with real
         errEncD_real = encD(zReal)
+        errEncD_real = torch.mean(errEncD_real)
         errEncD_real.backward(one, retain_variables=True)
 
         # train with fake
         errEncD_fake = encD(zFake)
+        errEncD_fake = torch.mean(errEncD_fake)
         errEncD_fake.backward(mone, retain_variables=True)
         
         encDLoss = (errEncD_real - errEncD_fake)
@@ -72,14 +74,17 @@ def iteration(enc, dec, encD, decD,
         xHat = dec(zAll)
 
         errDecD_real = decD(x)
+        errDecD_real = torch.mean(errDecD_real)
         errDecD_real.backward(one, retain_variables=True)
 
         errDecD_fake = decD(xHat)
+        errDecD_fake = torch.mean(errDecD_fake)
         errDecD_fake.backward(mone, retain_variables=True)
                 
         zAll[-1] = zReal
 
         errDecD_fake2 = decD(dec(zAll))
+        errDecD_fake2 = torch.mean(errDecD_fake2)
         errDecD_fake2.backward(mone, retain_variables=True)
 
         decDLoss = errDecD_real - (errDecD_fake + errDecD_fake2)/2
@@ -129,7 +134,8 @@ def iteration(enc, dec, encD, decD,
 
     #update wrt encD
     minimaxEncDLoss = encD(zAll[c])
-    (minimaxEncDLoss.mul(opt.encDRatio)).backward(retain_variables=True)
+    minimaxEncDLoss = torch.mean(minimaxEncDLoss)
+    minimaxEncDLoss.backward(one*opt.encDRatio, retain_variables=True)
     
     optEnc.step()
     
@@ -138,12 +144,14 @@ def iteration(enc, dec, encD, decD,
     
     #update wrt decD(dec(enc(X)))
     minimaxDecDLoss = decD(xHat)
+    minimaxDecDLoss = torch.mean(minimaxDecDLoss)
     minimaxDecDLoss.backward(one*opt.decDRatio, retain_variables=True)
     
     #update wrt decD(dec(Z))
     zAll[c] = Variable(opt.latentSample(opt.batch_size, opt.nlatentdim)).cuda(gpu_id)
 
     minimaxDecDLoss2 = decD(dec(zAll))
+    minimaxDecDLoss2 = torch.mean(minimaxDecDLoss2)
     minimaxDecDLoss2.backward(one*opt.decDRatio, retain_variables=True)
     
     optDec.step()
