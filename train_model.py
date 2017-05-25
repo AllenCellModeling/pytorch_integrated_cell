@@ -55,6 +55,9 @@ parser.add_argument('--optimizer', default='adam', help='type of optimizer, can 
 parser.add_argument('--train_module', default='waaegan_train', help='training module')
 parser.add_argument('--noise', type=float, default=0, help='Noise added to the decD')
 parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
+parser.add_argument('--improved', type=bool, default=False, help='use improved wgan penalty for wgan models')
+parser.add_argument('--improved_penalty', type=float, default=0.1, help='improved wgan penalty weight')
+
 
 opt = parser.parse_args()
 print(opt)

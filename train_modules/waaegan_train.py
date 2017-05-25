@@ -5,6 +5,16 @@ from torch.autograd import Variable
 import numpy as np
 import pdb
 
+def improved_penalty(interp_alpha, xreal, xfake, netD, opt):
+    interp_alpha.data.uniform_()
+    
+    interp_points = Variable((interp_alpha.expand_as(xreal)*xreal+(1-interp_alpha.expand_as(xreal))*xfake).data, requires_grad=True)
+    errD_interp_vec = netD(interp_points)
+    errD_gradient, = torch.autograd.grad(errD_interp_vec.sum(), interp_points, create_graph=True)
+    lip_est = (errD_gradient**2).view(opt.batch_size,-1).sum(1)
+    lip_loss = opt.improved_penalty*((1.0-lip_est)**2).mean(0).view(1)
+    lip_loss.backward()
+    
 def iteration(enc, dec, encD, decD, 
               optEnc, optDec, optEncD, optDecD, 
               critRecon, critZClass, critZRef, critEncD, critDecD,
@@ -14,6 +24,10 @@ def iteration(enc, dec, encD, decD,
     
     one = torch.FloatTensor([1]).cuda(gpu_id)
     mone = one * -1
+    
+    if opt.improved:
+        interp_alpha = torch.FloatTensor(opt.batch_size, 1).cuda(gpu_id)
+        interp_alpha = Variable(interp_alpha)
     
     ###update the discriminator
     #maximize log(AdvZ(z)) + log(1 - AdvZ(Enc(x)))
@@ -36,11 +50,12 @@ def iteration(enc, dec, encD, decD,
     
     for j in range(0, Diters):
         # clamp parameters to a cube
-        for p in encD.parameters():
-            p.data.clamp_(opt.clamp_lower, opt.clamp_upper)
+        if not opt.improved:
+            for p in encD.parameters():
+                p.data.clamp_(opt.clamp_lower, opt.clamp_upper)
 
-        for p in decD.parameters():
-            p.data.clamp_(opt.clamp_lower, opt.clamp_upper)
+            for p in decD.parameters():
+                p.data.clamp_(opt.clamp_lower, opt.clamp_upper)
 
         rand_inds_encD = np.random.permutation(opt.ndat)
         inds = rand_inds_encD[0:opt.batch_size]
@@ -59,35 +74,48 @@ def iteration(enc, dec, encD, decD,
         optDecD.zero_grad()
 
         # train with real
-        errEncD_real = encD(zReal)
-        errEncD_real = torch.mean(errEncD_real)
+        errEncD_real_vec = encD(zReal)
+        errEncD_real = torch.mean(errEncD_real_vec)
         errEncD_real.backward(one, retain_variables=True)
 
         # train with fake
-        errEncD_fake = encD(zFake)
-        errEncD_fake = torch.mean(errEncD_fake)
+        errEncD_fake_vec = encD(zFake)
+        errEncD_fake = torch.mean(errEncD_fake_vec)
         errEncD_fake.backward(mone, retain_variables=True)
         
         encDLoss = (errEncD_real - errEncD_fake)
+        
+        if opt.improved:
+            improved_penalty(interp_alpha, zReal, zFake, encD, opt)
+            
+        
         optEncD.step()
         
         xHat = dec(zAll)
 
-        errDecD_real = decD(x)
-        errDecD_real = torch.mean(errDecD_real)
+        errDecD_real_vec = decD(x)
+        errDecD_real = torch.mean(errDecD_real_vec)
         errDecD_real.backward(one, retain_variables=True)
 
-        errDecD_fake = decD(xHat)
-        errDecD_fake = torch.mean(errDecD_fake)
+        errDecD_fake_vec = decD(xHat)
+        errDecD_fake = torch.mean(errDecD_fake_vec)
         errDecD_fake.backward(mone, retain_variables=True)
-                
+            
+        if opt.improved:
+            improved_penalty(interp_alpha, x, xHat, decD, opt)
+            
         zAll[-1] = zReal
 
-        errDecD_fake2 = decD(dec(zAll))
-        errDecD_fake2 = torch.mean(errDecD_fake2)
-        errDecD_fake2.backward(mone, retain_variables=True)
+        xHat2 = dec(zAll)
+        errDecD_fake2_vec = decD(xHat2)
+        errDecD_fake2 = torch.mean(errDecD_fake2_vec)
+        errDecD_fake2.backward(interp_alpha, mone, retain_variables=True)
 
         decDLoss = errDecD_real - (errDecD_fake + errDecD_fake2)/2
+        
+        if opt.improved:
+            improved_penalty(x, xHat2, decD, opt)
+        
         optDecD.step()
 
     for p in enc.parameters():
@@ -133,8 +161,8 @@ def iteration(enc, dec, encD, decD,
     reconLoss.backward(retain_variables=True)        
 
     #update wrt encD
-    minimaxEncDLoss = encD(zAll[c])
-    minimaxEncDLoss = torch.mean(minimaxEncDLoss)
+    minimaxEncDLoss_vec = encD(zAll[c])
+    minimaxEncDLoss = torch.mean(minimaxEncDLoss_vec)
     minimaxEncDLoss.backward(one*opt.encDRatio, retain_variables=True)
     
     optEnc.step()
@@ -143,15 +171,15 @@ def iteration(enc, dec, encD, decD,
         p.requires_grad = False
     
     #update wrt decD(dec(enc(X)))
-    minimaxDecDLoss = decD(xHat)
-    minimaxDecDLoss = torch.mean(minimaxDecDLoss)
+    minimaxDecDLoss_vec = decD(xHat)
+    minimaxDecDLoss = torch.mean(minimaxDecDLoss_vec)
     minimaxDecDLoss.backward(one*opt.decDRatio, retain_variables=True)
     
     #update wrt decD(dec(Z))
     zAll[c] = Variable(opt.latentSample(opt.batch_size, opt.nlatentdim)).cuda(gpu_id)
 
-    minimaxDecDLoss2 = decD(dec(zAll))
-    minimaxDecDLoss2 = torch.mean(minimaxDecDLoss2)
+    minimaxDecDLoss2_vec = decD(dec(zAll))
+    minimaxDecDLoss2 = torch.mean(minimaxDecDLoss2_vec)
     minimaxDecDLoss2.backward(one*opt.decDRatio, retain_variables=True)
     
     optDec.step()
@@ -164,7 +192,7 @@ def iteration(enc, dec, encD, decD,
     if opt.nRef > 0:
         errors += (refLoss.data[0],)
     
-    errors += (minimaxEncDLoss.data[0], encDLoss.data[0], minimaxDecDLoss.data[0].cpu()[0], decDLoss.data[0].cpu()[0])
+    errors += (minimaxEncDLoss.data[0], encDLoss.data[0], minimaxDecDLoss.data[0], decDLoss.data[0])
     
     return errors, zFake.data
     
