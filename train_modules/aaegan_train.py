@@ -5,6 +5,23 @@ from torch.autograd import Variable
 import numpy as np
 import pdb
 
+def dragan_penalty(X, discriminator, gpu_id):
+    #untested
+    lambda_ = 10
+    batch_size = X.size(0)
+    
+    # gradient penalty
+    alpha = torch.rand(batch_size, 1).expand(X.size()).cuda(gpu_id)
+    alpha2 = torch.rand(batch_size, 1).expand(X.size()).cuda(gpu_id)
+    
+    pdb.set_trace()
+    
+    x_hat = Variable(alpha * X.data + (1 - alpha) * (X.data + 0.5 * X.data.std() * alpha2), requires_grad=True)
+    pred_hat = discriminator(x_hat)
+    gradients = grad(outputs=pred_hat, inputs=x_hat, grad_outputs=torch.ones(pred_hat.size()).cuda(gpu_id), create_graph=True, retain_graph=True, only_inputs=True)[0]
+    gradient_penalty = lambda_ * ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+    gradient_penalty.backward()
+
 def iteration(enc, dec, encD, decD, 
               optEnc, optDec, optEncD, optDecD, 
               critRecon, critZClass, critZRef, critEncD, critDecD,
@@ -68,7 +85,12 @@ def iteration(enc, dec, encD, decD,
     errEncD_fake.backward(retain_variables=True)
     
     encDLoss = (errEncD_real + errEncD_fake)/2
-
+    
+    if opt.dragan:
+        dragan_penalty(zReal, encD, gpu_id)
+    
+    optEncD.step()
+    
     ###Train decD 
     if opt.nClasses > 0:
         y_xReal = classes
@@ -95,6 +117,10 @@ def iteration(enc, dec, encD, decD,
 
     decDLoss = (errDecD_real + (errDecD_fake + errEncD_fake2)/2)/2
     decDLoss.backward(retain_variables=True)
+    
+    if opt.dragan:
+        dragan_penalty(x, decD, gpu_id)
+    
     optDecD.step()
 
     for p in enc.parameters():
