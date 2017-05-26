@@ -57,6 +57,7 @@ parser.add_argument('--noise', type=float, default=0, help='Noise added to the d
 parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
 parser.add_argument('--improved', type=bool, default=False, help='use improved wgan penalty for wgan models')
 parser.add_argument('--improved_penalty', type=float, default=0.1, help='improved wgan penalty weight')
+parser.add_argument('--dragan', type=bool, default=False, help='use dragan penalty https://arxiv.org/pdf/1705.07215.pdf')
 
 
 opt = parser.parse_args()
