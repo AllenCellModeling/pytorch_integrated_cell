@@ -234,13 +234,20 @@ def save_progress(enc, dec, dataProvider, logger, embedding, opt):
     dec.train(False)
 
     x = Variable(dataProvider.get_images(np.arange(0,10),'train')).cuda(gpu_id)
-    xHat = dec(enc(x))
+    try:
+        xHat = dec(enc(x))
+    except:
+        xHat = dec(enc(x)[0])
+        
     imgX = tensor2img(x.data.cpu())
     imgXHat = tensor2img(xHat.data.cpu())
     imgTrainOut = np.concatenate((imgX, imgXHat), 0)
 
     x = Variable(dataProvider.get_images(np.arange(0,10),'test')).cuda(gpu_id)
-    xHat = dec(enc(x))
+    try:
+        xHat = dec(enc(x))
+    except:
+        xHat = dec(enc(x)[0])
     imgX = tensor2img(x.data.cpu())
     imgXHat = tensor2img(xHat.data.cpu())
     imgTestOut = np.concatenate((imgX, imgXHat), 0)
