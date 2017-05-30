@@ -24,7 +24,8 @@ from IPython import display
 import time
 from model_utils import set_gpu_recursive, load_model, save_state, save_progress, get_latent_embeddings, maybe_save
 
-import pdb
+import torch.backends.cudnn as cudnn
+cudnn.benchmark = True
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--Diters', type=int, default=5, help='niters for the encD')
@@ -58,6 +59,7 @@ parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider
 parser.add_argument('--improved', type=bool, default=False, help='use improved wgan penalty for wgan models')
 parser.add_argument('--improved_penalty', type=float, default=0.1, help='improved wgan penalty weight')
 parser.add_argument('--dragan', type=bool, default=False, help='use dragan penalty https://arxiv.org/pdf/1705.07215.pdf')
+
 
 
 opt = parser.parse_args()
