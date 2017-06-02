@@ -161,6 +161,9 @@ else:
     embeddings = get_latent_embeddings(models['enc'], dp, opt)
     torch.save(embeddings, embeddings_path)
 
+models = None
+optimizers = None
+    
 def get_ref(self, inds, train_or_test='train'):
     inds = torch.LongTensor(inds)
     return self.embeddings[train_or_test][inds]
@@ -181,6 +184,13 @@ opt.nch = len(opt.channelInds)
         
 opt.nClasses = dp.get_n_classes()
 opt.nRef = opt.nlatentdim
+
+try:
+    train_module = None
+    train_module = importlib.import_module("train_modules." + opt.train_module)
+    train_module = train_module.trainer(dp, opt)
+except:
+    pass    
 
 pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
