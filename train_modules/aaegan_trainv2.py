@@ -18,7 +18,7 @@ class trainer(object):
             self.classes = None
             
         if opt.nRef > 0:
-            self.classes = Variable(torch.LongTensor(opt.batch_size, opt.nRef)).cuda(gpu_id)
+            self.ref = Variable(torch.FloatTensor(opt.batch_size, opt.nRef)).cuda(gpu_id)
         else:
             self.ref = None
         
@@ -62,12 +62,12 @@ class trainer(object):
         
         if opt.nClasses > 0:
             self.classes.data.copy_(dataProvider.get_classes(inds,'train'))
-            x = self.classes
+            classes = self.classes
 
         if opt.nRef > 0:
             self.ref.data.copy_(dataProvider.get_ref(inds,'train'))
             ref = self.ref
-            
+        
         zAll = enc(x)
             
         for var in zAll:
@@ -107,7 +107,7 @@ class trainer(object):
         if opt.nClasses > 0:
             y_xReal = classes
             self.y_xFake.data.fill_(opt.nClasses)
-            y_xFake = self.yFake
+            y_xFake = self.y_xFake
         else:
             y_xReal = self.y_xReal
             y_xFake = self.y_xFake
@@ -125,10 +125,10 @@ class trainer(object):
         zAll[-1] = zReal
 
         yHat_xFake2 = decD(dec(zAll))
-        errEncD_fake2 = critDecD(yHat_xFake2, y_xFake)
+        errDecD_fake2 = critDecD(yHat_xFake2, y_xFake)
         # errEncD_fake2.backward(retain_graph=True)
 
-        decDLoss = (errDecD_real + (errDecD_fake + errEncD_fake2)/2)/2
+        decDLoss = (errDecD_real + (errDecD_fake + errDecD_fake2)/2)/2
         decDLoss.backward(retain_graph=True)
         optDecD.step()
 
@@ -143,7 +143,7 @@ class trainer(object):
 
         errDecD_real = None
         errDecD_fake = None
-        errEncD_fake2 = None
+        errDecD_fake2 = None
 
 #         yHat_xReal = None
 #         yHat_xFake = None
@@ -174,16 +174,19 @@ class trainer(object):
         if opt.nClasses > 0:
             classLoss = critZClass(zAll[c], classes)
             classLoss.backward(retain_graph=True)        
+            classLoss = classLoss.data[0]
             c += 1
 
         if opt.nRef > 0:
             refLoss = critZRef(zAll[c], ref)
-            refLoss.backward(retain_graph=True)        
+            refLoss.backward(retain_graph=True)   
+            refLoss = refLoss.data[0]
             c += 1
 
         reconLoss = critRecon(xHat, x)
         reconLoss.backward(retain_graph=True)        
-
+        reconLoss = reconLoss.data[0]
+        
         #update wrt encD
         yHatFake = encD(zAll[c])
         minimaxEncDLoss = critEncD(yHatFake, y_zReal)
@@ -206,7 +209,7 @@ class trainer(object):
         #update wrt decD(dec(Z))
         self.zReal.data.normal_()
         zAll[c] = self.zReal
-        # zAll[c] = Variable(opt.latentSample(opt.batch_size, opt.nlatentdim).cuda(gpu_id))
+        
         xHat = dec(zAll)
 
         yHat_xFake2 = decD(xHat)
@@ -221,12 +224,12 @@ class trainer(object):
         
         
 
-        errors = (reconLoss.data[0],)
+        errors = (reconLoss,)
         if opt.nClasses > 0:
-            errors += (classLoss.data[0],)
+            errors += (classLoss,)
 
         if opt.nRef > 0:
-            errors += (refLoss.data[0],)
+            errors += (refLoss,)
 
         errors += (minimaxEncDLoss, encDLoss, minimaxDecLoss, decDLoss)
 
