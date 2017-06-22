@@ -86,8 +86,12 @@ def imgtoprojection(im1, proj_all=False, proj_method='max', colors=lambda i: [1,
             if proj_all:
                 proj_y, proj_x = (matproj(img_c, axis, proj_method, img_c.shape[axis] // 2) for axis in range(1, 3))
                 # flipping to get them facing the right way
-                proj_x = np.fliplr(np.transpose(proj_x, (1, 0)))
+                # proj_x = np.fliplr(np.transpose(proj_x, (1, 0)))
+                # proj_y = np.flipud(proj_y)
+                proj_x = np.transpose(proj_x, (1, 0))
                 proj_y = np.flipud(proj_y)
+                
+                
                 sx, sy, sz = proj_z.shape[1], proj_z.shape[0], proj_y.shape[0]
                 img_piece[:, :sy, :sz] = proj_x
                 img_piece[:, :sy, sz:] = proj_z
