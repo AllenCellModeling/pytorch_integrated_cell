@@ -92,7 +92,7 @@ data_path = './data_{0}x{1}.pyt'.format(str(opts['out_size'][0]), str(opts['out_
 if os.path.exists(data_path):
     dp = torch.load(data_path)
 else:
-    dp = DP.DataProvider(opt.imdir, opts)
+    dp = DP.DataProvider(opt.imdir, opts=opts)
     torch.save(dp, data_path)
     
 if opt.ndat == -1:

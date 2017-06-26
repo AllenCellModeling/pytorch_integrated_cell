@@ -21,27 +21,27 @@ class Enc(nn.Module):
             nn.Conv3d(nch, 64, ksize, dstep, 1),
             nn.BatchNorm3d(64),
         
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.Conv3d(64, 128, ksize, dstep, 1),
             nn.BatchNorm3d(128),
         
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.Conv3d(128, 256, ksize, dstep, 1),
             nn.BatchNorm3d(256),
             
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.Conv3d(256, 512, ksize, dstep, 1),
             nn.BatchNorm3d(512),
             
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.Conv3d(512, 1024, ksize, dstep, 1),
             nn.BatchNorm3d(1024),
             
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.Conv3d(1024, 1024, ksize, dstep, 1),
             nn.BatchNorm3d(1024),
         
-            nn.ELU(inplace=True)
+            nn.ReLU(inplace=True)
         )
         
         if self.nClasses > 0:
@@ -103,27 +103,27 @@ class Dec(nn.Module):
         self.main = nn.Sequential(
             nn.BatchNorm3d(1024),
             
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose3d(1024, 1024, ksize, dstep, 1, output_padding = (0,1,0)),
             nn.BatchNorm3d(1024),
             
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose3d(1024, 512, ksize, dstep, 1),
             nn.BatchNorm3d(512),
             
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose3d(512, 256, ksize, dstep, 1),
             nn.BatchNorm3d(256),
             
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose3d(256, 128, ksize, dstep, 1),
             nn.BatchNorm3d(128),
             
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose3d(128, 64, ksize, dstep, 1),
             nn.BatchNorm3d(64),
             
-            nn.ELU(inplace=True),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose3d(64, nch, ksize, dstep, 1),
             # nn.BatchNorm3d(nch),
             nn.Sigmoid()             
