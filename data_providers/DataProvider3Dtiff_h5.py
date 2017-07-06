@@ -11,42 +11,12 @@ import h5py
 import pandas as pd
 import copy
 import random
-from tqdm import tqdm
+# from tqdm import tqdm
 
 import pdb
 
 import aicsimage.processing as proc
 from aicsimage.io import tifReader
-
-
-# load one tiff image, using one row index of the (potentially filtered) csv dataframe
-def load_tiff(df_row, channel_cols=['save_memb_reg_path', 'save_struct_reg_path', 'save_dna_reg_path'], resize=None):
-    
-    # build a list of numpy arrays, one for each channel
-    image = []
-    for channel_name in channel_cols:
-        channel_path = df_row[channel_name]
-        channel_path = channel_path.split('/allen/aics/')[1]
-        channel_path = os.path.join('/root',channel_path)
-        
-        with tifReader.TifReader(channel_path) as r:
-            channel = r.load()               # ZYX numpy array
-            channel = channel.swapaxes(0,2)  # transpose Z and Y -> XYZ
-            if resize is not None:
-                channel = proc.resize(channel, resize, "bilinear")
-            image += [channel]
-            
-    # normalize all channels independently
-    for i,_ in enumerate(image):
-        image[i] = np.expand_dims(image[i], 0)
-        image[i] = image[i] - np.min(image[i])
-        image[i] = image[i] / np.max(image[i])
-
-    # turn the list into one big numpy array
-    image = np.concatenate(image,0)
-
-    return(image)
-
 
 class DataProvider(object):
     
@@ -55,12 +25,14 @@ class DataProvider(object):
         
         opts_default = {'rotate': False,
                         'hold_out': 1/20,
-                        'verbose': False,
-                        'target_col':'FinalScore',
+                        'verbose': True,
+                        'target_col':'structureProteinName',
                         'channel_names': ['memb', 'struct', 'dna'],
                         'h5_file':'all_images.h5',
-                        'resize':None,
-                        'preload':False}
+                        'resize':0.815,
+                        'pad_to':(128,96,64),
+                        'preload':False,
+                        'check_files':False}
                 
         # set default values if they are missing
         for key in opts_default.keys(): 
@@ -118,11 +90,10 @@ class DataProvider(object):
             csv_df['valid_row'] = True
             for index, row in csv_df.iterrows():
                 is_good_row = True
-                for channel in tqdm(channel_cols, desc='checking rows in csv', ascii=True):
-                    channel_path = row[channel]
-                    # TODO remove path hack when greg fixes abs -> rel paths
-                    channel_path = channel_path.split('/allen/aics/')[1]
-                    channel_path = os.path.join('/root',channel_path)
+                # for channel in tqdm(channel_cols, desc='checking rows in csv', ascii=True):
+                for channel in channel_cols:
+
+                    channel_path = image_parent + os.sep + row[channel]
                     is_good_row = is_good_row and os.path.exists(channel_path)
                 csv_df.loc[index, 'valid_row'] = is_good_row
 
@@ -160,7 +131,7 @@ class DataProvider(object):
         self.data['train'] = {}
         self.data['train']['inds'] = rand_inds[ntest+2:-1]
         
-        self.imsize = load_tiff(csv_df.iloc[0], channel_cols=self.channel_cols, resize=self.opts['resize']).shape
+        self.imsize = self.load_tiff(image_parent + os.sep + csv_df.iloc[0][self.channel_cols]).shape
         
         # if the h5_file option is set, load the files in to an h5 file if it doesn't exist
         h5f_path = os.path.join(self.image_parent,self.opts['h5_file'])
@@ -170,8 +141,9 @@ class DataProvider(object):
                 print('need to make h5 file')
             h5f = h5py.File(h5f_path, 'w')
 
-            for (i, row) in tqdm(self.csv_data.iterrows(), desc='loading images into h5 file', ascii=True):
-                d = load_tiff(row, channel_cols=self.channel_cols, resize=self.opts['resize'])
+            # for (i, row) in tqdm(self.csv_data.iterrows(), desc='loading images into h5 file', ascii=True):
+            for (i, row) in self.csv_data.iterrows():
+                d = self.load_tiff(image_parent + os.sep + row[self.channel_cols])
                 # h5 keys are the row numbers in the csv file
                 h5f.create_dataset(str(i), data=d)
             h5f.close()
@@ -182,7 +154,8 @@ class DataProvider(object):
                 h5f_path = os.path.join(self.image_parent,self.opts['h5_file'])
                 h5f = h5py.File(h5f_path,'r')
                 self.images_preloaded = np.zeros([len(h5f.keys()), *self.imsize])
-                for (i, row) in tqdm(self.csv_data.iterrows(), desc='loading images into memory', ascii=True):
+                # for (i, row) in tqdm(self.csv_data.iterrows(), desc='loading images into memory', ascii=True):
+                for (i, row) in self.csv_data.iterrows():
                     image = h5f[str(i)][:]
                     self.images_preloaded[i,:,:,:,:] = image
                 h5f.close()
@@ -191,7 +164,34 @@ class DataProvider(object):
             
             # persist preloaded array as part of the dataprovider
             # self.images_preloaded = images_preloaded_np_array
-        
+   
+    # load one tiff image, using one row index of the (potentially filtered) csv dataframe
+    def load_tiff(self, channel_paths):
+
+        # build a list of numpy arrays, one for each channel
+        image = list()
+
+        for channel_path in channel_paths: 
+            with tifReader.TifReader(channel_path) as r:
+                channel = r.load() # ZYX numpy array
+                channel = channel.transpose(1,2,0) # transpose Z and Y -> XYZ
+                channel = np.expand_dims(channel, axis=0)
+                if self.opts['resize'] is not None:
+                    channel = proc.resize(channel, self.opts['resize'], "bilinear")
+                if self.opts['pad_to'] is not None:
+
+                    pad_amount = np.hstack((0, np.subtract(self.opts['pad_to'], channel.shape[1:])/2))
+                    pad_amount = list(zip(np.floor(pad_amount).astype('int'), np.ceil(pad_amount).astype('int')))
+
+                    channel = np.pad(channel, pad_amount, 'constant', constant_values=0)                
+
+                image += [channel]
+
+        # turn the list into one big numpy array
+        image = np.concatenate(image,0)
+
+        return(image)        
+    
     def get_n_dat(self, train_or_test = 'train'):
         return len(self.data[train_or_test]['inds'])
     
@@ -228,7 +228,7 @@ class DataProvider(object):
         # use tiff reader if no better option
         else:
             for i, (rownum, row) in enumerate(self.csv_data.iloc[inds_master].iterrows()):
-                image = load_tiff(row, channel_cols=self.channel_cols,resize=self.opts['resize'])
+                image = self.load_tiff(image_parent + os.sep + row[self.channel_cols])
                 images[i] = torch.from_numpy(image)
         
         return images
