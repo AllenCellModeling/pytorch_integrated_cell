@@ -11,7 +11,7 @@ import h5py
 import pandas as pd
 import copy
 import random
-# from tqdm import tqdm
+from tqdm import tqdm
 
 import pdb
 
@@ -27,12 +27,12 @@ class DataProvider(object):
                         'hold_out': 1/20,
                         'verbose': True,
                         'target_col':'structureProteinName',
-                        'channel_names': ['memb', 'struct', 'dna'],
-                        'h5_file':'all_images.h5',
-                        'resize':0.815,
+                        'channelInds': [0, 1, 2],
+                        'h5_file': True,
+                        'resize':0.795,
                         'pad_to':(128,96,64),
                         'preload':False,
-                        'check_files':False}
+                        'check_files':True}
                 
         # set default values if they are missing
         for key in opts_default.keys(): 
@@ -44,36 +44,24 @@ class DataProvider(object):
         self.csv_name = csv_name
 
         # translate short channel name spassed in into longer csv column names
-        channel_name_to_column_dict = {
-            'cell':'save_cell_reg_path',
-            'nuc':'save_nuc_reg_path',
-            'dna':'save_dna_reg_path',
-            'memb':'save_memb_reg_path',
-            'struct':'save_struct_reg_path'
+        self.channel_index_to_column_dict = {
+            0:'save_cell_reg_path',
+            1:'save_nuc_reg_path',
+            2:'save_dna_reg_path',
+            3:'save_memb_reg_path',
+            4:'save_struct_reg_path'
         }
         
-        index_to_channel_name_to_dict = {
-            0:'cell',
-            1:'nuc',
-            2:'dna',
-            3:'memb',
-            4:'struct'
-        }
+        self.channel_lookup_table = np.asarray([
+            3, #0 means memb
+            4, #1 means struct
+            2, #2 means dna
+            0, #3 means seg cell
+            1  #4 means seg nuc
+        ])
+            
         
-        # if using channels numbers as names (eww) then translate the dict keys:
-        channel_cols = []
-        for c in self.opts['channel_names']:
-            if isinstance(c, int):
-                k = index_to_channel_name_to_dict[c]
-            else:
-                k = c
-            channel_cols += [channel_name_to_column_dict[k]]
-        
-        self.channel_cols = channel_cols
-        
-        
-        if self.opts['verbose']:
-            print('reading from columns: {}'.format(self.channel_cols))
+        channel_column_list = [col for col in self.channel_index_to_column_dict.values()]
         
         # make a dataframe out of the csv log file
         csv_path = os.path.join(self.image_parent,self.csv_name)
@@ -81,22 +69,49 @@ class DataProvider(object):
             print('reading csv manifest')
         csv_df = pd.read_csv(csv_path)
         
+        h5_files = [os.path.splitext(os.path.basename(file))[0][0:-5] + '.h5' for file in csv_df['save_cell_reg_path']]
+        # os.path.splitext(os.path.basename(csv_df['save_cell_reg_path'][0]))[0][0:-5] + '.hf'
+        # h5_files = csv_df.save_dir + os.sep + h5_files
+        
+        csv_df['h5_file'] = h5_files
         
         # check which rows in csv are valid, based on all the channels i want being present
-        if self.opts['check_files']:
+        if self.opts['check_files'] is not None:
+                    # TODO add checking to make sure number of keys in h5 file matches number of lines in csv file
             if self.opts['verbose']:
-                print('checking to see if all files for each image are present')
+                print('Making h5 files')
 
-            csv_df['valid_row'] = True
-            for index, row in csv_df.iterrows():
+            for index in tqdm(range(0, csv_df.shape[0]), desc='loading images into h5 files', ascii=True):
                 is_good_row = True
-                # for channel in tqdm(channel_cols, desc='checking rows in csv', ascii=True):
-                for channel in channel_cols:
 
-                    channel_path = image_parent + os.sep + row[channel]
-                    is_good_row = is_good_row and os.path.exists(channel_path)
+                row = csv_df.loc[index]
+
+                h5_path = self.image_parent + os.sep + row.save_dir + os.sep + row.h5_file
+                if not os.path.exists(h5_path):
+                    
+                    try:
+                        h5f = h5py.File(h5_path, 'w')
+                        image_paths = image_parent + os.sep + row[channel_column_list]
+                        d = self.load_tiff(image_paths)
+                        # h5 keys are the row numbers in the csv file
+                        h5f.create_dataset('image', data=d)
+                        h5f.close()
+                    except:
+                        print('Could not load from image. ' + image_paths[0])
+                        if os.path.exists(h5_path):
+                            os.remove(h5_path)
+                            
+                        is_good_row = False
+                else:
+                    try:
+                        self.load_h5(h5_path)
+                    except:
+                        print('Could not load ' + h5_path + '. Deleting.')
+                        os.remove(h5_path)
+                        
+                        is_good_row = False
+
                 csv_df.loc[index, 'valid_row'] = is_good_row
-
 
             # only work with valid rows
             n_old_rows = len(csv_df)
@@ -131,41 +146,18 @@ class DataProvider(object):
         self.data['train'] = {}
         self.data['train']['inds'] = rand_inds[ntest+2:-1]
         
-        self.imsize = self.load_tiff(image_parent + os.sep + csv_df.iloc[0][self.channel_cols]).shape
-        
-        # if the h5_file option is set, load the files in to an h5 file if it doesn't exist
-        h5f_path = os.path.join(self.image_parent,self.opts['h5_file'])
-        if not os.path.exists(h5f_path):
-            # TODO add checking to make sure number of keys in h5 file matches number of lines in csv file
-            if self.opts['verbose']:
-                print('need to make h5 file')
-            h5f = h5py.File(h5f_path, 'w')
+        self.imsize = self.load_h5(self.image_parent + os.sep +  csv_df.iloc[0].save_dir + os.sep + csv_df.iloc[0].h5_file).shape
 
-            # for (i, row) in tqdm(self.csv_data.iterrows(), desc='loading images into h5 file', ascii=True):
-            for (i, row) in self.csv_data.iterrows():
-                d = self.load_tiff(image_parent + os.sep + row[self.channel_cols])
-                # h5 keys are the row numbers in the csv file
-                h5f.create_dataset(str(i), data=d)
-            h5f.close()
-            
-        # if the preload option is set, load the images into one giant numpy array in main memory
-        if self.opts['preload']:
-            if self.opts['h5_file']:                
-                h5f_path = os.path.join(self.image_parent,self.opts['h5_file'])
-                h5f = h5py.File(h5f_path,'r')
-                self.images_preloaded = np.zeros([len(h5f.keys()), *self.imsize])
-                # for (i, row) in tqdm(self.csv_data.iterrows(), desc='loading images into memory', ascii=True):
-                for (i, row) in self.csv_data.iterrows():
-                    image = h5f[str(i)][:]
-                    self.images_preloaded[i,:,:,:,:] = image
-                h5f.close()
-            else:
-                raise ValueError('preload = True only supported if h5_file is not None')
-            
-            # persist preloaded array as part of the dataprovider
-            # self.images_preloaded = images_preloaded_np_array
    
     # load one tiff image, using one row index of the (potentially filtered) csv dataframe
+#     def get_channel_cols(self):
+#         # if using channels numbers as names (eww) then translate the dict keys:
+#         channel_cols = list()
+#         for c in self.opts['channelInds']:
+#             channel_cols.append(self.channel_index_to_column_dict[c])
+            
+#         return channel_cols
+        
     def load_tiff(self, channel_paths):
 
         # build a list of numpy arrays, one for each channel
@@ -189,8 +181,24 @@ class DataProvider(object):
 
         # turn the list into one big numpy array
         image = np.concatenate(image,0)
+        image = image / np.max(image)
 
         return(image)        
+    
+    def load_h5(self, h5_path):
+        f = h5py.File(h5_path,'r')
+        
+        chInds = self.channel_lookup_table[np.asarray(self.opts['channelInds'])]
+        
+        image = list()
+        for chInd in chInds:
+            im_channel = f['image'][chInd]
+            im_channel = np.expand_dims(im_channel, axis=0)
+            image.append(im_channel)
+        
+        image = np.concatenate(image,0)
+        
+        return image
     
     def get_n_dat(self, train_or_test = 'train'):
         return len(self.data[train_or_test]['inds'])
@@ -199,37 +207,19 @@ class DataProvider(object):
         return self.labels_onehot.shape[1]
         
     def get_images(self, inds_tt, train_or_test):
+        
         dims = list(self.imsize)
-        dims[0] = len(self.opts['channel_names'])
+        dims[0] = len(self.opts['channelInds'])
         dims.insert(0, len(inds_tt))
         
         inds_master = self.data[train_or_test]['inds'][inds_tt]
         
         images = torch.zeros(tuple(dims))
         
-        # use the h5 file if we have it or made it -- much faster io than reading tiffs
-        if self.opts['h5_file'] is not None:
-            
-            # use preloaded images if we have them
-            if self.opts['preload'] is not None :
-                for i,k in enumerate(inds_master):
-                    images[i] = torch.from_numpy(self.images_preloaded[k])
-                # images = self.images_preloaded[inds_master]
-            
-            # otherwise load on demand
-            else:
-                h5f_path = os.path.join(self.image_parent,self.opts['h5_file'])
-                h5f = h5py.File(h5f_path,'r')
-                for i,k in enumerate(inds_master):
-                    image = h5f[str(k)][:]
-                    images[i] = torch.from_numpy(image)
-                h5f.close()
-                
-        # use tiff reader if no better option
-        else:
-            for i, (rownum, row) in enumerate(self.csv_data.iloc[inds_master].iterrows()):
-                image = self.load_tiff(image_parent + os.sep + row[self.channel_cols])
-                images[i] = torch.from_numpy(image)
+        for i, (rownum, row) in enumerate(self.csv_data.iloc[inds_master].iterrows()):
+            h5_file = self.image_parent + os.sep +  row.save_dir + os.sep + row.h5_file
+            image = self.load_h5(h5_file)
+            images[i] = torch.from_numpy(image)
         
         return images
     
