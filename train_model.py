@@ -60,6 +60,10 @@ parser.add_argument('--improved', type=bool, default=False, help='use improved w
 parser.add_argument('--improved_penalty', type=float, default=0.1, help='improved wgan penalty weight')
 parser.add_argument('--dragan', type=bool, default=False, help='use dragan penalty https://arxiv.org/pdf/1705.07215.pdf')
 
+parser.add_argument('--channels_pt1', nargs='+', type=int, default=[0,2], help='channels to use for part 1')
+parser.add_argument('--channels_pt2', nargs='+', type=int, default=[0,1,2], help='channels to use for part 2')
+
+
 
 
 opt = parser.parse_args()
@@ -108,7 +112,7 @@ opt.save_dir = opt.save_parent + os.sep + 'ref_model'
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
 
-opt.channelInds = [0,2]
+opt.channelInds = opt.channels_pt1
 dp.opts['channelInds'] = opt.channelInds
 opt.nch = len(opt.channelInds)
         
@@ -178,7 +182,7 @@ opt.save_dir = opt.save_parent + os.sep + 'struct_model'
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
     
-opt.channelInds = [0, 1, 2]
+opt.channelInds = channels_pt2
 dp.opts['channelInds'] = opt.channelInds
 opt.nch = len(opt.channelInds)
         

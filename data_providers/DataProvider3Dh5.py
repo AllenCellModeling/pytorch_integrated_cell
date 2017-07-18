@@ -49,7 +49,8 @@ class DataProvider(object):
             1:'save_nuc_reg_path',
             2:'save_dna_reg_path',
             3:'save_memb_reg_path',
-            4:'save_struct_reg_path'
+            4:'save_struct_reg_path',
+            5:'save_trans_reg_path'
         }
         
         self.channel_lookup_table = np.asarray([
@@ -57,7 +58,8 @@ class DataProvider(object):
             4, #1 means struct
             2, #2 means dna
             0, #3 means seg cell
-            1  #4 means seg nuc
+            1, #4 means seg nuc
+            5  #5 means transmitted
         ])
             
         
@@ -106,6 +108,7 @@ class DataProvider(object):
                     try:
                         self.load_h5(h5_path)
                     except:
+                        pdb.set_trace()
                         print('Could not load ' + h5_path + '. Deleting.')
                         os.remove(h5_path)
                         
@@ -177,11 +180,13 @@ class DataProvider(object):
 
                     channel = np.pad(channel, pad_amount, 'constant', constant_values=0)                
 
+                #rescale to 0 - 1
+                channel = channel / 255
                 image += [channel]
 
         # turn the list into one big numpy array
         image = np.concatenate(image,0)
-        image = image / np.max(image)
+        # image = image / np.max(image)
 
         return(image)        
     
