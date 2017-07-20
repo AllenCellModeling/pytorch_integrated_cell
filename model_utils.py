@@ -104,6 +104,12 @@ def load_model(model_provider, opt):
     encD = model_provider.EncD(opt.nlatentdim, opt.gpu_ids, opt)
     decD = model_provider.DecD(opt.nClasses+1, opt.imsize, opt.nch, opt.gpu_ids, opt)
 
+    if opt.dtype == 'half':
+        enc = enc.half()
+        dec = dec.half()
+        encD = encD.half()
+        decD = decD.half()
+    
     enc.apply(weights_init)
     dec.apply(weights_init)
     encD.apply(weights_init)
