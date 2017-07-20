@@ -8,9 +8,10 @@ import pdb
 
 class trainer(object):
     def __init__(self, dp, opt):
+        
         gpu_id = opt.gpu_ids[0]
         
-        self.x = Variable(dp.get_images(range(0, opt.batch_size),'train')).cuda(gpu_id)
+        self.x = Variable(dp.get_images(range(0, opt.batch_size),'train').cuda(gpu_id))
         
         if opt.nClasses > 0:
             self.classes = Variable(torch.LongTensor(opt.batch_size)).cuda(gpu_id)
@@ -18,18 +19,18 @@ class trainer(object):
             self.classes = None
             
         if opt.nRef > 0:
-            self.ref = Variable(torch.FloatTensor(opt.batch_size, opt.nRef)).cuda(gpu_id)
+            self.ref = Variable(dp.get_ref(range(0, opt.batch_size), train_or_test='train').type_as(self.x.data).cuda(gpu_id))
         else:
             self.ref = None
         
-        self.zReal = Variable(torch.FloatTensor(opt.batch_size, opt.nlatentdim)).cuda(gpu_id)
+        self.zReal = Variable(torch.Tensor(opt.batch_size, opt.nlatentdim).type_as(self.x.data).cuda(gpu_id))
         
-        self.y_zReal = Variable(torch.ones(opt.batch_size)).cuda(gpu_id)
-        self.y_zFake = Variable(torch.zeros(opt.batch_size)).cuda(gpu_id)
+        self.y_zReal = Variable(torch.ones(opt.batch_size).type_as(self.x.data).cuda(gpu_id))
+        self.y_zFake = Variable(torch.zeros(opt.batch_size).type_as(self.x.data).cuda(gpu_id))
         
         if opt.nClasses > 0:
             self.y_xReal = self.classes
-            self.y_xFake = Variable(torch.LongTensor(opt.batch_size)).cuda(gpu_id)
+            self.y_xFake = Variable(torch.LongTensor(opt.batch_size).cuda(gpu_id))
         else:
             self.y_xReal = self.y_zReal
             self.y_xFake = self.y_zFake
@@ -74,7 +75,7 @@ class trainer(object):
             var.detach_()
 
         xHat = dec(zAll)
-
+        
         self.zReal.data.normal_()
         zReal = self.zReal
         # zReal = Variable(opt.latentSample(opt.batch_size, opt.nlatentdim).cuda(gpu_id))
