@@ -100,6 +100,9 @@ class DataProvider(object):
         
         images = torch.zeros(tuple(dims))
         
+        if self.opts['dtype'] == 'half':
+            images = images.type(torch.HalfTensor)
+            
         c = 0
         for i in inds:
             h5_path = self.image_paths[self.data[train_or_test]['inds'][i]]
