@@ -27,6 +27,8 @@ from model_utils import set_gpu_recursive, load_model, save_state, save_progress
 import torch.backends.cudnn as cudnn
 cudnn.benchmark = True
 
+import pdb
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--Diters', type=int, default=5, help='niters for the encD')
 parser.add_argument('--DitersAlt', type=int, default=100, help='niters for the encD')
@@ -63,7 +65,7 @@ parser.add_argument('--dragan', type=bool, default=False, help='use dragan penal
 parser.add_argument('--channels_pt1', nargs='+', type=int, default=[0,2], help='channels to use for part 1')
 parser.add_argument('--channels_pt2', nargs='+', type=int, default=[0,1,2], help='channels to use for part 2')
 
-
+parser.add_argument('--dtype', default='float', help='data type that the dataprovider uses')
 
 
 opt = parser.parse_args()
@@ -91,6 +93,7 @@ opts = {}
 opts['verbose'] = True
 opts['pattern'] = '*.tif_flat.png'
 opts['out_size'] = [opt.imsize, opt.imsize]
+opts['dtype'] = opt.dtype
 
 data_path = './data_{0}x{1}.pyt'.format(str(opts['out_size'][0]), str(opts['out_size'][1]))
 if os.path.exists(data_path):
@@ -119,7 +122,7 @@ opt.nch = len(opt.channelInds)
 opt.nClasses = 0
 opt.nRef = 0
 
-try:
+try:    
     train_module = train_module.trainer(dp, opt)
 except:
     pass    
@@ -182,12 +185,13 @@ opt.save_dir = opt.save_parent + os.sep + 'struct_model'
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
     
-opt.channelInds = channels_pt2
+opt.channelInds = opt.channels_pt2
 dp.opts['channelInds'] = opt.channelInds
 opt.nch = len(opt.channelInds)
         
 opt.nClasses = dp.get_n_classes()
 opt.nRef = opt.nlatentdim
+
 
 try:
     train_module = None
