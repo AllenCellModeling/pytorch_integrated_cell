@@ -71,11 +71,11 @@ class DataProvider(object):
             print('reading csv manifest')
         csv_df = pd.read_csv(csv_path)
         
-        h5_files = [os.path.splitext(os.path.basename(file))[0][0:-5] + '.h5' for file in csv_df['save_cell_reg_path']]
+        # h5_files = [os.path.splitext(os.path.basename(file))[0][0:-5] + '.h5' for file in csv_df['save_cell_reg_path']]
         # os.path.splitext(os.path.basename(csv_df['save_cell_reg_path'][0]))[0][0:-5] + '.hf'
         # h5_files = csv_df.save_dir + os.sep + h5_files
         
-        csv_df['h5_file'] = h5_files
+        # csv_df['h5_file'] = h5_files
         
         # check which rows in csv are valid, based on all the channels i want being present
         if self.opts['check_files'] is not None:
@@ -88,7 +88,7 @@ class DataProvider(object):
 
                 row = csv_df.loc[index]
 
-                h5_path = self.image_parent + os.sep + row.save_dir + os.sep + row.h5_file
+                h5_path = self.image_parent + os.sep + row.save_h5_reg_path
                 if not os.path.exists(h5_path):
                     
                     try:
@@ -108,9 +108,9 @@ class DataProvider(object):
                     try:
                         self.load_h5(h5_path)
                     except:
-                        pdb.set_trace()
-                        print('Could not load ' + h5_path + '. Deleting.')
-                        os.remove(h5_path)
+                        # pdb.set_trace()
+                        print('Could not load ' + h5_path + '. Skipping.')
+                        # os.remove(h5_path)
                         
                         is_good_row = False
 
@@ -149,7 +149,7 @@ class DataProvider(object):
         self.data['train'] = {}
         self.data['train']['inds'] = rand_inds[ntest+2:-1]
         
-        self.imsize = self.load_h5(self.image_parent + os.sep +  csv_df.iloc[0].save_dir + os.sep + csv_df.iloc[0].h5_file).shape
+        self.imsize = self.load_h5(self.image_parent + os.sep +  csv_df.iloc[0].save_h5_reg_path).shape
 
    
     # load one tiff image, using one row index of the (potentially filtered) csv dataframe
@@ -161,47 +161,53 @@ class DataProvider(object):
             
 #         return channel_cols
         
-    def load_tiff(self, channel_paths):
+#     def load_tiff(self, channel_paths):
 
-        # build a list of numpy arrays, one for each channel
-        image = list()
+#         # build a list of numpy arrays, one for each channel
+#         image = list()
 
-        for channel_path in channel_paths: 
-            with tifReader.TifReader(channel_path) as r:
-                channel = r.load() # ZYX numpy array
-                channel = channel.transpose(1,2,0) # transpose Z and Y -> XYZ
-                channel = np.expand_dims(channel, axis=0)
-                if self.opts['resize'] is not None:
-                    channel = proc.resize(channel, self.opts['resize'], "bilinear")
-                if self.opts['pad_to'] is not None:
+#         for channel_path in channel_paths: 
+#             with tifReader.TifReader(channel_path) as r:
+#                 channel = r.load() # ZYX numpy array
+#                 channel = channel.transpose(1,2,0) # transpose Z and Y -> XYZ
+#                 channel = np.expand_dims(channel, axis=0)
+#                 if self.opts['resize'] is not None:
+#                     channel = proc.resize(channel, self.opts['resize'], "bilinear")
+#                 if self.opts['pad_to'] is not None:
 
-                    pad_amount = np.hstack((0, np.subtract(self.opts['pad_to'], channel.shape[1:])/2))
-                    pad_amount = list(zip(np.floor(pad_amount).astype('int'), np.ceil(pad_amount).astype('int')))
+#                     pad_amount = np.hstack((0, np.subtract(self.opts['pad_to'], channel.shape[1:])/2))
+#                     pad_amount = list(zip(np.floor(pad_amount).astype('int'), np.ceil(pad_amount).astype('int')))
 
-                    channel = np.pad(channel, pad_amount, 'constant', constant_values=0)                
+#                 channel = np.pad(channel, pad_amount, 'constant', constant_values=channel[0,0,0,0])                
 
-                #rescale to 0 - 1
-                channel = channel / 255
-                image += [channel]
+#                 #rescale to 0 - 1
+#                 channel = channel / 255
+#                 image += [channel]
 
-        # turn the list into one big numpy array
-        image = np.concatenate(image,0)
-        # image = image / np.max(image)
+#         # turn the list into one big numpy array
+#         image = np.concatenate(image,0)
+#         # image = image / np.max(image)
 
-        return(image)        
+#         return(image)        
     
     def load_h5(self, h5_path):
-        f = h5py.File(h5_path,'r')
         
         chInds = self.channel_lookup_table[np.asarray(self.opts['channelInds'])]
         
-        image = list()
-        for chInd in chInds:
-            im_channel = f['image'][chInd]
-            im_channel = np.expand_dims(im_channel, axis=0)
-            image.append(im_channel)
+        f = h5py.File(h5_path,'r')
         
-        image = np.concatenate(image,0)
+        image = f['image'].value[chInds]
+        
+        
+        image = image.astype('double')/255
+        
+#         image = list()
+#         for chInd in chInds:
+#             im_channel = image_all[chInd]
+#             im_channel = np.expand_dims(im_channel, axis=0)
+#             image.append(im_channel)
+        
+#         image = np.concatenate(image,0)
         
         return image
     
@@ -222,8 +228,10 @@ class DataProvider(object):
         images = torch.zeros(tuple(dims))
         
         for i, (rownum, row) in enumerate(self.csv_data.iloc[inds_master].iterrows()):
-            h5_file = self.image_parent + os.sep +  row.save_dir + os.sep + row.h5_file
+            h5_file = self.image_parent + os.sep +  row.save_h5_reg_path
             image = self.load_h5(h5_file)
+            
+            # pdb.set_trace()
             images[i] = torch.from_numpy(image)
         
         return images
