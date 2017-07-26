@@ -239,21 +239,23 @@ def save_progress(enc, dec, dataProvider, logger, embedding, opt):
     enc.train(False)
     dec.train(False)
 
-    x = Variable(dataProvider.get_images(np.arange(0,10),'train')).cuda(gpu_id)
-    try:
-        xHat = dec(enc(x))
-    except:
-        xHat = dec(enc(x)[0])
+    x = Variable(dataProvider.get_images(np.arange(0,10),'train').cuda(gpu_id), volatile=True)
+    
+    # try:
+    xHat = dec(enc(x))
+    # except:
+    #     xHat = dec(enc(x)[0])
         
     imgX = tensor2img(x.data.cpu())
     imgXHat = tensor2img(xHat.data.cpu())
     imgTrainOut = np.concatenate((imgX, imgXHat), 0)
 
-    x = Variable(dataProvider.get_images(np.arange(0,10),'test')).cuda(gpu_id)
-    try:
-        xHat = dec(enc(x))
-    except:
-        xHat = dec(enc(x)[0])
+    x = Variable(dataProvider.get_images(np.arange(0,10),'test').cuda(gpu_id), volatile=True)
+    # try:
+    xHat = dec(enc(x))
+    # except:
+    #     xHat = dec(enc(x)[0])
+    
     imgX = tensor2img(x.data.cpu())
     imgXHat = tensor2img(xHat.data.cpu())
     imgTestOut = np.concatenate((imgX, imgXHat), 0)
@@ -342,6 +344,9 @@ def save_progress(enc, dec, dataProvider, logger, embedding, opt):
     plt.title('latent space embedding')
     plt.savefig('{0}/embedding.png'.format(opt.save_dir), bbox_inches='tight')
     plt.close()
+    
+    xHat = None
+    x = None
 
     
 def save_state(enc, dec, encD, decD, 
