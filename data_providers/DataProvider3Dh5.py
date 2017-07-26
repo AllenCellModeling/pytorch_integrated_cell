@@ -71,12 +71,6 @@ class DataProvider(object):
             print('reading csv manifest')
         csv_df = pd.read_csv(csv_path)
         
-        # h5_files = [os.path.splitext(os.path.basename(file))[0][0:-5] + '.h5' for file in csv_df['save_cell_reg_path']]
-        # os.path.splitext(os.path.basename(csv_df['save_cell_reg_path'][0]))[0][0:-5] + '.hf'
-        # h5_files = csv_df.save_dir + os.sep + h5_files
-        
-        # csv_df['h5_file'] = h5_files
-        
         # check which rows in csv are valid, based on all the channels i want being present
         if self.opts['check_files'] is not None:
                     # TODO add checking to make sure number of keys in h5 file matches number of lines in csv file
@@ -150,65 +144,15 @@ class DataProvider(object):
         self.data['train']['inds'] = rand_inds[ntest+2:-1]
         
         self.imsize = self.load_h5(self.image_parent + os.sep +  csv_df.iloc[0].save_h5_reg_path).shape
-
-   
-    # load one tiff image, using one row index of the (potentially filtered) csv dataframe
-#     def get_channel_cols(self):
-#         # if using channels numbers as names (eww) then translate the dict keys:
-#         channel_cols = list()
-#         for c in self.opts['channelInds']:
-#             channel_cols.append(self.channel_index_to_column_dict[c])
-            
-#         return channel_cols
-        
-#     def load_tiff(self, channel_paths):
-
-#         # build a list of numpy arrays, one for each channel
-#         image = list()
-
-#         for channel_path in channel_paths: 
-#             with tifReader.TifReader(channel_path) as r:
-#                 channel = r.load() # ZYX numpy array
-#                 channel = channel.transpose(1,2,0) # transpose Z and Y -> XYZ
-#                 channel = np.expand_dims(channel, axis=0)
-#                 if self.opts['resize'] is not None:
-#                     channel = proc.resize(channel, self.opts['resize'], "bilinear")
-#                 if self.opts['pad_to'] is not None:
-
-#                     pad_amount = np.hstack((0, np.subtract(self.opts['pad_to'], channel.shape[1:])/2))
-#                     pad_amount = list(zip(np.floor(pad_amount).astype('int'), np.ceil(pad_amount).astype('int')))
-
-#                 channel = np.pad(channel, pad_amount, 'constant', constant_values=channel[0,0,0,0])                
-
-#                 #rescale to 0 - 1
-#                 channel = channel / 255
-#                 image += [channel]
-
-#         # turn the list into one big numpy array
-#         image = np.concatenate(image,0)
-#         # image = image / np.max(image)
-
-#         return(image)        
     
     def load_h5(self, h5_path):
-        
         chInds = self.channel_lookup_table[np.asarray(self.opts['channelInds'])]
         
         f = h5py.File(h5_path,'r')
         
         image = f['image'].value[chInds]
-        
-        
         image = image.astype('double')/255
-        
-#         image = list()
-#         for chInd in chInds:
-#             im_channel = image_all[chInd]
-#             im_channel = np.expand_dims(im_channel, axis=0)
-#             image.append(im_channel)
-        
-#         image = np.concatenate(image,0)
-        
+
         return image
     
     def get_n_dat(self, train_or_test = 'train'):
@@ -218,7 +162,6 @@ class DataProvider(object):
         return self.labels_onehot.shape[1]
         
     def get_images(self, inds_tt, train_or_test):
-        
         dims = list(self.imsize)
         dims[0] = len(self.opts['channelInds'])
         dims.insert(0, len(inds_tt))
@@ -237,7 +180,6 @@ class DataProvider(object):
         return images
     
     def get_classes(self, inds_tt, train_or_test, index_or_onehot = 'index'):
-        
         inds_master = self.data[train_or_test]['inds'][inds_tt]
 
         if index_or_onehot == 'index':
