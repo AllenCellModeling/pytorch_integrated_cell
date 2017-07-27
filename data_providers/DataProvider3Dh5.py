@@ -13,6 +13,8 @@ import copy
 import random
 from tqdm import tqdm
 
+import hashlib
+
 import pdb
 
 import aicsimage.processing as proc
@@ -24,7 +26,7 @@ class DataProvider(object):
         self.data = {}
         
         opts_default = {'rotate': False,
-                        'hold_out': 1/20,
+                        'hold_out': 1/10,
                         'verbose': True,
                         'target_col':'structureProteinName',
                         'channelInds': [0, 1, 2],
@@ -32,7 +34,8 @@ class DataProvider(object):
                         'resize':0.795,
                         'pad_to':(128,96,64),
                         'preload':False,
-                        'check_files':True}
+                        'check_files':True,
+                        'split_seed': 1}
                 
         # set default values if they are missing
         for key in opts_default.keys(): 
@@ -61,7 +64,6 @@ class DataProvider(object):
             1, #4 means seg nuc
             5  #5 means transmitted
         ])
-            
         
         channel_column_list = [col for col in self.channel_index_to_column_dict.values()]
         
@@ -132,16 +134,29 @@ class DataProvider(object):
         
         self.labels = labels
         self.labels_onehot = onehot
-    
-        rand_inds = np.random.permutation(nimgs)
         
-        ntest = int(np.round(nimgs*opts['hold_out']))
+        hash_strings = csv_df.save_h5_reg_path
+        
+        #we're gonna psuedorandomly deterministically convert the path to the file to a number for cross validation
+        
+        #prepend the 'seed' to the unique file path, then hash with SHA512
+        salted_string = str(opts['split_seed']) + csv_df.save_h5_reg_path
+        hash_strings = [hashlib.sha512(string.encode('utf-8')).hexdigest() for string in salted_string]
+            
+        img_nums = list()
+        
+        #Pull out the first 5 digits to get a value between 0-1 inclusive
+        for hash_string in hash_strings:
+            str_nums = [char for pos, char in enumerate(hash_string) if char.isdigit()]
+            str_num = ''.join(str_nums[0:5])
+            num = float(str_num)/100000
+            img_nums.append(num)
         
         self.data['test'] = {}
-        self.data['test']['inds'] = rand_inds[0:ntest+1]
+        self.data['test']['inds'] = np.where(np.array(img_nums) <= opts['hold_out'])[0]
         
         self.data['train'] = {}
-        self.data['train']['inds'] = rand_inds[ntest+2:-1]
+        self.data['train']['inds'] = np.where(np.array(img_nums) > opts['hold_out'])[0]
         
         self.imsize = self.load_h5(self.image_parent + os.sep +  csv_df.iloc[0].save_h5_reg_path).shape
     
@@ -163,6 +178,7 @@ class DataProvider(object):
         
     def get_images(self, inds_tt, train_or_test):
         dims = list(self.imsize)
+        
         dims[0] = len(self.opts['channelInds'])
         dims.insert(0, len(inds_tt))
         
@@ -174,7 +190,6 @@ class DataProvider(object):
             h5_file = self.image_parent + os.sep +  row.save_h5_reg_path
             image = self.load_h5(h5_file)
             
-            # pdb.set_trace()
             images[i] = torch.from_numpy(image)
         
         return images
