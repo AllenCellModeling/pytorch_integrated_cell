@@ -39,13 +39,16 @@ parser.add_argument('--lrEnc', type=float, default=0.0005, help='learning rate f
 parser.add_argument('--lrDec', type=float, default=0.0005, help='learning rate for decoder')
 parser.add_argument('--lrEncD', type=float, default=0.00005, help='learning rate for encD')
 parser.add_argument('--lrDecD', type=float, default=0.00005, help='learning rate for decD')
+
 parser.add_argument('--encDRatio', type=float, default=5E-3, help='scalar applied to the update gradient from encD')
 parser.add_argument('--decDRatio', type=float, default=1E-4, help='scalar applied to the update gradient from decD')
+
+parser.add_argument('--critRecon', default='BCELoss', help='Loss function for image reconstruction')
+
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
 parser.add_argument('--nepochs_pt2', type=int, default=-1, help='total number of epochs')
-parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
-parser.add_argument('--clamp_upper', type=float, default=0.01, help='upper clamp for wasserstein gan')
+
 parser.add_argument('--model_name', default='waaegan', help='name of the model module')
 parser.add_argument('--save_dir', default='./test_waaegan/waaegan/', help='save dir')
 parser.add_argument('--saveProgressIter', type=int, default=1, help='number of iterations between saving progress')
@@ -58,15 +61,16 @@ parser.add_argument('--optimizer', default='adam', help='type of optimizer, can 
 parser.add_argument('--train_module', default='waaegan_train', help='training module')
 parser.add_argument('--noise', type=float, default=0, help='Noise added to the decD')
 parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
-parser.add_argument('--improved', type=bool, default=False, help='use improved wgan penalty for wgan models')
-parser.add_argument('--improved_penalty', type=float, default=0.1, help='improved wgan penalty weight')
-parser.add_argument('--dragan', type=bool, default=False, help='use dragan penalty https://arxiv.org/pdf/1705.07215.pdf')
+# parser.add_argument('--improved', type=bool, default=False, help='use improved wgan penalty for wgan models')
+# parser.add_argument('--improved_penalty', type=float, default=0.1, help='improved wgan penalty weight')
+# parser.add_argument('--dragan', type=bool, default=False, help='use dragan penalty https://arxiv.org/pdf/1705.07215.pdf')
+# parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
+# parser.add_argument('--clamp_upper', type=float, default=0.01, help='upper clamp for wasserstein gan')
 
 parser.add_argument('--channels_pt1', nargs='+', type=int, default=[0,2], help='channels to use for part 1')
 parser.add_argument('--channels_pt2', nargs='+', type=int, default=[0,1,2], help='channels to use for part 2')
 
-parser.add_argument('--dtype', default='float', help='data type that the dataprovider uses')
-
+parser.add_argument('--dtype', default='float', help='data type that the dataprovider uses. Only \'float\' supported.')
 
 opt = parser.parse_args()
 print(opt)
