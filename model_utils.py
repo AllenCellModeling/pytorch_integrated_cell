@@ -8,6 +8,7 @@ from torch.autograd import Variable
 import numpy as np
 import scipy.misc
 import pickle
+import importlib
 
 import matplotlib.pyplot as plt
 from imgToProjection import imgtoprojection
@@ -87,7 +88,8 @@ def get_latent_embeddings(enc, dp, opt):
         data_iter = [inds[i:i+opt.batch_size] for i in range(0, len(inds), opt.batch_size)]
 
         for i in range(0, len(data_iter)):
-            x = Variable(dp.get_images(data_iter[i], mode).cuda(gpu_id))
+            print(str(i) + '/' + str(len(data_iter)))
+            x = Variable(dp.get_images(data_iter[i], mode).cuda(gpu_id), volatile=True)
             zAll = enc(x)
             
             embeddings.index_copy_(0, torch.LongTensor(data_iter[i]), zAll[-1].data[:].cpu())
@@ -154,7 +156,8 @@ def load_model(model_provider, opt):
     this_epoch = 1
     iteration = 0
     if os.path.exists('./{0}/enc.pth'.format(opt.save_dir)):
-
+        print('Loading from ' + opt.save_dir)
+        
         enc.load_state_dict(torch.load('./{0}/enc.pth'.format(opt.save_dir)))
         dec.load_state_dict(torch.load('./{0}/dec.pth'.format(opt.save_dir)))
         encD.load_state_dict(torch.load('./{0}/encD.pth'.format(opt.save_dir)))
@@ -190,7 +193,7 @@ def load_model(model_provider, opt):
     optimizers['optDecD'] = optDecD
     
     criterions = dict()
-    criterions['critRecon'] = nn.BCELoss()
+    criterions['critRecon'] = eval('nn.' + opt.critRecon + '()')
     criterions['critZClass'] = nn.NLLLoss()    
     criterions['critZRef'] = nn.MSELoss()
     criterions['critEncD'] = nn.BCELoss()
