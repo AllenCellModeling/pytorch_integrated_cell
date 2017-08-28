@@ -176,6 +176,18 @@ class DataProvider(object):
     def get_n_classes(self):
         return self.labels_onehot.shape[1]
         
+    def get_image_paths(self, inds_tt, train_or_test):
+        inds_master = self.data[train_or_test]['inds'][inds_tt]
+        
+        image_paths = list()
+        
+        for i, (rownum, row) in enumerate(self.csv_data.iloc[inds_master].iterrows()):
+            h5_file = self.image_parent + os.sep +  row.save_h5_reg_path
+
+            image_paths.append(h5_file)
+        
+        return image_paths
+        
     def get_images(self, inds_tt, train_or_test):
         dims = list(self.imsize)
         
@@ -203,7 +215,9 @@ class DataProvider(object):
             labels = np.zeros([len(inds_master), self.get_n_classes()])
             for c,i in enumerate(inds_master):
                 labels[c,:] = self.labels_onehot[i,:]
-        
+            
+            labels = torch.from_numpy(labels).long()
+            
         labels = torch.LongTensor(labels)
         return labels
     

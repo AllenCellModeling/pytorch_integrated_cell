@@ -120,14 +120,17 @@ class DataProvider(object):
         
         if index_or_onehot == 'index':
             labels = self.labels[self.data[train_or_test]['inds'][inds]]
+            labels = torch.LongTensor(labels)
         else:
             labels = np.zeros([len(inds), self.get_n_classes()])
             c = 0
             for i in inds:
                 labels[c] = self.labels_onehot[self.data[train_or_test]['inds'][i]]
+                
                 c += 1
-        
-        labels = torch.LongTensor(labels)
+            
+            labels = torch.from_numpy(labels).long()
+            
         return labels
     
     def get_rand_images(self, batsize, train_or_test):
