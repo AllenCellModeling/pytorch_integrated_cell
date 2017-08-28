@@ -20,7 +20,9 @@ import pdb
 import aicsimage.processing as proc
 from aicsimage.io import tifReader
 
-class DataProvider(object):
+from data_providers.DataProviderABC import DataProviderABC 
+
+class DataProvider(DataProviderABC):
     
     def __init__(self, image_parent, csv_name='data_jobs_out.csv', opts={}):
         self.data = {}
@@ -31,9 +33,6 @@ class DataProvider(object):
                         'target_col':'structureProteinName',
                         'channelInds': [0, 1, 2],
                         'h5_file': True,
-                        'resize':0.795,
-                        'pad_to':(128,96,64),
-                        'preload':False,
                         'check_files':True,
                         'split_seed': 1}
                 
