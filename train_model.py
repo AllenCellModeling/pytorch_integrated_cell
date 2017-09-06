@@ -144,7 +144,7 @@ for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
     epoch_next = np.floor((this_iter+1)/iters_per_epoch)
     
     start = time.time()
-    
+
     errors, zfake = train_module.iteration(**models, **optimizers, **criterions, dataProvider=dp, opt=opt)
     
     zAll.append(zfake)

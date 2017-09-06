@@ -15,10 +15,10 @@ class DataProviderABC(ABC):
         pass
     
     @abstractmethod
-    def get_images(self, inds_tt, train_or_test):
+    def get_images(self, inds, train_or_test):
         pass
     
     @abstractmethod
-    def get_classes(self, inds_tt, train_or_test):
+    def get_classes(self, inds, train_or_test):
         pass
     
