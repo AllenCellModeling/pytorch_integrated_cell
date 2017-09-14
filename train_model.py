@@ -53,7 +53,7 @@ parser.add_argument('--model_name', default='waaegan', help='name of the model m
 parser.add_argument('--save_dir', default='./test_waaegan/waaegan/', help='save dir')
 parser.add_argument('--saveProgressIter', type=int, default=1, help='number of iterations between saving progress')
 parser.add_argument('--saveStateIter', type=int, default=10, help='number of iterations between saving progress')
-parser.add_argument('--imsize', type=int, default=128, help='pixel size of images used')   
+parser.add_argument('--data_save_path', default='./data.pyt', help='save path of data file')   
 parser.add_argument('--imdir', default='/root/data/release_4_1_17/results_v2/aligned/2D', help='location of images')
 parser.add_argument('--latentDistribution', default='gaussian', help='Distribution of latent space, can be {gaussian, uniform}')
 parser.add_argument('--ndat', type=int, default=-1, help='Number of data points to use')
@@ -93,21 +93,15 @@ if opt.nepochs_pt2 == -1:
 
 pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
-opts = {}
-opts['verbose'] = True
-opts['pattern'] = '*.tif_flat.png'
-opts['out_size'] = [opt.imsize, opt.imsize]
-opts['dtype'] = opt.dtype
-
-data_path = './data_{0}x{1}.pyt'.format(str(opts['out_size'][0]), str(opts['out_size'][1]))
+data_path = opt.data_save_path
 if os.path.exists(data_path):
     dp = torch.load(data_path)
 else:
-    dp = DP.DataProvider(opt.imdir, opts=opts)
+    dp = DP.DataProvider(opt.imdir)
     torch.save(dp, data_path)
     
 if opt.ndat == -1:
-    opt.ndat = dp.get_n_dat('train')    
+    opt.ndat = dp.get_n_dat('train')
 
 iters_per_epoch = np.ceil(opt.ndat/opt.batch_size)    
             
