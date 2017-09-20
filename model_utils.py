@@ -101,16 +101,10 @@ def get_latent_embeddings(enc, dp, opt):
 def load_model(model_provider, opt):
     model = importlib.import_module("models." + opt.model_name)
  
-    enc = model_provider.Enc(opt.nlatentdim, opt.nClasses, opt.nRef, opt.imsize, opt.nch, opt.gpu_ids, opt)
-    dec = model_provider.Dec(opt.nlatentdim, opt.nClasses, opt.nRef, opt.imsize, opt.nch, opt.gpu_ids, opt)
-    encD = model_provider.EncD(opt.nlatentdim, opt.gpu_ids, opt)
-    decD = model_provider.DecD(opt.nClasses+1, opt.imsize, opt.nch, opt.gpu_ids, opt)
-
-    if opt.dtype == 'half':
-        enc = enc.half()
-        dec = dec.half()
-        encD = encD.half()
-        decD = decD.half()
+    enc = model_provider.Enc(opt.nlatentdim, opt.nClasses, opt.nRef, opt.nch, opt.gpu_ids, opt)
+    dec = model_provider.Dec(opt.nlatentdim, opt.nClasses, opt.nRef, opt.nch, opt.gpu_ids, opt)
+    encD = model_provider.EncD(opt.nlatentdim, opt.nClasses+1, opt.gpu_ids, opt)
+    decD = model_provider.DecD(opt.nClasses+1, opt.nch, opt.gpu_ids, opt)
     
     enc.apply(weights_init)
     dec.apply(weights_init)
@@ -118,7 +112,6 @@ def load_model(model_provider, opt):
     decD.apply(weights_init)
 
     gpu_id = opt.gpu_ids[0]
-    nlatentdim = opt.nlatentdim
 
     enc.cuda(gpu_id)
     dec.cuda(gpu_id)
@@ -149,36 +142,19 @@ def load_model(model_provider, opt):
         print_str += ' refLoss: %.6f'
     
     columns += ('minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time')
-    print_str += ' mmEncD: %.6f encD: %.6f mmDecD: %.6f decD: %.6f time: %.2f'
+    print_str += ' mmEncD: %.6f encD: %.6f  mmDecD: %.6f decD: %.6f time: %.2f'
+
     
     logger = SimpleLogger.SimpleLogger(columns,  print_str)
 
-    this_epoch = 1
-    iteration = 0
     if os.path.exists('./{0}/enc.pth'.format(opt.save_dir)):
         print('Loading from ' + opt.save_dir)
-        
-        enc.load_state_dict(torch.load('./{0}/enc.pth'.format(opt.save_dir)))
-        dec.load_state_dict(torch.load('./{0}/dec.pth'.format(opt.save_dir)))
-        encD.load_state_dict(torch.load('./{0}/encD.pth'.format(opt.save_dir)))
-        decD.load_state_dict(torch.load('./{0}/decD.pth'.format(opt.save_dir)))
-
-        optEnc.load_state_dict(torch.load('./{0}/optEnc.pth'.format(opt.save_dir)))
-        optDec.load_state_dict(torch.load('./{0}/optDec.pth'.format(opt.save_dir)))
-        optEncD.load_state_dict(torch.load('./{0}/optEncD.pth'.format(opt.save_dir)))
-        optDecD.load_state_dict(torch.load('./{0}/optDecD.pth'.format(opt.save_dir)))
-
-        optEnc.state = set_gpu_recursive(optEnc.state, gpu_id)
-        optDec.state = set_gpu_recursive(optDec.state, gpu_id)
-        optEncD.state = set_gpu_recursive(optEncD.state, gpu_id)
-        optDecD.state = set_gpu_recursive(optDecD.state, gpu_id)
-
-        enc.cuda(gpu_id)
-        dec.cuda(gpu_id)
-        encD.cuda(gpu_id)
-        decD.cuda(gpu_id)                           
-
-        # opt = pickle.load(open( '{0}/opt.pkl'.format(opt.save_dir), "rb" ))
+                    
+        load_state(enc, optEnc, './{0}/enc.pth'.format(opt.save_dir), gpu_id)
+        load_state(dec, optDec, './{0}/dec.pth'.format(opt.save_dir), gpu_id)
+        load_state(encD, optEncD, './{0}/encD.pth'.format(opt.save_dir), gpu_id)
+        load_state(decD, optDecD, './{0}/decD.pth'.format(opt.save_dir), gpu_id)
+                            
         logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
 
         this_epoch = max(logger.log['epoch']) + 1
@@ -196,13 +172,14 @@ def load_model(model_provider, opt):
     criterions['critRecon'] = eval('nn.' + opt.critRecon + '()')
     criterions['critZClass'] = nn.NLLLoss()    
     criterions['critZRef'] = nn.MSELoss()
-    criterions['critEncD'] = nn.BCELoss()
     
     if opt.nClasses > 0:
-        criterions['critDecD'] = nn.NLLLoss()
+        criterions['critDecD'] = nn.CrossEntropyLoss()
+        criterions['critEncD'] = nn.CrossEntropyLoss()
     else:
-        criterions['critDecD'] = nn.BCELoss()
- 
+        criterions['critEncD'] = nn.BCEWithLogitsLoss()
+        criterions['critDecD'] = nn.BCEWithLogitsLoss()
+        
     if opt.latentDistribution == 'uniform':
         from model_utils import sampleUniform as latentSample
         
@@ -214,25 +191,46 @@ def load_model(model_provider, opt):
     
     return models, optimizers, criterions, logger, opt
 
-def maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
-    saved = False
-    if epoch != epoch_next and ((epoch_next % opt.saveProgressIter) == 0 or (epoch_next % opt.saveStateIter) == 0):
+def load_state(model, optimizer, path, gpu_id):
+    checkpoint = torch.load(path)
 
-        zAll = torch.cat(zAll,0).cpu().numpy()
+    model.load_state_dict(checkpoint['model'])
+    model.cuda(gpu_id)
 
-        if (epoch_next % opt.saveProgressIter) == 0:
-            print('saving progress')
-            save_progress(models['enc'], models['dec'], dp, logger, zAll, opt)
-
-        if (epoch_next % opt.saveStateIter) == 0:
-            print('saving state')
-            save_state(**models, **optimizers, logger=logger, zAll=zAll, opt=opt)
-
-        saved = True
-        
-    return saved
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    optimizer.state = set_gpu_recursive(optimizer.state, gpu_id)
             
-
+def save_state(model, optimizer, path, gpu_id):
+    
+    model.cpu()
+    optimizer.state = set_gpu_recursive(optimizer.state, -1)
+    
+    checkpoint = {'model': model.state_dict(),
+              'optimizer': optimizer.state_dict()}
+    
+    torch.save(checkpoint, path)
+    
+    model.cuda(gpu_id)
+    optimizer.state = set_gpu_recursive(optimizer.state, gpu_id)
+    
+def save_state_all(enc, dec, encD, decD, 
+               optEnc, optDec, optEncD, optDecD, 
+               logger, zAll, opt):
+#         for saving and loading see:
+#         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
+  
+    gpu_id = opt.gpu_ids[0]
+    
+    
+    save_state(enc, optEnc, './{0}/enc.pth'.format(opt.save_dir), gpu_id)
+    save_state(dec, optDec, './{0}/dec.pth'.format(opt.save_dir), gpu_id)
+    save_state(encD, optEncD, './{0}/encD.pth'.format(opt.save_dir), gpu_id)
+    save_state(decD, optDecD, './{0}/decD.pth'.format(opt.save_dir), gpu_id)
+    
+    pickle.dump(zAll, open('./{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
+    pickle.dump(logger, open('./{0}/logger.pkl'.format(opt.save_dir), 'wb'))
+   
+    
 def save_progress(enc, dec, dataProvider, logger, embedding, opt):
     
     gpu_id = opt.gpu_ids[0]
@@ -298,7 +296,7 @@ def save_progress(enc, dec, dataProvider, logger, embedding, opt):
     if history > 10000:
         history = 10000
     
-    ydat = [logger.log['encDLoss'], logger.log['decDLoss'], logger.log['minimaxEncDLoss'], logger.log['minimaxDecDLoss']]
+    ydat = [logger.log['encDLoss'], logger.log['minimaxEncDLoss'], logger.log['decDLoss'], logger.log['minimaxDecDLoss']]
     ymin = np.min(ydat.append(logger.log['reconLoss']))
     ymax = np.max(ydat)
     plt.ylim([ymin, ymax])
@@ -351,46 +349,20 @@ def save_progress(enc, dec, dataProvider, logger, embedding, opt):
     xHat = None
     x = None
 
-    
-def save_state(enc, dec, encD, decD, 
-               optEnc, optDec, optEncD, optDecD, 
-               logger, zAll, opt):
-#         for saving and loading see:
-#         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
-  
-    gpu_id = opt.gpu_ids[0]
-    
-    enc = enc.cpu()
-    dec = dec.cpu()
-    encD = encD.cpu()
-    decD = decD.cpu()
+def maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
+    saved = False
+    if epoch != epoch_next and ((epoch_next % opt.saveProgressIter) == 0 or (epoch_next % opt.saveStateIter) == 0):
 
-    optEnc.state = set_gpu_recursive(optEnc.state, -1)
-    optDec.state = set_gpu_recursive(optDec.state, -1)
-    optEncD.state = set_gpu_recursive(optEncD.state, -1)
-    optDecD.state = set_gpu_recursive(optDecD.state, -1)
+        zAll = torch.cat(zAll,0).cpu().numpy()
 
-    torch.save(enc.state_dict(), './{0}/enc.pth'.format(opt.save_dir))
-    torch.save(dec.state_dict(), './{0}/dec.pth'.format(opt.save_dir))
-    torch.save(encD.state_dict(), './{0}/encD.pth'.format(opt.save_dir))
-    torch.save(decD.state_dict(), './{0}/decD.pth'.format(opt.save_dir))
+        if (epoch_next % opt.saveProgressIter) == 0:
+            print('saving progress')
+            save_progress(models['enc'], models['dec'], dp, logger, zAll, opt)
 
-    torch.save(optEnc.state_dict(), './{0}/optEnc.pth'.format(opt.save_dir))
-    torch.save(optDec.state_dict(), './{0}/optDec.pth'.format(opt.save_dir))
-    torch.save(optEncD.state_dict(), './{0}/optEncD.pth'.format(opt.save_dir))
-    torch.save(optDecD.state_dict(), './{0}/optDecD.pth'.format(opt.save_dir))
+        if (epoch_next % opt.saveStateIter) == 0:
+            print('saving state')
+            save_state_all(**models, **optimizers, logger=logger, zAll=zAll, opt=opt)
 
-    enc.cuda(gpu_id)
-    dec.cuda(gpu_id)
-    encD.cuda(gpu_id)
-    decD.cuda(gpu_id)
-
-    optEnc.state = set_gpu_recursive(optEnc.state, gpu_id)
-    optDec.state = set_gpu_recursive(optDec.state, gpu_id)
-    optEncD.state = set_gpu_recursive(optEncD.state, gpu_id)
-    optDecD.state = set_gpu_recursive(optDecD.state, gpu_id)
-
-
-    pickle.dump(zAll, open('./{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
-    pickle.dump(logger, open('./{0}/logger.pkl'.format(opt.save_dir), 'wb'))
-   
+        saved = True
+        
+    return saved    
