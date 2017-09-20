@@ -27,6 +27,8 @@ from model_utils import set_gpu_recursive, load_model, save_state, save_progress
 import torch.backends.cudnn as cudnn
 cudnn.benchmark = True
 
+import pdb
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--Diters', type=int, default=5, help='niters for the encD')
 parser.add_argument('--DitersAlt', type=int, default=100, help='niters for the encD')
@@ -37,18 +39,21 @@ parser.add_argument('--lrEnc', type=float, default=0.0005, help='learning rate f
 parser.add_argument('--lrDec', type=float, default=0.0005, help='learning rate for decoder')
 parser.add_argument('--lrEncD', type=float, default=0.00005, help='learning rate for encD')
 parser.add_argument('--lrDecD', type=float, default=0.00005, help='learning rate for decD')
+
 parser.add_argument('--encDRatio', type=float, default=5E-3, help='scalar applied to the update gradient from encD')
 parser.add_argument('--decDRatio', type=float, default=1E-4, help='scalar applied to the update gradient from decD')
+
+parser.add_argument('--critRecon', default='BCELoss', help='Loss function for image reconstruction')
+
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
 parser.add_argument('--nepochs_pt2', type=int, default=-1, help='total number of epochs')
-parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
-parser.add_argument('--clamp_upper', type=float, default=0.01, help='upper clamp for wasserstein gan')
+
 parser.add_argument('--model_name', default='waaegan', help='name of the model module')
 parser.add_argument('--save_dir', default='./test_waaegan/waaegan/', help='save dir')
 parser.add_argument('--saveProgressIter', type=int, default=1, help='number of iterations between saving progress')
 parser.add_argument('--saveStateIter', type=int, default=10, help='number of iterations between saving progress')
-parser.add_argument('--imsize', type=int, default=128, help='pixel size of images used')   
+parser.add_argument('--data_save_path', default='./data.pyt', help='save path of data file')   
 parser.add_argument('--imdir', default='/root/data/release_4_1_17/results_v2/aligned/2D', help='location of images')
 parser.add_argument('--latentDistribution', default='gaussian', help='Distribution of latent space, can be {gaussian, uniform}')
 parser.add_argument('--ndat', type=int, default=-1, help='Number of data points to use')
@@ -56,11 +61,16 @@ parser.add_argument('--optimizer', default='adam', help='type of optimizer, can 
 parser.add_argument('--train_module', default='waaegan_train', help='training module')
 parser.add_argument('--noise', type=float, default=0, help='Noise added to the decD')
 parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
-parser.add_argument('--improved', type=bool, default=False, help='use improved wgan penalty for wgan models')
-parser.add_argument('--improved_penalty', type=float, default=0.1, help='improved wgan penalty weight')
-parser.add_argument('--dragan', type=bool, default=False, help='use dragan penalty https://arxiv.org/pdf/1705.07215.pdf')
+# parser.add_argument('--improved', type=bool, default=False, help='use improved wgan penalty for wgan models')
+# parser.add_argument('--improved_penalty', type=float, default=0.1, help='improved wgan penalty weight')
+# parser.add_argument('--dragan', type=bool, default=False, help='use dragan penalty https://arxiv.org/pdf/1705.07215.pdf')
+# parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
+# parser.add_argument('--clamp_upper', type=float, default=0.01, help='upper clamp for wasserstein gan')
 
+parser.add_argument('--channels_pt1', nargs='+', type=int, default=[0,2], help='channels to use for part 1')
+parser.add_argument('--channels_pt2', nargs='+', type=int, default=[0,1,2], help='channels to use for part 2')
 
+parser.add_argument('--dtype', default='float', help='data type that the dataprovider uses. Only \'float\' supported.')
 
 opt = parser.parse_args()
 print(opt)
@@ -83,20 +93,15 @@ if opt.nepochs_pt2 == -1:
 
 pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
-opts = {}
-opts['verbose'] = True
-opts['pattern'] = '*.tif_flat.png'
-opts['out_size'] = [opt.imsize, opt.imsize]
-
-data_path = './data_{0}x{1}.pyt'.format(str(opts['out_size'][0]), str(opts['out_size'][1]))
+data_path = opt.data_save_path
 if os.path.exists(data_path):
     dp = torch.load(data_path)
 else:
-    dp = DP.DataProvider(opt.imdir, opts)
+    dp = DP.DataProvider(opt.imdir)
     torch.save(dp, data_path)
     
 if opt.ndat == -1:
-    opt.ndat = dp.get_n_dat('train')    
+    opt.ndat = dp.get_n_dat('train')
 
 iters_per_epoch = np.ceil(opt.ndat/opt.batch_size)    
             
@@ -108,14 +113,14 @@ opt.save_dir = opt.save_parent + os.sep + 'ref_model'
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
 
-opt.channelInds = [0,2]
+opt.channelInds = opt.channels_pt1
 dp.opts['channelInds'] = opt.channelInds
 opt.nch = len(opt.channelInds)
         
 opt.nClasses = 0
 opt.nRef = 0
 
-try:
+try:    
     train_module = train_module.trainer(dp, opt)
 except:
     pass    
@@ -133,7 +138,7 @@ for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
     epoch_next = np.floor((this_iter+1)/iters_per_epoch)
     
     start = time.time()
-    
+
     errors, zfake = train_module.iteration(**models, **optimizers, **criterions, dataProvider=dp, opt=opt)
     
     zAll.append(zfake)
@@ -178,12 +183,13 @@ opt.save_dir = opt.save_parent + os.sep + 'struct_model'
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
     
-opt.channelInds = [0, 1, 2]
+opt.channelInds = opt.channels_pt2
 dp.opts['channelInds'] = opt.channelInds
 opt.nch = len(opt.channelInds)
         
 opt.nClasses = dp.get_n_classes()
 opt.nRef = opt.nlatentdim
+
 
 try:
     train_module = None
