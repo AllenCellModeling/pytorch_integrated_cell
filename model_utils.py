@@ -72,6 +72,16 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)    
         
+def load_embeddings(embeddings_path, enc=None, dp=None, opt=None):
+
+    if os.path.exists(embeddings_path):
+        embeddings = torch.load(embeddings_path)
+    else:
+        embeddings = model_utils.get_latent_embeddings(enc, dp, opt)
+        torch.save(embeddings, embeddings_path)
+    
+    return embeddings        
+        
 def get_latent_embeddings(enc, dp, opt):
     enc.eval()
     gpu_id = opt.gpu_ids[0]
@@ -97,9 +107,20 @@ def get_latent_embeddings(enc, dp, opt):
         embedding[mode] = embeddings
         
     return embedding
+
+def load_data_provider(data_path, im_dir, dp_module):
+    DP = importlib.import_module("data_providers." + dp_module)
+
+    if os.path.exists(data_path):
+        dp = torch.load(data_path)
+    else:
+        dp = DP.DataProvider(im_dir)
+        torch.save(dp, data_path)
         
-def load_model(model_provider, opt):
-    model = importlib.import_module("models." + opt.model_name)
+    return dp
+        
+def load_model(model_name, opt):
+    model_provider = importlib.import_module("models." + model_name)
  
     enc = model_provider.Enc(opt.nlatentdim, opt.nClasses, opt.nRef, opt.nch, opt.gpu_ids, opt)
     dec = model_provider.Dec(opt.nlatentdim, opt.nClasses, opt.nRef, opt.nch, opt.gpu_ids, opt)
