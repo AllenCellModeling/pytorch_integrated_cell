@@ -77,10 +77,6 @@ print(opt)
 
 opt.save_parent = opt.save_dir
 
-DP = importlib.import_module("data_providers." + opt.dataProvider)
-model_provider = importlib.import_module("models." + opt.model_name)
-train_module = importlib.import_module("train_modules." + opt.train_module)
-
 torch.manual_seed(opt.myseed)
 torch.cuda.manual_seed(opt.myseed)
 np.random.seed(opt.myseed)
@@ -91,14 +87,7 @@ if not os.path.exists(opt.save_dir):
 if opt.nepochs_pt2 == -1:
     opt.nepochs_pt2 = opt.nepochs
 
-pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
-
-data_path = opt.data_save_path
-if os.path.exists(data_path):
-    dp = torch.load(data_path)
-else:
-    dp = DP.DataProvider(opt.imdir)
-    torch.save(dp, data_path)
+dp = model_utils.load_data_provider(opt.data_save_path, opt.imdir, opt.dataProvider)
     
 if opt.ndat == -1:
     opt.ndat = dp.get_n_dat('train')
@@ -121,13 +110,14 @@ opt.nClasses = 0
 opt.nRef = 0
 
 try:    
+    train_module = importlib.import_module("train_modules." + opt.train_module)
     train_module = train_module.trainer(dp, opt)
 except:
     pass    
 
 pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
-models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
+models, optimizers, criterions, logger, opt = load_model(opt.model_name, opt)
 
 start_iter = len(logger.log['iter'])
 zAll = list()
@@ -160,11 +150,7 @@ for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
 #######
 
 embeddings_path = opt.save_dir + os.sep + 'embeddings.pkl'
-if os.path.exists(embeddings_path):
-    embeddings = torch.load(embeddings_path)
-else:
-    embeddings = get_latent_embeddings(models['enc'], dp, opt)
-    torch.save(embeddings, embeddings_path)
+embeddings = model_utils.load_embeddings(embeddings_path, models['enc'], dp, opt) 
 
 models = None
 optimizers = None
@@ -190,7 +176,6 @@ opt.nch = len(opt.channelInds)
 opt.nClasses = dp.get_n_classes()
 opt.nRef = opt.nlatentdim
 
-
 try:
     train_module = None
     train_module = importlib.import_module("train_modules." + opt.train_module)
@@ -200,7 +185,7 @@ except:
 
 pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
-models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
+models, optimizers, criterions, logger, opt = load_model(opt.model_name, opt)
 
 start_iter = len(logger.log['iter'])
 
@@ -226,6 +211,9 @@ for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs_pt2):
         zAll = list()
             
 print('Finished Training')
+
+embeddings_path = opt.save_dir + os.sep + 'embeddings.pkl'
+embeddings = model_utils.load_embeddings(embeddings_path, models['enc'], dp, opt) 
 
 #######    
 ### DONE TRAINING STRUCTURE MODEL
