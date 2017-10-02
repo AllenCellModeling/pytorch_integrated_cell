@@ -259,4 +259,3 @@ class trainer(object):
         errors += (minimaxEncDLoss, encDLoss, minimaxDecLoss, decDLoss)
 
         return errors, zFake.data
-    
