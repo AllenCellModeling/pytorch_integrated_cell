@@ -22,7 +22,8 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display
 import time
-from model_utils import set_gpu_recursive, load_model, save_state, save_progress, get_latent_embeddings, maybe_save
+
+import model_utils
 
 import torch.backends.cudnn as cudnn
 cudnn.benchmark = True
@@ -117,7 +118,7 @@ except:
 
 pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
-models, optimizers, criterions, logger, opt = load_model(opt.model_name, opt)
+models, optimizers, criterions, logger, opt = model_utils.load_model(opt.model_name, opt)
 
 start_iter = len(logger.log['iter'])
 zAll = list()
@@ -138,7 +139,7 @@ for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
     
     logger.add((epoch, this_iter) + errors +(deltaT,))
     
-    if maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
+    if model_utils.maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
         zAll = list()
 
 #######
@@ -185,7 +186,7 @@ except:
 
 pickle.dump(opt, open('./{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
-models, optimizers, criterions, logger, opt = load_model(opt.model_name, opt)
+models, optimizers, criterions, logger, opt = model_utils.load_model(opt.model_name, opt)
 
 start_iter = len(logger.log['iter'])
 
@@ -207,7 +208,7 @@ for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs_pt2):
     
     logger.add((epoch, this_iter) + errors +(deltaT,))
     
-    if maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
+    if model_utils.maybe_save(epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
         zAll = list()
             
 print('Finished Training')
