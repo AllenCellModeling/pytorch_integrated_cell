@@ -59,6 +59,12 @@ class trainer(object):
                   dataProvider, opt):
         gpu_id = opt.gpu_ids[0]
 
+        #do this just incase anything upstream changes these values
+        enc.train(True)
+        dec.train(True)
+        encD.train(True)
+        decD.train(True)
+
         ###update the discriminator
         #maximize log(AdvZ(z)) + log(1 - AdvZ(Enc(x)))
 
@@ -259,3 +265,4 @@ class trainer(object):
         errors += (minimaxEncDLoss, encDLoss, minimaxDecLoss, decDLoss)
 
         return errors, zFake.data
+    
