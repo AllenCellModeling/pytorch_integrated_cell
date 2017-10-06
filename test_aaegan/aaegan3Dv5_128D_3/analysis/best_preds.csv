@@ -1,0 +1,321 @@
+img_index,img_dp_index,img_phase,img_label,pearson_orig_median,Type
+1428,1290,train,Desmoplakin,0.3107805,best
+1926,1742,train,Beta actin,0.48344050000000005,best
+3474,3128,train,ZO1,0.1863015,best
+3500,3153,train,ZO1,0.234761,best
+3507,3160,train,ZO1,0.186092,best
+3556,3203,train,ZO1,0.17931249999999999,best
+7009,6291,train,Lamin B1,0.785579,best
+7871,7062,train,Lamin B1,0.811321,best
+12222,10996,train,Tom20,0.41935,best
+55,5,test,Alpha actinin,0.384422,best
+1934,184,test,Beta actin,0.40224550000000003,best
+2015,195,test,Beta actin,0.366413,best
+3189,319,test,Myosin IIB,0.052829249999999994,best
+3232,323,test,Myosin IIB,0.0408233,best
+3438,340,test,ZO1,0.034393400000000005,best
+3537,349,test,ZO1,0.08115444999999999,best
+4901,501,test,Sec61 beta,0.438436,best
+5936,615,test,Fibrillarin,0.7227034999999999,best
+7625,778,test,Lamin B1,0.7519075,best
+9492,955,test,Lamin B1,0.7294315,best
+15304,1544,test,Tom20,0.3691025,best
+216,194,train,Alpha actinin,0.44566700000000004,best
+245,220,train,Alpha actinin,0.42901750000000005,best
+1341,1211,train,Desmoplakin,0.3735385,best
+1883,1703,train,Tom20,0.5360705,best
+3475,3129,train,ZO1,0.154646,best
+3568,3215,train,ZO1,0.2431055,best
+4211,3790,train,Sec61 beta,0.544931,best
+9922,8920,train,Alpha tubulin,0.49594800000000006,best
+11451,10304,train,Alpha tubulin,0.49686050000000004,best
+1526,147,test,Alpha tubulin,0.43091,best
+1673,159,test,Beta actin,0.389221,best
+2044,199,test,Alpha actinin,0.352094,best
+2382,237,test,Desmoplakin,0.079373,best
+2442,241,test,Alpha tubulin,0.4132555,best
+3280,330,test,Myosin IIB,0.112922,best
+3460,344,test,ZO1,0.026951450000000002,best
+3516,347,test,ZO1,0.12481899999999999,best
+5388,552,test,Sec61 beta,0.4597145,best
+5999,622,test,Fibrillarin,0.718056,best
+7646,782,test,Lamin B1,0.707724,best
+11198,1124,test,Alpha tubulin,0.4484245,best
+1365,1232,train,Desmoplakin,0.316786,best
+3320,2986,train,Myosin IIB,0.26430200000000004,best
+3379,3041,train,ZO1,0.1645365,best
+3586,3231,train,Fibrillarin,0.8258650000000001,best
+5382,4830,train,Sec61 beta,0.6186465,best
+5447,4886,train,Fibrillarin,0.7970805000000001,best
+6160,5526,train,Lamin B1,0.7626385,best
+6225,5586,train,Lamin B1,0.8276945,best
+14034,12623,train,Tom20,0.4360425,best
+287,28,test,Fibrillarin,0.738613,best
+524,55,test,Alpha tubulin,0.4493165,best
+2223,215,test,Alpha actinin,0.4025565,best
+3445,342,test,ZO1,0.08878169999999999,best
+4549,454,test,Alpha tubulin,0.46207050000000005,best
+12690,1278,test,Tom20,0.377437,best
+101,89,train,Alpha actinin,0.5027435,best
+190,170,train,Alpha actinin,0.45777650000000003,best
+340,307,train,Fibrillarin,0.7985475,best
+1946,1761,train,Beta actin,0.488526,best
+2980,2687,train,Beta actin,0.47473849999999995,best
+3402,3064,train,ZO1,0.15925299999999998,best
+4107,3698,train,Sec61 beta,0.548624,best
+8506,7647,train,Lamin B1,0.781844,best
+11513,10354,train,Alpha tubulin,0.4990625,best
+11855,10663,train,Alpha tubulin,0.49374100000000004,best
+69,7,test,Alpha actinin,0.2425385,best
+94,10,test,Alpha actinin,0.3112365,best
+197,20,test,Alpha actinin,0.283575,best
+1351,131,test,Desmoplakin,0.2564985,best
+1989,189,test,Beta actin,0.47007,best
+2951,290,test,Beta actin,0.376262,best
+3318,333,test,Myosin IIB,0.2160295,best
+3436,339,test,ZO1,0.04294845,best
+3623,358,test,Fibrillarin,0.7117815000000001,best
+4678,468,test,Alpha tubulin,0.419427,best
+5363,546,test,Sec61 beta,0.47529499999999997,best
+8078,830,test,Lamin B1,0.7153075,best
+8869,895,test,Lamin B1,0.7043815,best
+229,206,train,Alpha actinin,0.42951549999999994,best
+3281,2950,train,Myosin IIB,0.26756250000000004,best
+3306,2974,train,Myosin IIB,0.270986,best
+3947,3552,train,Sec61 beta,0.5821240000000001,best
+5421,4865,train,Fibrillarin,0.7969975,best
+7776,6976,train,Lamin B1,0.786243,best
+1377,133,test,Desmoplakin,0.2176215,best
+1416,137,test,Desmoplakin,0.2635235,best
+2043,198,test,Alpha actinin,0.2897095,best
+2381,236,test,Desmoplakin,0.08534845,best
+3209,322,test,Myosin IIB,0.15824549999999998,best
+3253,326,test,Myosin IIB,0.165849,best
+7033,720,test,Lamin B1,0.7452479999999999,best
+11024,1111,test,Alpha tubulin,0.4085995,best
+13932,1401,test,Tom20,0.402181,best
+1302,1175,train,Desmoplakin,0.40002249999999995,best
+1494,1350,train,Alpha tubulin,0.541093,best
+1571,1419,train,Beta actin,0.470557,best
+3368,3030,train,ZO1,0.39268749999999997,best
+3410,3072,train,ZO1,0.1533195,best
+4084,3678,train,Sec61 beta,0.57245,best
+4227,3805,train,Sec61 beta,0.5527249999999999,best
+5791,5187,train,Fibrillarin,0.787291,best
+10080,9058,train,Alpha tubulin,0.555517,best
+1297,126,test,Desmoplakin,0.23807,best
+2370,233,test,Desmoplakin,0.08034725000000001,best
+2390,238,test,Desmoplakin,0.09212875,best
+2393,239,test,Desmoplakin,0.08347480000000002,best
+2641,265,test,Sec61 beta,0.449685,best
+3262,328,test,Myosin IIB,0.08524525,best
+4235,423,test,Sec61 beta,0.5889964999999999,best
+5366,547,test,Sec61 beta,0.45856850000000005,best
+5858,610,test,Fibrillarin,0.785398,best
+8706,876,test,Lamin B1,0.710045,best
+8801,886,test,Lamin B1,0.716447,best
+12161,1218,test,Tom20,0.366477,best
+13509,1358,test,Tom20,0.4113705,best
+1426,1288,train,Desmoplakin,0.360472,best
+2001,1809,train,Beta actin,0.493864,best
+3215,2892,train,Myosin IIB,0.245528,best
+4200,3782,train,Sec61 beta,0.6003155,best
+5361,4815,train,Sec61 beta,0.5530685,best
+7162,6433,train,Lamin B1,0.7559995,best
+11454,10307,train,Alpha tubulin,0.5195784999999999,best
+124,13,test,Alpha actinin,0.26798500000000003,best
+986,95,test,Fibrillarin,0.7716689999999999,best
+1336,129,test,Desmoplakin,0.0813668,best
+3330,335,test,Myosin IIB,0.194554,best
+3491,346,test,ZO1,0.047271049999999995,best
+4232,422,test,Sec61 beta,0.442868,best
+5707,591,test,Sec61 beta,0.43584,best
+200,179,train,Alpha actinin,0.44505700000000004,best
+219,197,train,Alpha actinin,0.47465599999999997,best
+1309,1181,train,Desmoplakin,0.303278,best
+1422,1284,train,Desmoplakin,0.324719,best
+2025,1829,train,Beta actin,0.47486300000000004,best
+2700,2429,train,Sec61 beta,0.575014,best
+2994,2697,train,Beta actin,0.4846325,best
+3248,2923,train,Myosin IIB,0.24933149999999998,best
+3423,3085,train,ZO1,0.175609,best
+5554,4982,train,Fibrillarin,0.799317,best
+13279,11947,train,Tom20,0.422835,best
+3188,318,test,Myosin IIB,0.0468137,best
+3430,338,test,ZO1,0.04744345,best
+3447,343,test,ZO1,0.1381635,best
+8419,854,test,Lamin B1,0.7101010000000001,best
+13884,1397,test,Tom20,0.394587,best
+15138,1528,test,Tom20,0.4183495,best
+15258,1539,test,Tom20,0.40231999999999996,best
+1289,1163,train,Fibrillarin,0.826396,best
+1399,1263,train,Desmoplakin,0.30648949999999997,best
+3501,3154,train,ZO1,0.154098,best
+7380,6629,train,Lamin B1,0.764982,best
+10796,9705,train,Alpha tubulin,0.516151,best
+280,27,test,Alpha actinin,0.288991,best
+3235,324,test,Myosin IIB,0.118641,best
+3473,345,test,ZO1,0.106428,best
+4176,416,test,Sec61 beta,0.43856249999999997,best
+10506,1068,test,Alpha tubulin,0.426596,best
+11496,1155,test,Alpha tubulin,0.4666564999999999,best
+13016,1313,test,Tom20,0.4737755,best
+13852,1393,test,Tom20,0.35715949999999996,best
+353,318,train,Fibrillarin,0.7798305,best
+1424,1286,train,Desmoplakin,0.35386700000000004,best
+1996,1804,train,Beta actin,0.495035,best
+3513,3166,train,ZO1,0.15665,best
+4653,4189,train,Alpha tubulin,0.516792,best
+9375,8429,train,Lamin B1,0.7738795,best
+534,58,test,Alpha tubulin,0.456187,best
+2977,291,test,Beta actin,0.36303299999999994,best
+3046,303,test,Beta actin,0.3970825,best
+4253,426,test,Sec61 beta,0.491279,best
+4527,450,test,Alpha tubulin,0.5085185,best
+8053,825,test,Lamin B1,0.7639635,best
+38,33,train,Alpha actinin,0.46114600000000006,best
+3263,2934,train,Myosin IIB,0.30769,best
+3268,2938,train,Myosin IIB,0.33734200000000003,best
+4225,3803,train,Sec61 beta,0.626252,best
+5504,4940,train,Fibrillarin,0.7829790000000001,best
+6764,6063,train,Lamin B1,0.7668015,best
+13733,12352,train,Tom20,0.429226,best
+3098,308,test,Beta actin,0.540423,best
+5367,548,test,Sec61 beta,0.48185100000000003,best
+10452,1059,test,Alpha tubulin,0.4580775,best
+39,34,train,Alpha actinin,0.4376365,best
+244,219,train,Alpha actinin,0.430337,best
+961,869,train,Fibrillarin,0.7918734999999999,best
+1979,1790,train,Beta actin,0.578382,best
+13479,12123,train,Tom20,0.4702315,best
+14046,12634,train,Tom20,0.44704199999999994,best
+945,91,test,Fibrillarin,0.7201035,best
+3013,300,test,Beta actin,0.45074349999999996,best
+14248,1434,test,Tom20,0.363501,best
+165,151,train,Alpha actinin,0.4485045,best
+1899,1716,train,Beta actin,0.507119,best
+3618,3260,train,Fibrillarin,0.779883,best
+5978,5358,train,Fibrillarin,0.7987995,best
+13666,12291,train,Tom20,0.4256585,best
+1386,134,test,Desmoplakin,0.3059835,best
+1918,183,test,Beta actin,0.3859375,best
+11675,1171,test,Alpha tubulin,0.473732,best
+14323,1441,test,Tom20,0.41382450000000004,best
+3216,2893,train,Myosin IIB,0.28266,best
+3701,3334,train,Fibrillarin,0.8125565,best
+4199,3781,train,Sec61 beta,0.5733675,best
+9423,8471,train,Lamin B1,0.7556205,best
+3308,332,test,Myosin IIB,0.177428,best
+13002,1310,test,Tom20,0.37970249999999994,best
+3338,3001,train,Myosin IIB,0.2517325,best
+4091,3685,train,Sec61 beta,0.574162,best
+11498,10342,train,Alpha tubulin,0.5707089999999999,best
+11940,10740,train,Alpha tubulin,0.502793,best
+2114,206,test,Alpha actinin,0.34743199999999996,best
+2145,210,test,Alpha actinin,0.3176095,best
+2981,293,test,Beta actin,0.36323099999999997,best
+3006,297,test,Beta actin,0.4430505,best
+3544,350,test,ZO1,0.05026345,best
+13737,1381,test,Tom20,0.37915049999999995,best
+5667,5081,train,Sec61 beta,0.550868,best
+8919,8018,train,Lamin B1,0.77767,best
+236,24,test,Alpha actinin,0.243117,best
+1664,158,test,Beta actin,0.397175,best
+3551,352,test,ZO1,0.020954149999999998,best
+1311,1183,train,Desmoplakin,0.3374835,best
+1391,1255,train,Desmoplakin,0.30196,best
+3321,2987,train,Myosin IIB,0.2856435,best
+3555,3202,train,ZO1,0.20588599999999999,best
+4923,4420,train,Sec61 beta,0.604715,best
+11105,9989,train,Alpha tubulin,0.5088349999999999,best
+1363,132,test,Desmoplakin,0.25596299999999994,best
+4096,406,test,Sec61 beta,0.5506445,best
+4475,444,test,Alpha tubulin,0.5088334999999999,best
+5380,551,test,Sec61 beta,0.445895,best
+8745,881,test,Lamin B1,0.731657,best
+1701,1536,train,Beta actin,0.5266175,best
+1306,127,test,Desmoplakin,0.243067,best
+164,150,train,Alpha actinin,0.4330165,best
+1304,1177,train,Desmoplakin,0.34029299999999996,best
+1573,1421,train,Beta actin,0.4764525,best
+3315,2982,train,Myosin IIB,0.2688335,best
+3316,2983,train,Myosin IIB,0.258677,best
+8499,7640,train,Lamin B1,0.765072,best
+12110,10897,train,Tom20,0.455385,best
+14768,13282,train,Tom20,0.541358,best
+3266,329,test,Myosin IIB,0.067956,best
+6241,640,test,Lamin B1,0.7005585000000001,best
+8884,897,test,Lamin B1,0.7131395,best
+1414,1277,train,Desmoplakin,0.3671195,best
+5906,5292,train,Fibrillarin,0.776841,best
+11599,10435,train,Alpha tubulin,0.525596,best
+3130,312,test,Beta actin,0.4139865,best
+7878,810,test,Lamin B1,0.7132769999999999,best
+9562,964,test,Lamin B1,0.7222614999999999,best
+2998,2701,train,Beta actin,0.4994585,best
+3001,2704,train,Beta actin,0.5588725000000001,best
+1314,128,test,Desmoplakin,0.25355249999999996,best
+5484,563,test,Fibrillarin,0.725673,best
+88,79,train,Alpha actinin,0.44660550000000004,best
+1345,130,test,Desmoplakin,0.1509545,best
+3228,2905,train,Myosin IIB,0.2856345,best
+5395,4841,train,Fibrillarin,0.796295,best
+3201,320,test,Myosin IIB,0.2221025,best
+3716,368,test,Fibrillarin,0.721659,best
+8149,7313,train,Lamin B1,0.8255350000000001,best
+14476,13024,train,Tom20,0.434711,best
+15044,13527,train,Tom20,0.44545099999999993,best
+7181,733,test,Lamin B1,0.7237485,best
+3272,2942,train,Myosin IIB,0.25659,best
+4484,4037,train,Alpha tubulin,0.5352049999999999,best
+15519,13958,train,Tom20,0.48083,best
+3250,325,test,Myosin IIB,0.2610905,best
+3856,384,test,Sec61 beta,0.5173840000000001,best
+3000,2703,train,Beta actin,0.47653900000000005,best
+12714,11431,train,Tom20,0.435601,best
+5541,569,test,Fibrillarin,0.760509,best
+11052,9940,train,Alpha tubulin,0.5046935,best
+344,33,test,Fibrillarin,0.7320485,best
+1396,1260,train,Desmoplakin,0.355974,best
+3186,2868,train,Myosin IIB,0.293876,best
+3562,3209,train,ZO1,0.20321050000000002,best
+7751,6956,train,Lamin B1,0.7629165,best
+2689,268,test,Sec61 beta,0.49975650000000005,best
+2992,295,test,Beta actin,0.402019,best
+5530,567,test,Fibrillarin,0.7136629999999999,best
+14957,13447,train,Tom20,0.4548495,best
+1992,190,test,Beta actin,0.48281050000000003,best
+3359,337,test,ZO1,0.0989681,best
+3988,398,test,Sec61 beta,0.4798755,best
+230,23,test,Alpha actinin,0.3367515,best
+3325,334,test,Myosin IIB,0.152142,best
+3443,341,test,ZO1,0.1513995,best
+5993,621,test,Fibrillarin,0.7565124999999999,best
+10066,1020,test,Alpha tubulin,0.432381,best
+13999,1406,test,Tom20,0.3537225,best
+95,84,train,Alpha actinin,0.4590455,best
+98,11,test,Alpha actinin,0.3183245,best
+2224,216,test,Alpha actinin,0.2575045,best
+15140,13611,train,Tom20,0.4382155,best
+1161,1046,train,Fibrillarin,0.777862,best
+3285,2954,train,Myosin IIB,0.3153205,best
+363,36,test,Fibrillarin,0.7889325,best
+4111,3701,train,Sec61 beta,0.578212,best
+1247,124,test,Fibrillarin,0.736659,best
+3254,327,test,Myosin IIB,0.1396135,best
+3704,367,test,Fibrillarin,0.7852445,best
+3560,3207,train,ZO1,0.1657575,best
+10659,9575,train,Alpha tubulin,0.497193,best
+6944,6233,train,Lamin B1,0.7630705,best
+1388,135,test,Desmoplakin,0.24658,best
+3003,2706,train,Beta actin,0.5334045000000001,best
+3533,348,test,ZO1,0.057245550000000006,best
+1427,1289,train,Desmoplakin,0.3134395,best
+2154,1943,train,Alpha actinin,0.447715,best
+37,4,test,Alpha actinin,0.4827015,best
+5362,4816,train,Sec61 beta,0.5812355,best
+264,238,train,Alpha actinin,0.471522,best
+1343,1213,train,Desmoplakin,0.3054685,best
+12505,1258,test,Tom20,0.425721,best
+11487,1150,test,Alpha tubulin,0.4697705,best
+3572,353,test,ZO1,0.06764645,best
