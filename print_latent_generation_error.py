@@ -2,11 +2,6 @@
 ### This function prints off the most likely predicted 
 ### channels for each of the cells in our dataset
 #######
-
-#######    
-### Load the Model Parts
-#######
-
 import argparse
 
 import importlib
@@ -27,83 +22,43 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 from IPython import display
 import time
-from model_utils import set_gpu_recursive, load_model, save_state, save_progress, get_latent_embeddings, maybe_save
+
+import model_utils
 
 import torch.backends.cudnn as cudnn
 cudnn.benchmark = True
 
-from tqdm import tqdm
-
-from corr_stats import pearsonr, corrcoef
-
 import pdb
 
-parent_dir = './test_aaegan/aaegan3Dv5_128D'
+import corr_stats
 
-model_dir = parent_dir + os.sep + 'struct_model' 
+from tqdm import tqdm
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--parent_dir', help='save dir')
+parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
+args = parser.parse_args()
+
+model_dir = args.parent_dir + os.sep + 'struct_model' 
 
 # logger_file = '{0}/logger_tmp.pkl'.format(model_dir)
-opt = pickle.load( open( '{0}/opt.pkl'.format(model_dir), "rb" ) )
-
+opt = pickle.load(open( '{0}/opt.pkl'.format(model_dir), "rb" ))
 print(opt)
 
-DP = importlib.import_module("data_providers." + opt.dataProvider)
-model_provider = importlib.import_module("models." + opt.model_name)
-train_module = importlib.import_module("train_modules." + opt.train_module)
+opt.gpu_ids = args.gpu_ids
 
 torch.manual_seed(opt.myseed)
 torch.cuda.manual_seed(opt.myseed)
 np.random.seed(opt.myseed)
 
-if not os.path.exists(opt.save_dir):
-    os.makedirs(opt.save_dir)
-    
-if opt.nepochs_pt2 == -1:
-    opt.nepochs_pt2 = opt.nepochs
-    
-# opts = {}
-# opts['verbose'] = True
-# opts['pattern'] = '*.tif_flat.png'
-# opts['out_size'] = [opt.imsize, opt.imsize]
-
 data_path = './data_{0}x{1}.pyt'.format(str(opt.imsize), str(opt.imsize))
-if os.path.exists(data_path):
-    dp = torch.load(data_path)
-else:
-    dp = DP.DataProvider(opt.imdir)
-    torch.save(dp, data_path)
-    
-dp.opts['dtype'] = 'float'
-    
-if opt.ndat == -1:
-    opt.ndat = dp.get_n_dat('train')    
+dp = model_utils.load_data_provider(data_path, opt.imdir, opt.dataProvider)
 
-iters_per_epoch = np.ceil(opt.ndat/opt.batch_size)    
-            
 #######    
 ### Load REFERENCE MODEL
 #######
-
-embeddings_path = opt.save_parent + os.sep + 'ref_model' + os.sep + 'embeddings.pkl'
-if os.path.exists(embeddings_path):
-    embeddings = torch.load(embeddings_path)
-else:
-    embeddings = get_latent_embeddings(models['enc'], dp, opt)
-    torch.save(embeddings, embeddings_path)
-
-models = None
-optimizers = None
-    
-def get_ref(self, inds, train_or_test='train'):
-    inds = torch.LongTensor(inds)
-    return self.embeddings[train_or_test][inds]
-
-dp.embeddings = embeddings
-
-# do this thing to bind the get_ref method to the dataprovider object
-import types  
-dp.get_ref = types.MethodType(get_ref, dp)
-            
 
 opt.channelInds = [0, 1, 2]
 dp.opts['channelInds'] = opt.channelInds
@@ -112,33 +67,13 @@ opt.nch = len(opt.channelInds)
 opt.nClasses = dp.get_n_classes()
 opt.nRef = opt.nlatentdim
 
-try:
-    train_module = None
-    train_module = importlib.import_module("train_modules." + opt.train_module)
-    train_module = train_module.trainer(dp, opt)
-except:
-    pass    
-
-if not hasattr(opt, 'critRecon'):
-    opt.critRecon = 'BCELoss'
-    
-if not hasattr(opt, 'dtype'):
-    opt.dtype = 'float'
-
-# pdb.set_trace()
-opt.gpu_ids = [0, 1]
-models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
+models, optimizers, _, _, opt = model_utils.load_model(opt.model_name, opt)
 
 enc = models['enc']
 dec = models['dec']
+
 enc.train(False)
 dec.train(False)
-
-for p in enc.parameters():
-    p.requires_grad = False
-
-for p in dec.parameters():
-    p.requires_grad = False
 
 models = None
 optimizers = None
@@ -147,23 +82,12 @@ optimizers = None
 print('Done loading model.')
 
 # Get the embeddings for the structure localization
-
 opt.batch_size = 100
-# opt.gpu_ids = [0,1,3]
-enc.gpu_ids = opt.gpu_ids
-dec.gpu_ids = opt.gpu_ids
-
 embeddings_path = opt.save_dir + os.sep + 'embeddings_struct.pkl'
-if os.path.exists(embeddings_path):
-    embeddings = torch.load(embeddings_path)
-else:
-    embeddings = get_latent_embeddings(enc, dp, opt)
-    torch.save(embeddings, embeddings_path)
+embeddings = model_utils.load_embeddings(embeddings_path, enc, dp, opt)
 
-# enc = None    
     
 print('Done loading embeddings.')
-
 
 #######    
 ### Main Loop
@@ -179,20 +103,21 @@ import scipy.misc
 
 import pandas as pd
 
+from corr_stats import pearsonr, corrcoef
+
 
 
 opt.batch_size = 400
 gpu_id = opt.gpu_ids[0]
 
-loss = nn.MSELoss()
+MSEloss = nn.MSELoss()
+BCEloss = nn.BCELoss()
+
 embeddings_all = torch.cat([embeddings['train'], embeddings['test']], 0);
 
 dat_train_test = ['train'] * len(embeddings['train']) + ['test'] * len(embeddings['test'])
 dat_dp_inds = np.concatenate([np.arange(0, len(embeddings['train'])), np.arange(0, len(embeddings['test']))], axis=0).astype('int')
 dat_inds = np.concatenate([dp.data['train']['inds'], dp.data['test']['inds']])
-
-colormap = 'hsv'
-colors = plt.get_cmap(colormap)(np.linspace(0, 1, 4))
 
 
 train_or_test_split = ['test', 'train']
@@ -239,9 +164,11 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
     img_in = Variable(img_in.cuda(gpu_id), volatile=True)
 
     img_struct = torch.index_select(img_in, 1, torch.LongTensor([1]).cuda(gpu_id))
+    img_struct = img_struct[0]
     
     img_recon = dec(enc(img_in))
     img_recon_struct = torch.index_select(img_recon, 1, torch.LongTensor([1]).cuda(gpu_id))
+    img_recon_struct = img_recon_struct[0]
     
     img_recon = None
     
@@ -253,9 +180,15 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
     mse_orig = list()
     mse_recon = list()
     
+    bce_orig = list()
+    bce_recon = list()
+    
     pearson_orig = list()
     pearson_recon = list()
    
+    corr_orig = list()
+    corr_recon = list()
+
     embedding_index = list()
     embedding_train_or_test = list()
     
@@ -267,7 +200,7 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
     data_iter = [inds[j:j+opt.batch_size] for j in range(0, len(inds), opt.batch_size)]        
     for j in range(0, len(data_iter)):
         
-        if test_mode and (j > nbatches): continue
+        if test_mode and (j >= nbatches): continue
         
         batch_inds = data_iter[j]
         batch_size = len(data_iter[j])
@@ -287,11 +220,18 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
         imgs_out = torch.index_select(imgs_out, 1, torch.LongTensor([1]).cuda(gpu_id))
 
         for img in imgs_out:
-            mse_orig.append(loss(img, img_struct).data[0])
-            mse_recon.append(loss(img, img_recon_struct).data[0])
+            
+            mse_orig.append(MSEloss(img, img_struct).data[0])
+            mse_recon.append(MSEloss(img, img_recon_struct).data[0])
+            
+            bce_orig.append(BCEloss(img, img_struct).data[0])
+            bce_recon.append(BCEloss(img, img_recon_struct).data[0])
             
             pearson_orig.append(pearsonr(img.view(-1), img_struct.view(-1)).data.cpu().numpy()[0])
             pearson_recon.append(pearsonr(img.view(-1), img_recon_struct.view(-1)).data.cpu().numpy()[0])
+            
+            corr_orig.append(corrcoef(torch.stack([img.view(-1), img_struct.view(-1)]))[0,1].data.cpu().numpy()[0])
+            corr_recon.append(corrcoef(torch.stack([img.view(-1), img_recon_struct.view(-1)]))[0,1].data.cpu().numpy()[0])
             
         del imgs_out
     
@@ -315,10 +255,14 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
             np.repeat(tot_inten_recon, nembeddings_tmp), 
             mse_orig, 
             mse_recon, 
+            bce_orig,
+            bce_recon,
             pearson_orig, 
-            pearson_recon]
+            pearson_recon,
+            corr_orig,
+            corr_recon]
     
-    columns = ['img_index', 'data_provider_index', 'embedding_data_provider_index', 'embedding_train_or_test', 'label', 'path', 'train_or_test', 'tot_inten', 'tot_inten_recon', 'mse_orig', 'mse_recon', 'pearson_orig', 'pearson_recon']
+    columns = ['img_index', 'data_provider_index', 'embedding_data_provider_index', 'embedding_train_or_test', 'label', 'path', 'train_or_test', 'tot_inten', 'tot_inten_recon', 'mse_orig', 'mse_recon', 'bce_orig', 'bce_recon', 'pearson_orig', 'pearson_recon', 'corr_orig', 'corr_recon']
     
     df = pd.DataFrame(np.array(data).T, columns=columns)
     df.to_csv(err_save_path)
