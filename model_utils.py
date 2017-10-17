@@ -77,7 +77,7 @@ def load_embeddings(embeddings_path, enc=None, dp=None, opt=None):
     if os.path.exists(embeddings_path):
         embeddings = torch.load(embeddings_path)
     else:
-        embeddings = model_utils.get_latent_embeddings(enc, dp, opt)
+        embeddings = get_latent_embeddings(enc, dp, opt)
         torch.save(embeddings, embeddings_path)
     
     return embeddings        
