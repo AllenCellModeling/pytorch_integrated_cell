@@ -30,8 +30,6 @@ cudnn.benchmark = True
 
 import pdb
 
-import corr_stats
-
 from tqdm import tqdm
 
 
@@ -39,11 +37,11 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--parent_dir', help='save dir')
 parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
+parser.add_argument('--batch_size', type=int, default=400, help='batch_size')
 args = parser.parse_args()
 
 model_dir = args.parent_dir + os.sep + 'struct_model' 
 
-# logger_file = '{0}/logger_tmp.pkl'.format(model_dir)
 opt = pickle.load(open( '{0}/opt.pkl'.format(model_dir), "rb" ))
 print(opt)
 
@@ -53,8 +51,7 @@ torch.manual_seed(opt.myseed)
 torch.cuda.manual_seed(opt.myseed)
 np.random.seed(opt.myseed)
 
-data_path = './data_{0}x{1}.pyt'.format(str(opt.imsize), str(opt.imsize))
-dp = model_utils.load_data_provider(data_path, opt.imdir, opt.dataProvider)
+dp = model_utils.load_data_provider(opt.data_save_path, opt.imdir, opt.dataProvider)
 
 #######    
 ### Load REFERENCE MODEL
@@ -83,10 +80,9 @@ print('Done loading model.')
 
 # Get the embeddings for the structure localization
 opt.batch_size = 100
-embeddings_path = opt.save_dir + os.sep + 'embeddings_struct.pkl'
+embeddings_path = opt.save_dir + os.sep + 'embeddings_struct.pyt'
 embeddings = model_utils.load_embeddings(embeddings_path, enc, dp, opt)
 
-    
 print('Done loading embeddings.')
 
 #######    
@@ -104,14 +100,19 @@ import scipy.misc
 import pandas as pd
 
 from corr_stats import pearsonr, corrcoef
+import pytorch_ssim
 
 
 
-opt.batch_size = 400
+opt.batch_size = args.batch_size
 gpu_id = opt.gpu_ids[0]
 
 MSEloss = nn.MSELoss()
 BCEloss = nn.BCELoss()
+
+ssim_loss = pytorch_ssim.SSIM(window_size = 5)
+
+
 
 embeddings_all = torch.cat([embeddings['train'], embeddings['test']], 0);
 
@@ -164,11 +165,11 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
     img_in = Variable(img_in.cuda(gpu_id), volatile=True)
 
     img_struct = torch.index_select(img_in, 1, torch.LongTensor([1]).cuda(gpu_id))
-    img_struct = img_struct[0]
+    img_struct = img_struct
     
     img_recon = dec(enc(img_in))
     img_recon_struct = torch.index_select(img_recon, 1, torch.LongTensor([1]).cuda(gpu_id))
-    img_recon_struct = img_recon_struct[0]
+    img_recon_struct = img_recon_struct
     
     img_recon = None
     
@@ -189,6 +190,9 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
     corr_orig = list()
     corr_recon = list()
 
+    ssim_orig = list()
+    ssim_recon = list()
+    
     embedding_index = list()
     embedding_train_or_test = list()
     
@@ -197,7 +201,9 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
     
     np.random.shuffle(inds)
     
-    data_iter = [inds[j:j+opt.batch_size] for j in range(0, len(inds), opt.batch_size)]        
+    data_iter = [inds[j:j+opt.batch_size] for j in range(0, len(inds), opt.batch_size)]       
+    np.random.shuffle(data_iter)
+    
     for j in range(0, len(data_iter)):
         
         if test_mode and (j >= nbatches): continue
@@ -219,7 +225,12 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
 
         imgs_out = torch.index_select(imgs_out, 1, torch.LongTensor([1]).cuda(gpu_id))
 
+        # img_struct_cpu = np.squeeze(img_struct.data.cpu().numpy())
+        # img_recon_struct_cpu = np.squeeze(img_recon_struct.data.cpu().numpy())   
+        
         for img in imgs_out:
+            
+            img = img.unsqueeze(0)
             
             mse_orig.append(MSEloss(img, img_struct).data[0])
             mse_recon.append(MSEloss(img, img_recon_struct).data[0])
@@ -232,6 +243,11 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
             
             corr_orig.append(corrcoef(torch.stack([img.view(-1), img_struct.view(-1)]))[0,1].data.cpu().numpy()[0])
             corr_recon.append(corrcoef(torch.stack([img.view(-1), img_recon_struct.view(-1)]))[0,1].data.cpu().numpy()[0])
+            
+            img_cpu = np.squeeze(img.data.cpu().numpy())
+                
+            ssim_orig.append(ssim_loss(img, img_struct).data[0])
+            ssim_recon.append(ssim_loss(img, img_recon_struct).data[0])
             
         del imgs_out
     
@@ -260,11 +276,14 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
             pearson_orig, 
             pearson_recon,
             corr_orig,
-            corr_recon]
+            corr_recon,
+            ssim_orig,
+            ssim_recon]
     
-    columns = ['img_index', 'data_provider_index', 'embedding_data_provider_index', 'embedding_train_or_test', 'label', 'path', 'train_or_test', 'tot_inten', 'tot_inten_recon', 'mse_orig', 'mse_recon', 'bce_orig', 'bce_recon', 'pearson_orig', 'pearson_recon', 'corr_orig', 'corr_recon']
+    columns = ['img_index', 'data_provider_index', 'embedding_data_provider_index', 'embedding_train_or_test', 'label', 'path', 'train_or_test', 'tot_inten', 'tot_inten_recon', 'mse_orig', 'mse_recon', 'bce_orig', 'bce_recon', 'pearson_orig', 'pearson_recon', 'corr_orig', 'corr_recon', 'ssim_orig', 'ssim_recon']
     
     df = pd.DataFrame(np.array(data).T, columns=columns)
+    
     df.to_csv(err_save_path)
         
 print('Done computing errors.')

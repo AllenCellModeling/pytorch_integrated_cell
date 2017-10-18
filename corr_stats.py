@@ -2,6 +2,8 @@
 
 import torch
 
+import pdb
+
 def pearsonr(x, y):
     """
     Mimics `scipy.stats.pearsonr`
@@ -30,8 +32,8 @@ def pearsonr(x, y):
     """
     mean_x = torch.mean(x)
     mean_y = torch.mean(y)
-    xm = x.sub(mean_x)
-    ym = y.sub(mean_y)
+    xm = x.sub(mean_x.data[0])
+    ym = y.sub(mean_y.data[0])
     r_num = xm.dot(ym)
     r_den = torch.norm(xm, 2) * torch.norm(ym, 2)
     r_val = r_num / r_den
