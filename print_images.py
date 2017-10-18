@@ -101,11 +101,6 @@ import pandas as pd
 
 gpu_id = 0
 
-enc = models['enc']
-dec = models['dec']
-enc.train(False)
-dec.train(False)
-
 colormap = 'hsv'
 colors = plt.get_cmap(colormap)(np.linspace(0, 1, 4))
 
