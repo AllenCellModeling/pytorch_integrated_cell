@@ -50,61 +50,17 @@ model_dir = args.parent_dir + os.sep + 'struct_model'
 opt = pickle.load(open( '{0}/opt.pkl'.format(model_dir), "rb" ))
 print(opt)
 
-DP = importlib.import_module("data_providers." + opt.dataProvider)
-model_provider = importlib.import_module("models." + opt.model_name)
-train_module = importlib.import_module("train_modules." + opt.train_module)
+opt.gpu_ids = args.gpu_ids
 
 torch.manual_seed(opt.myseed)
 torch.cuda.manual_seed(opt.myseed)
 np.random.seed(opt.myseed)
 
-if not os.path.exists(opt.save_dir):
-    os.makedirs(opt.save_dir)
-    
-if opt.nepochs_pt2 == -1:
-    opt.nepochs_pt2 = opt.nepochs
+dp = model_utils.load_data_provider(opt.data_save_path, opt.imdir, opt.dataProvider)
 
-opts = {}
-opts['verbose'] = True
-opts['pattern'] = '*.tif_flat.png'
-opts['out_size'] = [opt.imsize, opt.imsize]
-
-data_path = './data_{0}x{1}.pyt'.format(str(opts['out_size'][0]), str(opts['out_size'][1]))
-if os.path.exists(data_path):
-    dp = torch.load(data_path)
-else:
-    dp = DP.DataProvider(opt.imdir, opts)
-    torch.save(dp, data_path)
-    
-if opt.ndat == -1:
-    opt.ndat = dp.get_n_dat('train')    
-
-iters_per_epoch = np.ceil(opt.ndat/opt.batch_size)    
-            
 #######    
 ### Load REFERENCE MODEL
 #######
-
-embeddings_path = args.parent_dir + os.sep + 'ref_model' + os.sep + 'embeddings.pkl'
-if os.path.exists(embeddings_path):
-    embeddings = torch.load(embeddings_path)
-else:
-    embeddings = get_latent_embeddings(models['enc'], dp, opt)
-    torch.save(embeddings, embeddings_path)
-
-models = None
-optimizers = None
-    
-def get_ref(self, inds, train_or_test='train'):
-    inds = torch.LongTensor(inds)
-    return self.embeddings[train_or_test][inds]
-
-dp.embeddings = embeddings
-
-# do this thing to bind the get_ref method to the dataprovider object
-import types  
-dp.get_ref = types.MethodType(get_ref, dp)
-            
 
 opt.channelInds = [0, 1, 2]
 dp.opts['channelInds'] = opt.channelInds
@@ -113,20 +69,26 @@ opt.nch = len(opt.channelInds)
 opt.nClasses = dp.get_n_classes()
 opt.nRef = opt.nlatentdim
 
-try:
-    train_module = None
-    train_module = importlib.import_module("train_modules." + opt.train_module)
-    train_module = train_module.trainer(dp, opt)
-except:
-    pass    
-
-models, optimizers, criterions, logger, opt = load_model(model_provider, opt)
-
+models, optimizers, _, _, opt = model_utils.load_model(opt.model_name, opt)
 
 enc = models['enc']
 dec = models['dec']
+
 enc.train(False)
 dec.train(False)
+
+models = None
+optimizers = None
+
+
+print('Done loading model.')
+
+# Get the embeddings for the structure localization
+opt.batch_size = 100
+embeddings_path = opt.save_dir + os.sep + 'embeddings_struct.pyt'
+embeddings = model_utils.load_embeddings(embeddings_path, enc, dp, opt)
+
+print('Done loading embeddings.')
 
 
 #######    
