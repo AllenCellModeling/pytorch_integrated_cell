@@ -83,13 +83,6 @@ optimizers = None
 
 print('Done loading model.')
 
-# Get the embeddings for the structure localization
-opt.batch_size = 100
-embeddings_path = opt.save_dir + os.sep + 'embeddings_struct.pyt'
-embeddings = model_utils.load_embeddings(embeddings_path, enc, dp, opt)
-
-print('Done loading embeddings.')
-
 
 #######    
 ### Main Loop
