@@ -7,8 +7,6 @@
 ### Load the Model Parts
 #######
 
-import argparse
-
 import SimpleLogger as SimpleLogger
 
 import importlib
@@ -25,25 +23,19 @@ import torch.optim as optim
 from torch.autograd import Variable
 import torchvision.utils
 
-#have to do this import to be able to use pyplot in the docker image
-import matplotlib as mpl
-mpl.use('Agg')
-import matplotlib.pyplot as plt
-from IPython import display
-import time
-
 import model_utils
+
+from tqdm import tqdm
 
 import torch.backends.cudnn as cudnn
 cudnn.benchmark = True
-
-
 
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--parent_dir', help='save dir')
 parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
 parser.add_argument('--batch_size', type=int, default=400, help='batch_size')
+parser.add_argument('--overwrite', type=bool, default=False, help='overwrite existing results')
 args = parser.parse_args()
 
 model_dir = args.parent_dir + os.sep + 'struct_model' 
@@ -84,7 +76,6 @@ optimizers = None
 
 print('Done loading model.')
 
-
 #######    
 ### Main Loop
 #######
@@ -99,12 +90,15 @@ import scipy.misc
 
 import pandas as pd
 
-gpu_id = 0
+gpu_id = opt.gpu_ids[0]
 
 colormap = 'hsv'
 colors = plt.get_cmap(colormap)(np.linspace(0, 1, 4))
 
-px_size = [0.3873, 0.3873, 0.3873]
+# [magenta, yellow, cyan]
+# colors = [[1, 0, 1], [1, 1, 0], [0, 1, 1]]
+
+px_size = [1,1,1]
 
 train_or_test_split = ['train', 'test']
 
@@ -128,9 +122,7 @@ def convert_image(img):
 for train_or_test in train_or_test_split:
     ndat = dp.get_n_dat(train_or_test)
     # For each cell in the data split
-    for i in range(0, ndat):
-        print(str(i) + os.sep + str(ndat))
-        
+    for i in tqdm(range(0, ndat)):
         
         img_index = dp.data[train_or_test]['inds'][i]
         img_class = dp.image_classes[img_index]
@@ -139,6 +131,11 @@ for train_or_test in train_or_test_split:
         save_dir = save_parent + os.sep + train_or_test + os.sep + img_name
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
+        
+        pred_all_path = save_dir + os.sep + 'img' + str(img_index) + '_' + img_class + '-pred_all.png'
+        
+        if os.path.exists(pred_all_path) and not args.overwrite:
+            continue
         
         #Load the image
         img_in = dp.get_images([i], train_or_test)
@@ -240,7 +237,7 @@ for train_or_test in train_or_test_split:
         
         images_proj = np.concatenate(images_proj,1)
         
-        scipy.misc.imsave(save_dir + os.sep + 'img' + str(img_index) + '_' + img_class + '-pred_all.png', images_proj)
+        scipy.misc.imsave(pred_all_path, images_proj)
 
 #save the list of all images
 img_paths_all_df = pd.DataFrame(img_paths_all, columns=column_names);
