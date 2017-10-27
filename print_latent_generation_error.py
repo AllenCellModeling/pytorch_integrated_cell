@@ -38,6 +38,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--parent_dir', help='save dir')
 parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
 parser.add_argument('--batch_size', type=int, default=400, help='batch_size')
+parser.add_argument('--use_current_results', type=bool, default=False, help='if true, dont compute errors, and construct master table')
 args = parser.parse_args()
 
 model_dir = args.parent_dir + os.sep + 'struct_model' 
@@ -139,8 +140,10 @@ else:
 if not os.path.exists(save_parent):
     os.makedirs(save_parent)
 
+dat_list = list(zip(dat_train_test, dat_dp_inds, dat_inds, range(0, len(dat_dp_inds))))
+np.random.shuffle(dat_list)
 
-for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_inds, range(0, len(dat_dp_inds))), 'computing errors', ascii=True):
+for train_or_test, i, img_index, c in tqdm(dat_list, 'computing errors', ascii=True):
 
     img_class = dp.image_classes[img_index]    
     img_class_onehot = dp.get_classes([i], train_or_test, 'onehot')
@@ -156,7 +159,7 @@ for train_or_test, i, img_index, c in tqdm(zip(dat_train_test, dat_dp_inds, dat_
     err_save_path = save_dir + os.sep + img_name + '.csv'
     err_save_paths.append(err_save_path)
     
-    if os.path.exists(err_save_path):
+    if os.path.exists(err_save_path) or args.use_current_results:
         continue
 
     # print(str(c) + os.sep + str(len(dat_dp_inds)))
@@ -290,30 +293,36 @@ print('Done computing errors.')
 
 
 save_all_path = save_parent + os.sep + 'all_dat.csv'
+save_all_missing_path = save_parent + os.sep + 'all_dat_missing.csv'
 
 
 
-if not os.path.exists(save_all_path):
-    csv_list = list()
+# if not os.path.exists(save_all_path):
+csv_list = list()
+csv_missing_list = list()
 
-    for err_save_path in tqdm(err_save_paths, 'loading error files', ascii=True):
+for err_save_path in tqdm(err_save_paths, 'loading error files', ascii=True):
+
+    if os.path.exists(err_save_path):
+        csv_errors = pd.read_csv(err_save_path)
+#                 csv_errors['train_or_test'] = train_or_test
+        csv_list.append(csv_errors)
+    else:
+        # print('Missing ' +  err_save_path)
+        csv_missing_list.append(err_save_path)
+
+# pdb.set_trace()
+errors_all = pd.concat(csv_list, axis=0)
+
+print('Writing to ' + save_all_path)        
+errors_all.to_csv(save_all_path)
+
+csv_missing_list = pd.DataFrame(csv_missing_list)
+csv_missing_list.to_csv(save_all_missing_path)
+# else:
     
-        if os.path.exists(err_save_path):
-            csv_errors = pd.read_csv(err_save_path)
-    #                 csv_errors['train_or_test'] = train_or_test
-            csv_list.append(csv_errors)
-        else:
-            print('Missing ' +  err_save_path)
-
-    # pdb.set_trace()
-    errors_all = pd.concat(csv_list, axis=0)
-
-    print('Writing to ' + save_all_path)        
-    errors_all.to_csv(save_all_path)
-else:
-    
-    print(save_all_path + ' exists. Loading...')
-    errors_all = pd.read_csv(save_all_path)
+#     print(save_all_path + ' exists. Loading...')
+#     errors_all = pd.read_csv(save_all_path)
 
     
 # ulabels = np.unique(errors_all['label'])

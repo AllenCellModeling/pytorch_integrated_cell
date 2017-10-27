@@ -238,7 +238,7 @@ class DecD(nn.Module):
                 self.noise = torch.zeros(x.size()).cuda(self.gpu_ids[0])
 
             #sample random noise
-            self.noise.normal_(mean=0, std=1)
+            self.noise.normal_(mean=0, std=self.opt.noise)
             noise = torch.autograd.Variable(self.noise)
 
             #add to input

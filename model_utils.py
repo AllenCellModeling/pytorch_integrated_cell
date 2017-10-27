@@ -167,14 +167,14 @@ def load_model(model_name, opt):
 
     
     logger = SimpleLogger.SimpleLogger(columns,  print_str)
-
-    if os.path.exists('./{0}/enc.pth'.format(opt.save_dir)):
+    
+    if os.path.exists('{0}/enc.pth'.format(opt.save_dir)):
         print('Loading from ' + opt.save_dir)
                     
-        load_state(enc, optEnc, './{0}/enc.pth'.format(opt.save_dir), gpu_id)
-        load_state(dec, optDec, './{0}/dec.pth'.format(opt.save_dir), gpu_id)
-        load_state(encD, optEncD, './{0}/encD.pth'.format(opt.save_dir), gpu_id)
-        load_state(decD, optDecD, './{0}/decD.pth'.format(opt.save_dir), gpu_id)
+        load_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
+        load_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
+        load_state(encD, optEncD, '{0}/encD.pth'.format(opt.save_dir), gpu_id)
+        load_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
                             
         logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
 
