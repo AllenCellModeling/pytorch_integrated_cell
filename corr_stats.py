@@ -66,7 +66,7 @@ def corrcoef(x):
         # [out]: True
     """
     # calculate covariance matrix of rows
-    mean_x = torch.mean(x, 1)
+    mean_x = torch.mean(x, 1).unsqueeze(1)
     xm = x.sub(mean_x.expand_as(x))
     c = xm.mm(xm.t())
     c = c / (x.size(1) - 1)

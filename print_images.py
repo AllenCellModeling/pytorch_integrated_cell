@@ -36,9 +36,10 @@ parser.add_argument('--parent_dir', help='save dir')
 parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
 parser.add_argument('--batch_size', type=int, default=400, help='batch_size')
 parser.add_argument('--overwrite', type=bool, default=False, help='overwrite existing results')
+parser.add_argument('--model_dir', default='struct_model', help='Model component direcoty')
 args = parser.parse_args()
 
-model_dir = args.parent_dir + os.sep + 'struct_model' 
+model_dir = args.parent_dir + os.sep + args.model_dir 
 
 opt = pickle.load(open( '{0}/opt.pkl'.format(model_dir), "rb" ))
 print(opt)
@@ -100,11 +101,11 @@ colors = plt.get_cmap(colormap)(np.linspace(0, 1, 4))
 
 px_size = [1,1,1]
 
-train_or_test_split = ['train', 'test']
+train_or_test_split = ['test', 'train']
 
 img_paths_all = list()
 
-save_parent = opt.save_dir + os.sep + 'images_out'
+save_parent = model_dir + os.sep + 'images_out'
 save_out_table = save_parent + os.sep + 'list_of_images.csv'
 
 column_names = ['orig', 'recon'] + ['pred_' + name for name in dp.label_names] + ['train_or_test', 'orig_struct', 'img_index']
@@ -152,8 +153,8 @@ for train_or_test in train_or_test_split:
         img_orig = convert_image(img_in)
         channel_names = ['memb', img_class, 'dna']
         img_name = save_dir + os.sep + 'img' + str(img_index) + '.ome.tif'
-        with omeTifWriter.OmeTifWriter(img_name, overwrite_file=True) as w:
-            w.save(img_orig, channel_names=channel_names, pixels_physical_size=px_size)
+#         with omeTifWriter.OmeTifWriter(img_name, overwrite_file=True) as w:
+#             w.save(img_orig, channel_names=channel_names, pixels_physical_size=px_size)
         
         pred_imgs.append(img_orig)
         img_paths.append(img_name)
@@ -162,8 +163,8 @@ for train_or_test in train_or_test_split:
         img_recon = convert_image(img_recon)
         channel_names_recon = ['memb_recon', img_class + '_recon', 'dna_recon']
         img_name = save_dir + os.sep + 'img' + str(img_index) + '_' + img_class + '-recon.ome.tif'
-        with omeTifWriter.OmeTifWriter(img_name, overwrite_file=True) as w:
-            w.save(img_recon, channel_names=channel_names_recon, pixels_physical_size=px_size)
+#         with omeTifWriter.OmeTifWriter(img_name, overwrite_file=True) as w:
+#             w.save(img_recon, channel_names=channel_names_recon, pixels_physical_size=px_size)
 
         pred_imgs.append(img_recon)
         img_paths.append(img_name)
@@ -176,14 +177,13 @@ for train_or_test in train_or_test_split:
             img_name = save_dir + os.sep + 'img' + str(img_index) + '_' + img_class + '-pred_' + pred_class_name + '.ome.tif'
             
             #Set the class label in log(one-hot) form
-            z[0].data[0] = torch.zeros(z[0].size()).cuda(gpu_id)
-            z[0].data[0][j] = 1
-            z[0].data[0] = (z[0].data[0] - 1) * 25
+            z[0].data[0] = torch.zeros(z[0].size()).fill_(-10).cuda(gpu_id)
+            z[0].data[0][j] = 0
             
             #Reference variable is set as z[1]
             
             #Set the structure variation variable to most probable
-            z[-1] = torch.zeros(z[-1].size()).cuda(gpu_id)
+            z[-1] = Variable(torch.zeros(z[-1].size()).cuda(gpu_id))
             
             #generate image with these settings
             img_recon = dec(z)
@@ -192,9 +192,9 @@ for train_or_test in train_or_test_split:
             img_recon = convert_image(img_recon)
             img_recon = np.expand_dims(img_recon[:,1,:,:],1)
             
-            #save the gfp channel
-            with omeTifWriter.OmeTifWriter(img_name, overwrite_file=True) as w:
-                w.save(img_recon, channel_names=[pred_class_name + '_pred'], pixels_physical_size=px_size)
+#             #save the gfp channel
+#             with omeTifWriter.OmeTifWriter(img_name, overwrite_file=True) as w:
+#                 w.save(img_recon, channel_names=[pred_class_name + '_pred'], pixels_physical_size=px_size)
             
             channel_names.append(pred_class_name + ' pred')
             
