@@ -244,9 +244,13 @@ class trainer(object):
         #if we have classes, create random classes, generate images of random classes
         if opt.nClasses > 0:
             shuffle_inds = np.arange(0, zAll[0].size(0))
+            
+            classes_one_hot = Variable((dataProvider.get_classes(inds,'train', 'one hot') - 1) * 25).type_as(zAll[0].data).cuda(opt.gpu_ids[0]) 
+            
             np.random.shuffle(shuffle_inds)
-            zAll[0] = zAll[0][shuffle_inds,:]
+            zAll[0] = classes_one_hot[shuffle_inds,:]
             y_xReal = y_xReal[torch.LongTensor(shuffle_inds).cuda(opt.gpu_ids[0])]
+
         
         #sample random positions in the localization space
         self.zReal.data.normal_()

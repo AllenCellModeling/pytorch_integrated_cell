@@ -146,6 +146,8 @@ for train_or_test in train_or_test_split:
         z = enc(img_in)
         img_recon = dec(z)
         
+        pdb.set_trace()
+        
         pred_imgs = list()
         img_paths = list()
         
@@ -177,7 +179,7 @@ for train_or_test in train_or_test_split:
             img_name = save_dir + os.sep + 'img' + str(img_index) + '_' + img_class + '-pred_' + pred_class_name + '.ome.tif'
             
             #Set the class label in log(one-hot) form
-            z[0].data[0] = torch.zeros(z[0].size()).fill_(-10).cuda(gpu_id)
+            z[0].data[0] = torch.zeros(z[0].size()).fill_(-35).cuda(gpu_id)
             z[0].data[0][j] = 0
             
             #Reference variable is set as z[1]
