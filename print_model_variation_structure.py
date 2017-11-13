@@ -33,6 +33,8 @@ import pdb
 
 from tqdm import tqdm
 
+import itertools
+
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -42,10 +44,14 @@ parser.add_argument('--batch_size', type=int, default=500, help='batch_size')
 parser.add_argument('--use_current_results', type=bool, default=False, help='if true, dont compute errors, and construct master table')
 args = parser.parse_args()
 
-model_dir = args.parent_dir + os.sep + 'struct_model' 
+model_ref_dir = args.parent_dir + os.sep + 'ref_model'
+model_struct_dir = args.parent_dir + os.sep + 'struct_model' 
 
+save_parent = args.parent_dir + os.sep + 'analysis' + os.sep + 'model_structure_variation'
+if not os.path.exists(save_parent):
+    os.makedirs(save_parent)
 
-opt = pickle.load(open( '{0}/opt.pkl'.format(model_dir), "rb" ))
+opt = pickle.load(open( '{0}/opt.pkl'.format(model_struct_dir), "rb" ))
 print(opt)
 
 opt.gpu_ids = args.gpu_ids
@@ -81,120 +87,92 @@ optimizers = None
 
 print('Done loading model.')
 
-# Get the embeddings for the structure localization
-opt.batch_size = 100
+embeddings_ref_path = model_struct_dir + os.sep + 'embeddings.pkl'
+embeddings_ref = model_utils.load_embeddings(embeddings_ref_path)
 
-embeddings_path = model_dir + os.sep + 'embeddings.pkl'
-
-embeddings = model_utils.load_embeddings(embeddings_path, enc, dp, opt)
-embeddings = torch.cat([embeddings['train'], embeddings['test']])
+embeddings_struct_path = model_struct_dir + os.sep + 'embeddings.pkl'
+embeddings_struct = model_utils.load_embeddings(embeddings_struct_path)
 
 opt.batch_size = args.batch_size
 gpu_id = opt.gpu_ids[0]
 
-MSEloss = nn.MSELoss()
-BCEloss = nn.BCELoss()
-
-ntrain = dp.get_n_dat('train')
-ntest = dp.get_n_dat('test')
-ndat = ntrain + ntest
-
-dat_train_test = ['train'] * ntrain + ['test'] * ntest
-dat_dp_inds = np.concatenate([np.arange(0, ntrain), np.arange(0, ntest)], axis=0).astype('int')
-dat_inds = np.concatenate([dp.data['train']['inds'], dp.data['test']['inds']])
-
-
-train_or_test_split = ['test', 'train']
+ndat = dp.get_n_dat('train')
+nlabels = dp.get_n_classes()
 
 img_paths_all = list()
 err_save_paths = list()
 
-test_mode = True
-
-save_parent = opt.save_dir + os.sep + 'var_test_variation' + os.sep
-
-#do only 1000 samples
-npts = 1000
-nbatches = np.ceil(1000/opt.batch_size)
+  
+class_list = np.arange(0, nlabels)
+split_list = ['test', 'train']    
+job_list = list(itertools.product(class_list, split_list))    
+        
     
-if not os.path.exists(save_parent):
-    os.makedirs(save_parent)
+for label_id, train_or_test in tqdm(job_list, 'computing errors', ascii=True):
 
-dat_list = list(zip(dat_train_test, dat_dp_inds, dat_inds, range(0, len(dat_dp_inds))))
-np.random.shuffle(dat_list)
-
-for train_or_test, i, img_index, c in tqdm(dat_list, 'computing errors', ascii=True):
-
-    img_class = dp.image_classes[img_index]    
-    img_class_onehot = dp.get_classes([i], train_or_test, 'onehot')
+    label_name = dp.label_names[label_id]
     
-    img_name = dp.get_image_paths([i], train_or_test)[0]    
-    img_name = os.path.basename(img_name)
-    img_name = img_name[0:img_name.rfind('.')]
+    ndat = dp.get_n_dat(train_or_test)
+    npts = np.sum(dp.get_classes(np.arange(0, ndat), train_or_test).numpy() == label_id)
     
-    save_dir = save_parent + os.sep + train_or_test
-
-
-    err_save_path = save_dir + os.sep + img_name + '.pkl'
+    
+    err_save_path = save_parent + os.sep + 'var_' + label_name + '_' + train_or_test + '.pkl'
     err_save_paths.append(err_save_path)
     
     if args.use_current_results or os.path.exists(err_save_path):
         continue
         
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    if not os.path.exists(save_parent):
+        os.makedirs(save_parent)
 
-    # print(str(c) + os.sep + str(len(dat_dp_inds)))
-    #Load the image
-    img_in = dp.get_images([i], train_or_test)
-    img_in = Variable(img_in.cuda(gpu_id), volatile=True)
-
-    z_orig = enc(img_in)
-    img_recon = None
     
     #set the class label so it is correct
-    img_class_onehot_log = (img_class_onehot - 1) * 50
-
-    mse_orig, mse_recon = list(), list()
-    bce_orig, bce_recon = list(), list()    
-    pearson_orig, pearson_recon = list(), list()
-    corr_orig, corr_recon = list(), list()
-    embedding_index, embedding_train_or_test = list(), list()
-                
-        
-    inds = np.random.choice(ndat, npts) 
-    data_iter = [inds[j:j+opt.batch_size] for j in range(0, len(inds), opt.batch_size)]       
+    img_class_onehot_log = torch.Tensor(nlabels).fill_(-50)
+    img_class_onehot_log[label_id] = 0
+    
+    inds_ref = np.random.choice(ndat, npts) 
+    iter_ref = [inds_ref[j:j+opt.batch_size] for j in range(0, len(inds_ref), opt.batch_size)]       
+    
+    inds_struct = np.random.choice(ndat, npts) 
+    iter_struct = [inds_struct[j:j+opt.batch_size] for j in range(0, len(inds_struct), opt.batch_size)]       
     # np.random.shuffle(data_iter)
 
     imgs_out_tmp = list()
     
-    for j in range(0, len(data_iter)):
+    for j in range(0, len(iter_ref)):
         
-        inds = data_iter[j]
-        batch_size = len(inds)
+        inds_ref_tmp = iter_ref[j]
+        ints_struct_tmp = iter_struct[j]
         
-        embeddings_short = embeddings[inds,:]
+        batch_size = len(inds_ref_tmp)
+        
+        embeddings_ref_tmp = embeddings_ref[train_or_test][inds_ref_tmp,:]
+        embeddings_struct_tmp = embeddings_struct[train_or_test][ints_struct_tmp,:]
         
         z = [None] * 3
         z[0] = Variable(img_class_onehot_log.repeat(batch_size, 1).float().cuda(gpu_id), volatile=True)
-        z[1] = Variable(z_orig[1].data[0].repeat(batch_size,1).cuda(gpu_id), volatile=True)    
-        z[2] = Variable(torch.Tensor(embeddings_short).cuda(gpu_id), volatile=True)
+        z[1] = Variable(torch.Tensor(embeddings_ref_tmp).cuda(gpu_id), volatile=True)    
+        z[2] = Variable(torch.Tensor(embeddings_struct_tmp).cuda(gpu_id), volatile=True)
+        
+#         pdb.set_trace()
         
         imgs_out = dec(z)
-        imgs_out = imgs_out.index_select(1, Variable(torch.LongTensor([1]).cuda(gpu_id)))
+        imgs_out = imgs_out.index_select(1, Variable(torch.LongTensor([1]).cuda(gpu_id), volatile=True)).cpu()
 
         imgs_out_tmp.append(imgs_out)
 
-    imgs_out_tmp = torch.cat(imgs_out_tmp, 0)
-    corr_mat = corrcoef(imgs_out_tmp.view(npts, -1)).data.cpu().numpy()
+    imgs_out_tmp = torch.cat(imgs_out_tmp, 0).cpu()
+    corr_mat = corrcoef(imgs_out_tmp.view(int(npts), -1)).data.cpu().numpy()
     
+    _, log_det = np.linalg.slogdet(corr_mat)
+    log_det_scaled = log_det/npts
     
-    data = {'img_index': img_index, 
-            'data_provider_index': i, 
-            'label': img_class, 
-            'path': img_name,
+    data = {'label_id': label_id,
+            'label_name': label_name,
             'train_or_test': train_or_test,
-            'corr_mat': corr_mat}
+            'corr_mat': corr_mat,
+            'log_det': log_det,
+            'log_det_scaled': log_det_scaled}
     
     pickle.dump(data, open(err_save_path, 'wb'))
         
@@ -216,10 +194,6 @@ else:
         if os.path.exists(err_save_path):
             try:
                 data = pickle.load(open(err_save_path, 'rb'))
-                corr_mat = data['corr_mat']
-
-                _, data['log_det'] = np.linalg.slogdet(corr_mat)
-
                 data.pop('corr_mat', None)
 
                 data_list.append(data)
@@ -272,4 +246,5 @@ plt.savefig('{0}/distr.png'.format(save_parent), bbox_inches='tight')
 
 
     
+
 
