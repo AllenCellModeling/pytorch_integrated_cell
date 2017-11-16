@@ -54,7 +54,7 @@ parser.add_argument('--model_name', default='waaegan', help='name of the model m
 parser.add_argument('--save_dir', default='./test_waaegan/waaegan/', help='save dir')
 parser.add_argument('--saveProgressIter', type=int, default=1, help='number of iterations between saving progress')
 parser.add_argument('--saveStateIter', type=int, default=10, help='number of iterations between saving progress')
-parser.add_argument('--data_save_path', default='./data.pyt', help='save path of data file')   
+parser.add_argument('--data_save_path', default=None, help='save path of data file')   
 parser.add_argument('--imdir', default='/root/data/release_4_1_17/results_v2/aligned/2D', help='location of images')
 parser.add_argument('--latentDistribution', default='gaussian', help='Distribution of latent space, can be {gaussian, uniform}')
 parser.add_argument('--ndat', type=int, default=-1, help='Number of data points to use')
@@ -62,11 +62,6 @@ parser.add_argument('--optimizer', default='adam', help='type of optimizer, can 
 parser.add_argument('--train_module', default='waaegan_train', help='training module')
 parser.add_argument('--noise', type=float, default=0, help='Noise added to the decD')
 parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
-# parser.add_argument('--improved', type=bool, default=False, help='use improved wgan penalty for wgan models')
-# parser.add_argument('--improved_penalty', type=float, default=0.1, help='improved wgan penalty weight')
-# parser.add_argument('--dragan', type=bool, default=False, help='use dragan penalty https://arxiv.org/pdf/1705.07215.pdf')
-# parser.add_argument('--clamp_lower', type=float, default=-0.01, help='lower clamp for wasserstein gan')
-# parser.add_argument('--clamp_upper', type=float, default=0.01, help='upper clamp for wasserstein gan')
 
 parser.add_argument('--channels_pt1', nargs='+', type=int, default=[0,2], help='channels to use for part 1')
 parser.add_argument('--channels_pt2', nargs='+', type=int, default=[0,1,2], help='channels to use for part 2')
@@ -77,6 +72,9 @@ opt = parser.parse_args()
 print(opt)
 
 opt.save_parent = opt.save_dir
+
+if opt.data_save_path is None:
+    opt.data_save_path = opt.save_dir + os.sep + 'data.pyt'
 
 torch.manual_seed(opt.myseed)
 torch.cuda.manual_seed(opt.myseed)
