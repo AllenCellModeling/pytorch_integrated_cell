@@ -261,26 +261,42 @@ def save_progress(enc, dec, dataProvider, logger, embedding, opt):
     enc.train(False)
     dec.train(False)
 
-    x = Variable(dataProvider.get_images(np.arange(0,10),'train').cuda(gpu_id), volatile=True)
+#     pdb.set_trace()
+    train_classes = dataProvider.get_classes(np.arange(0, dataProvider.get_n_dat('train')), 'train')
+    _, train_inds = np.unique(train_classes.numpy(), return_index=True)
     
-    # try:
+    x = Variable(dataProvider.get_images(train_inds,'train').cuda(gpu_id), volatile=True)
+    
     xHat = dec(enc(x))
-    # except:
-    #     xHat = dec(enc(x)[0])
-        
     imgX = tensor2img(x.data.cpu())
     imgXHat = tensor2img(xHat.data.cpu())
     imgTrainOut = np.concatenate((imgX, imgXHat), 0)
 
-    x = Variable(dataProvider.get_images(np.arange(0,10),'test').cuda(gpu_id), volatile=True)
-    # try:
+    test_classes = dataProvider.get_classes(np.arange(0, dataProvider.get_n_dat('test')), 'test')
+    _, test_inds = np.unique(test_classes.numpy(), return_index=True)
+    
+    x = Variable(dataProvider.get_images(test_inds,'test').cuda(gpu_id), volatile=True)
     xHat = dec(enc(x))
-    # except:
-    #     xHat = dec(enc(x)[0])
+    
+    
+    z = list()
+    if opt.nClasses > 0:
+        class_var = Variable(torch.Tensor(dataProvider.get_classes(test_inds, 'test', 'one_hot')).cuda(gpu_id), volatile=True)
+        z.append(class_var)
+
+    if opt.nRef > 0:
+        ref_var = Variable(torch.Tensor(dataProvider.get_n_classes(), opt.nRef).normal_(0,1).cuda(gpu_id), volatile=True)
+        z.append(ref_var)
+        
+    loc_var = Variable(torch.Tensor(dataProvider.get_n_classes(), opt.nlatentdim).normal_(0,1).cuda(gpu_id), volatile=True)
+    z.append(loc_var)
+    
+    x_z = dec(z)
     
     imgX = tensor2img(x.data.cpu())
     imgXHat = tensor2img(xHat.data.cpu())
-    imgTestOut = np.concatenate((imgX, imgXHat), 0)
+    imgX_z = tensor2img(x_z.data.cpu())
+    imgTestOut = np.concatenate((imgX, imgXHat, imgX_z), 0)
 
     imgOut = np.concatenate((imgTrainOut, imgTestOut))
 
@@ -325,9 +341,9 @@ def save_progress(enc, dec, dataProvider, logger, embedding, opt):
     x = logger.log['iter'][-history:]
     y = logger.log['reconLoss'][-history:]
 
-    epochs = np.floor(np.array(logger.log['epoch'][-history:-1]))
-    losses = np.array(logger.log['reconLoss'][-history:-1])
-    iters = np.array(logger.log['iter'][-history:-1])
+    epochs = np.floor(np.array(logger.log['epoch'][-history:]))
+    losses = np.array(logger.log['reconLoss'][-history:])
+    iters = np.array(logger.log['iter'][-history:])
     uepochs = np.unique(epochs)
 
     epoch_losses = np.zeros(len(uepochs))
