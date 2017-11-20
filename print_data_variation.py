@@ -60,8 +60,6 @@ np.random.seed(opt.myseed)
 
 dp = model_utils.load_data_provider(opt.data_save_path, opt.imdir, opt.dataProvider)
 
-pdb.set_trace()
-
 label_names_all = list()
 save_paths_all = list()
 
