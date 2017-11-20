@@ -37,9 +37,9 @@ class Enc(nn.Module):
             nn.Conv3d(512, 1024, ksize, dstep, 1),
             nn.BatchNorm3d(1024),
             
-            nn.PReLU(),
-            nn.Conv3d(1024, 1024, ksize, dstep, 1),
-            nn.BatchNorm3d(1024),
+#             nn.PReLU(),
+#             nn.Conv3d(1024, 1024, ksize, dstep, 1),
+#             nn.BatchNorm3d(1024),
         
             nn.PReLU()
         )
@@ -103,12 +103,12 @@ class Dec(nn.Module):
         self.main = nn.Sequential(
             nn.BatchNorm3d(1024),
             
-            nn.PReLU(),
-            nn.ConvTranspose3d(1024, 1024, ksize, dstep, 1, output_padding = (0,1,0)),
-            nn.BatchNorm3d(1024),
+#             nn.PReLU(),
+#             nn.ConvTranspose3d(1024, 1024, ksize, dstep, 1, output_padding = (0,1,0)),
+#             nn.BatchNorm3d(1024),
             
             nn.PReLU(),
-            nn.ConvTranspose3d(1024, 512, ksize, dstep, 1),
+            nn.ConvTranspose3d(1024, 512, ksize, dstep, 1, output_padding = (0,1,0)),
             nn.BatchNorm3d(512),
             
             nn.PReLU(),
@@ -133,6 +133,9 @@ class Dec(nn.Module):
         # gpu_ids = None
         # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
         gpu_ids = self.gpu_ids
+        
+        if self.nClasses > 0:
+            xIn[0] = torch.exp(xIn[0])
         
         x = torch.cat(xIn, 1)
         
@@ -213,9 +216,9 @@ class DecD(nn.Module):
             nn.Conv3d(512, 1024, ksize, dstep, 1),
             nn.BatchNorm3d(1024),
             
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv3d(1024, 1024, ksize, dstep, 1),
-            nn.BatchNorm3d(1024),
+#             nn.LeakyReLU(0.2, inplace=True),
+#             nn.Conv3d(1024, 1024, ksize, dstep, 1),
+#             nn.BatchNorm3d(1024),
             
             nn.LeakyReLU(0.2, inplace=True)
         )
