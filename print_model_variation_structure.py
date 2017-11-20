@@ -101,7 +101,7 @@ nlabels = dp.get_n_classes()
 
 img_paths_all = list()
 err_save_paths = list()
-
+label_names_all = list()
   
 class_list = np.arange(0, nlabels)
 split_list = ['test', 'train']    
@@ -111,6 +111,8 @@ job_list = list(itertools.product(class_list, split_list))
 for label_id, train_or_test in tqdm(job_list, 'computing errors', ascii=True):
 
     label_name = dp.label_names[label_id]
+    
+    label_names_all.append(label_name)
     
     ndat = dp.get_n_dat(train_or_test)
     npts = np.sum(dp.get_classes(np.arange(0, ndat), train_or_test).numpy() == label_id)
@@ -179,6 +181,15 @@ for label_id, train_or_test in tqdm(job_list, 'computing errors', ascii=True):
 print('Done computing errors.')
 
 
+save_info_path = save_parent + os.sep + 'info.csv'
+info_list = np.concatenate([np.expand_dims(np.array(label_names_all),1),
+                            np.array(job_list),  
+                            np.expand_dims(np.array(err_save_paths),1)], axis=1)
+
+info_list = pd.DataFrame(info_list, columns=['label_name', 'label_id', 'train_or_test', 'save_path'])
+info_list.to_csv(save_info_path, index=False)
+
+
 save_all_path = save_parent + os.sep + 'all_dat.csv'
 save_all_missing_path = save_parent + os.sep + 'all_dat_missing.csv'
 
@@ -212,35 +223,35 @@ else:
     data_missing_list.to_csv(save_all_missing_path)
     
 
-from matplotlib import pyplot as plt
-import seaborn as sns
+# from matplotlib import pyplot as plt
+# import seaborn as sns
 
-errors = data_list['log_det']
+# errors = data_list['log_det']
 
-min_bin = np.percentile(errors, 2)
-max_bin = np.percentile(errors, 98)
+# min_bin = np.percentile(errors, 1)
+# max_bin = np.percentile(errors, 99)
 
-c = 0
+# c = 0
 
-pdb.set_trace()
+# pdb.set_trace()
 
-for train_or_test in train_or_test_split:
-    c+=1
-    plt.subplot(len(train_or_test_split), 1, c)
+# for train_or_test in train_or_test_split:
+#     c+=1
+#     plt.subplot(len(train_or_test_split), 1, c)
     
-    train_inds = data_list['train_or_test'] == train_or_test
+#     train_inds = data_list['train_or_test'] == train_or_test
     
-    for label in ulabels:
-        label_inds = data_list['label'] == label
+#     for label in ulabels:
+#         label_inds = data_list['label'] == label
         
-        inds = np.logical_and(train_inds, label_inds)
+#         inds = np.logical_and(train_inds, label_inds)
         
-        legend_key = label
-        sns.kdeplot(errors_mean[inds])
+#         legend_key = label
+#         sns.kdeplot(errors[inds])
         
     
-plt.legend(loc='upper right')
-plt.savefig('{0}/distr.png'.format(save_parent), bbox_inches='tight')
+# plt.legend(loc='upper right')
+# plt.savefig('{0}/distr.png'.format(save_parent), bbox_inches='tight')
 
 
 
