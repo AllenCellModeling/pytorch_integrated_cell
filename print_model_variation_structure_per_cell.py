@@ -230,35 +230,35 @@ else:
     data_missing_list.to_csv(save_all_missing_path)
     
 
-from matplotlib import pyplot as plt
-import seaborn as sns
+# from matplotlib import pyplot as plt
+# import seaborn as sns
 
-errors = data_list['log_det']
+# errors = data_list['log_det']
 
-min_bin = np.percentile(errors, 2)
-max_bin = np.percentile(errors, 98)
+# min_bin = np.percentile(errors, 2)
+# max_bin = np.percentile(errors, 98)
 
-c = 0
+# c = 0
 
-pdb.set_trace()
+# pdb.set_trace()
 
-for train_or_test in train_or_test_split:
-    c+=1
-    plt.subplot(len(train_or_test_split), 1, c)
+# for train_or_test in train_or_test_split:
+#     c+=1
+#     plt.subplot(len(train_or_test_split), 1, c)
     
-    train_inds = data_list['train_or_test'] == train_or_test
+#     train_inds = data_list['train_or_test'] == train_or_test
     
-    for label in ulabels:
-        label_inds = data_list['label'] == label
+#     for label in ulabels:
+#         label_inds = data_list['label'] == label
         
-        inds = np.logical_and(train_inds, label_inds)
+#         inds = np.logical_and(train_inds, label_inds)
         
-        legend_key = label
-        sns.kdeplot(errors_mean[inds])
+#         legend_key = label
+#         sns.kdeplot(errors_mean[inds])
         
     
-plt.legend(loc='upper right')
-plt.savefig('{0}/distr.png'.format(save_parent), bbox_inches='tight')
+# plt.legend(loc='upper right')
+# plt.savefig('{0}/distr.png'.format(save_parent), bbox_inches='tight')
 
 
 
