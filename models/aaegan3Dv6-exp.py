@@ -134,10 +134,11 @@ class Dec(nn.Module):
         # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
         gpu_ids = self.gpu_ids
         
+        xInExp = xIn[0]        
         if self.nClasses > 0:
-            xIn[0] = torch.exp(xIn[0])
-        
-        x = torch.cat(xIn, 1)
+            xInExp = torch.exp(xIn[0])
+
+        x = torch.cat([xInExp] + xIn[1:], 1)
         
         x = self.fc(x)
         x = x.view(x.size()[0], 1024, self.fcsize, 1, 1)
