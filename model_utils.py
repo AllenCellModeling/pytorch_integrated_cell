@@ -108,13 +108,13 @@ def get_latent_embeddings(enc, dp, opt):
         
     return embedding
 
-def load_data_provider(data_path, im_dir, dp_module):
+def load_data_provider(data_path, im_dir, dp_module, **kwargs):
     DP = importlib.import_module("data_providers." + dp_module)
 
     if os.path.exists(data_path):
         dp = torch.load(data_path)
     else:
-        dp = DP.DataProvider(im_dir)
+        dp = DP.DataProvider(im_dir, **kwargs)
         torch.save(dp, data_path)
         
     return dp
