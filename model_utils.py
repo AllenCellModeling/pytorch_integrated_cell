@@ -282,6 +282,7 @@ def save_progress(enc, dec, dataProvider, logger, embedding, opt):
     z = list()
     if opt.nClasses > 0:
         class_var = Variable(torch.Tensor(dataProvider.get_classes(test_inds, 'test', 'one_hot').float()).cuda(gpu_id), volatile=True)
+        class_var = (class_var-1) * 25
         z.append(class_var)
 
     if opt.nRef > 0:
