@@ -33,7 +33,7 @@ cudnn.benchmark = True
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--parent_dir', help='save dir')
-parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
+parser.add_argument('--gpu_ids', nargs='+', type=int, default=[0], help='gpu id')
 parser.add_argument('--batch_size', type=int, default=400, help='batch_size')
 parser.add_argument('--overwrite', type=bool, default=False, help='overwrite existing results')
 parser.add_argument('--model_dir', default='struct_model', help='Model component direcoty')
@@ -146,8 +146,6 @@ for train_or_test in train_or_test_split:
         z = enc(img_in)
         img_recon = dec(z)
         
-        pdb.set_trace()
-        
         pred_imgs = list()
         img_paths = list()
         
@@ -244,4 +242,5 @@ for train_or_test in train_or_test_split:
 #save the list of all images
 img_paths_all_df = pd.DataFrame(img_paths_all, columns=column_names);
 img_paths_all_df.to_csv(save_out_table)
+
 
