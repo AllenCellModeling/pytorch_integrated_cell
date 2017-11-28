@@ -119,6 +119,47 @@ def load_data_provider(data_path, im_dir, dp_module, **kwargs):
         
     return dp
         
+    
+def fix_data_paths(parent_dir, new_im_dir, data_save_path = None):
+    #this will only work with the h5 dataprovider
+    
+    from shutil import copyfile
+    
+    def rename_opt_path(opt_dir):
+    
+        pkl_path = '{0}/opt.pkl'.format(opt_dir)
+        pkl_path_bak = '{0}/opt.pkl.bak'.format(opt_dir)
+
+        copyfile(pkl_path, pkl_path_bak)
+
+        opt = pickle.load(open(pkl_path, "rb" ))
+        opt.imdir = new_im_dir
+        opt.data_save_path = data_save_path
+        opt.save_parent = parent_dir
+        opt.save_dir = opt_dir
+        pickle.dump(opt, open(pkl_path, 'wb'))
+    
+    if data_save_path is None:
+        data_save_path = '{0}/data.pyt'.format(parent_dir)
+    
+    ref_dir = parent_dir + os.sep + 'ref_model'
+    rename_opt_path(ref_dir)
+    
+    struct_dir = parent_dir + os.sep + 'struct_model'
+    rename_opt_path(struct_dir)
+    
+    opt = pickle.load(open('{0}/opt.pkl'.format(ref_dir), "rb" ))
+    
+    copyfile(opt.data_save_path, opt.data_save_path + '.bak')
+    
+    dp = load_data_provider(opt.data_save_path, opt.imdir, opt.dataProvider)
+    dp.image_parent = new_im_dir
+    torch.save(dp, opt.data_save_path)
+
+    
+    pass
+
+    
 def load_model(model_name, opt):
     model_provider = importlib.import_module("models." + model_name)
  
