@@ -71,6 +71,9 @@ parser.add_argument('--dtype', default='float', help='data type that the datapro
 opt = parser.parse_args()
 print(opt)
 
+os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(ID) for ID in opt.gpu_ids])
+opt.gpu_ids = list(range(0, len(opt.gpu_ids)))
+
 opt.save_parent = opt.save_dir
 
 if opt.data_save_path is None:
