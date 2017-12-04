@@ -103,39 +103,39 @@ import pandas as pd
 # data #
 ########
 
-im_class_log_probs_data = {}
+# im_class_log_probs_data = {}
 
-# For train or test
-for train_or_test in ['test', 'train']:
-    ndat = dp.get_n_dat(train_or_test)
-    pred_log_probs = np.zeros([ndat,opt.nClasses])
+# # For train or test
+# for train_or_test in ['test', 'train']:
+#     ndat = dp.get_n_dat(train_or_test)
+#     pred_log_probs = np.zeros([ndat,opt.nClasses])
    
-    # For each cell in the data split
-    for i in tqdm(range(0, 1)):
-    #for i in tqdm(range(0, ndat)):
+#     # For each cell in the data split
+#     for i in tqdm(range(0, 1)):
+#     #for i in tqdm(range(0, ndat)):
 
-        img_index = dp.data[train_or_test]['inds'][i]
+#         img_index = dp.data[train_or_test]['inds'][i]
  
-        # Load the image
-        img_in = dp.get_images([i], train_or_test)
-        img_in = Variable(img_in.cuda(gpu_id), volatile=True)
+#         # Load the image
+#         img_in = dp.get_images([i], train_or_test)
+#         img_in = Variable(img_in.cuda(gpu_id), volatile=True)
 
-        # pass forward through the model
-        z = enc(img_in)
-        print(z)
-        for w in z:
-            print(z.shape)
-            print(w.data)
+#         # pass forward through the model
+#         z = enc(img_in)
+#         print(z)
+#         for w in z:
+#             print(z.shape)
+#             print(w.data)
         
-#         p = z[0].data.cpu().numpy()
-#         pred_log_probs[i,:] = p
+# #         p = z[0].data.cpu().numpy()
+# #         pred_log_probs[i,:] = p
 
-#    im_class_log_probs_data[train_or_test] = pred_log_probs
+# #    im_class_log_probs_data[train_or_test] = pred_log_probs
 
-# save test and train preds
-# fname = os.path.join(save_dir,'im_class_log_probs_data.pickle')
-# with open(fname, 'wb') as handle:
-#     pickle.dump(im_class_log_probs_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# # save test and train preds
+# # fname = os.path.join(save_dir,'im_class_log_probs_data.pickle')
+# # with open(fname, 'wb') as handle:
+# #     pickle.dump(im_class_log_probs_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 #############
@@ -154,21 +154,22 @@ for train_or_test in ['test', 'train']:
 
         # for each image in the real data set
         img_index = dp.data[train_or_test]['inds'][i]
-        img_class = dp.get_classes([i], train_or_test, index_or_onehot='onehot')
+        
+        # get the integer label of its class
+        img_class = dp.get_classes([i], train_or_test, index_or_onehot = 'index')[0]
 
-        img_class_log_onehot = torch.ones(1,opt.nClasses)
-        img_class_log_onehot[:,img_class] = 0
-        img_class_log_onehot *= -25
-        img_class_log_onehot = Variable(img_class_log_onehot)
+        # create the log onehot class vector
+        classes = Variable(torch.Tensor(ndat, opt.nClasses).fill_(-25).cuda(gpu_id), volatile=True)
+        classes[img_class] = 0
 
-        z_r = Variable(torch.randn(128).cuda(gpu_id).unsqueeze(0))
-        z_s = Variable(torch.randn(128).cuda(gpu_id).unsqueeze(0))
+        # sample random latent space vectors
+        ref = Variable(torch.Tensor(ndat, opt.nRef).normal_().cuda(gpu_id), volatile=True)
+        struct = Variable(torch.Tensor(ndat, opt.nRef).normal_().cuda(gpu_id), volatile=True)
 
         # generate a fake cell of corresponding class
-        z_in = [img_class_log_onehot, z_r, z_s]
-        img_in = dec(z_in)
+        img_in = dec([classes, ref, struct])
 
-        #pass forward through the model
+        # pass forward through the model
         z = enc(img_in)
         p = z[0].data.cpu().numpy()
         pred_log_probs[i,:] = p
@@ -179,4 +180,3 @@ for train_or_test in ['test', 'train']:
 fname = os.path.join(save_dir,'im_class_log_probs_gen.pickle')
 with open(fname, 'wb') as handle:
     pickle.dump(im_class_log_probs_gen, handle, protocol=pickle.HIGHEST_PROTOCOL)
-#
