@@ -1,3 +1,5 @@
+
+
 import torch
 import importlib
 import torch.optim as optim
@@ -9,6 +11,9 @@ import numpy as np
 import scipy.misc
 import pickle
 import importlib
+
+import matplotlib as mpl
+mpl.use('Agg')
 
 import matplotlib.pyplot as plt
 from imgToProjection import imgtoprojection
@@ -120,7 +125,7 @@ def load_data_provider(data_path, im_dir, dp_module, **kwargs):
     return dp
         
     
-def fix_data_paths(parent_dir, new_im_dir, data_save_path = None):
+def fix_data_paths(parent_dir, new_im_dir = None, data_save_path = None):
     #this will only work with the h5 dataprovider
     
     from shutil import copyfile
@@ -149,6 +154,9 @@ def fix_data_paths(parent_dir, new_im_dir, data_save_path = None):
     rename_opt_path(struct_dir)
     
     opt = pickle.load(open('{0}/opt.pkl'.format(ref_dir), "rb" ))
+    
+    if new_im_dir is None:
+        new_im_dir = opt.imdir
     
     copyfile(opt.data_save_path, opt.data_save_path + '.bak')
     
