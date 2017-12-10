@@ -47,7 +47,7 @@ args = parser.parse_args()
 model_ref_dir = args.parent_dir + os.sep + 'ref_model'
 model_struct_dir = args.parent_dir + os.sep + 'struct_model' 
 
-save_parent = args.parent_dir + os.sep + 'analysis' + os.sep + 'model_structure_variation'
+save_parent = args.parent_dir + os.sep + 'analysis' + os.sep + 'model_structure_variation_sampled'
 if not os.path.exists(save_parent):
     os.makedirs(save_parent)
 
@@ -104,21 +104,19 @@ err_save_paths = list()
 label_names_all = list()
   
 class_list = np.arange(0, nlabels)
-split_list = ['test', 'train']    
-job_list = list(itertools.product(class_list, split_list))    
         
     
-for label_id, train_or_test in tqdm(job_list, 'computing errors', ascii=True):
+for label_id in class_list:
 
     label_name = dp.label_names[label_id]
     
     label_names_all.append(label_name)
     
-    ndat = dp.get_n_dat(train_or_test)
-    npts = np.sum(dp.get_classes(np.arange(0, ndat), train_or_test).numpy() == label_id)
+    npts = 2000
+#     npts = np.sum(dp.get_classes(np.arange(0, ndat), train_or_test).numpy() == label_id)
     
     
-    err_save_path = save_parent + os.sep + 'var_' + label_name + '_' + train_or_test + '.pkl'
+    err_save_path = save_parent + os.sep + 'var_' + label_name + '.pkl'
     err_save_paths.append(err_save_path)
     
     if args.use_current_results or os.path.exists(err_save_path):
@@ -129,10 +127,10 @@ for label_id, train_or_test in tqdm(job_list, 'computing errors', ascii=True):
 
     
     #set the class label so it is correct
-    img_class_onehot_log = torch.Tensor(nlabels).fill_(-50)
+    img_class_onehot_log = torch.Tensor(nlabels).fill_(-25)
     img_class_onehot_log[label_id] = 0
     
-    inds_ref = np.random.choice(ndat, npts) 
+    inds_ref = np.arange(0, npts)
     iter_ref = [inds_ref[j:j+opt.batch_size] for j in range(0, len(inds_ref), opt.batch_size)]       
     
     inds_struct = np.random.choice(ndat, npts) 
@@ -148,16 +146,14 @@ for label_id, train_or_test in tqdm(job_list, 'computing errors', ascii=True):
         
         batch_size = len(inds_ref_tmp)
         
-        embeddings_ref_tmp = embeddings_ref[train_or_test][inds_ref_tmp,:]
-        embeddings_struct_tmp = embeddings_struct[train_or_test][ints_struct_tmp,:]
+        embeddings_ref_tmp = torch.Tensor(batch_size, embeddings_ref['train'].size()[1]).normal_()
+        embeddings_struct_tmp = torch.Tensor(batch_size, embeddings_struct['train'].size()[1]).normal_()
         
         z = [None] * 3
         z[0] = Variable(img_class_onehot_log.repeat(batch_size, 1).float().cuda(gpu_id), volatile=True)
         z[1] = Variable(torch.Tensor(embeddings_ref_tmp).cuda(gpu_id), volatile=True)    
         z[2] = Variable(torch.Tensor(embeddings_struct_tmp).cuda(gpu_id), volatile=True)
-        
-#         pdb.set_trace()
-        
+
         imgs_out = dec(z)
         imgs_out = imgs_out.index_select(1, Variable(torch.LongTensor([1]).cuda(gpu_id), volatile=True)).cpu()
 
@@ -171,7 +167,7 @@ for label_id, train_or_test in tqdm(job_list, 'computing errors', ascii=True):
     
     data = {'label_id': label_id,
             'label_name': label_name,
-            'train_or_test': train_or_test,
+            'train_or_test': 'sampled',
             'corr_mat': corr_mat,
             'log_det': log_det,
             'log_det_scaled': log_det_scaled}
@@ -182,11 +178,13 @@ print('Done computing errors.')
 
 
 save_info_path = save_parent + os.sep + 'info.csv'
+
+
 info_list = np.concatenate([np.expand_dims(np.array(label_names_all),1),
-                            np.array(job_list),  
+                            np.expand_dims(np.array(class_list),1),  
                             np.expand_dims(np.array(err_save_paths),1)], axis=1)
 
-info_list = pd.DataFrame(info_list, columns=['label_name', 'label_id', 'train_or_test', 'save_path'])
+info_list = pd.DataFrame(info_list, columns=['label_name', 'label_id', 'save_path'])
 info_list.to_csv(save_info_path, index=False)
 
 
