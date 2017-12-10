@@ -187,7 +187,7 @@ for i in range(0, nframes):
     if os.path.exists(path): os.remove(path)
         
     
-def tensor2img(img):
+def tensor2img(img, do_half=True):
 #     colormap = 'hsv'
 #     colors = plt.get_cmap(colormap)(np.linspace(0, 1, img.size()[1]+1))
     
@@ -214,17 +214,21 @@ def tensor2img(img):
         im_out.append(im_proj)
     
     
-    first_half = math.ceil(len(im_out)/2)
-    last_half = math.floor(len(im_out)/2)
-    
-    if last_half != len(im_out)/2:
-        im_out.append(np.zeros(im_out[0].shape))
-    
-    img1 = np.concatenate(im_out[0:first_half], 1)
-    img2 = np.concatenate(im_out[first_half:], 1)
-    
-    img = np.concatenate([img1, img2], 0)
+    if do_half:
+        first_half = math.ceil(len(im_out)/2)
+        last_half = math.floor(len(im_out)/2)
 
+        if last_half != len(im_out)/2:
+            im_out.append(np.zeros(im_out[0].shape))
+
+        img1 = np.concatenate(im_out[0:first_half], 1)
+        img2 = np.concatenate(im_out[first_half:], 1)
+
+        img = np.concatenate([img1, img2], 0)
+    else:
+        img = np.concatenate(im_out[:],1)
+        
+        
     # if len(img.shape) == 3:
     #     img = np.expand_dims(img, 3)
 
@@ -251,8 +255,10 @@ for i in tqdm(range(0, nframes)):
     im_out = dec([classes, ref, struct])
 
     im_out_flat = tensor2img(im_out.data.cpu())
-    
     scipy.misc.imsave('{0}/step_{1}.png'.format(save_dir, int(i)), im_out_flat)
+    
+    im_out_flat = tensor2img(im_out.data.cpu(), do_half=False)
+    scipy.misc.imsave('{0}/step_{1}_wide.png'.format(save_dir, int(i)), im_out_flat)
     
     im_out = im_out.data.cpu().numpy()
     
