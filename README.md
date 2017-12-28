@@ -54,7 +54,7 @@ If you find this code useful in your research, please consider citing the follow
 	URL = {https://www.biorxiv.org/content/early/2017/12/21/238378},
 	eprint = {https://www.biorxiv.org/content/early/2017/12/21/238378.full.pdf},
 	journal = {bioRxiv}
-}
+    }
 			
 ## Contact
 Gregory Johnson
