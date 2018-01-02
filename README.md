@@ -3,13 +3,13 @@ Pyorch Integrated Cell
 
 ![Model Architecture](doc/images/model_arch.png?raw=true "Model Architecture")
 
-Building a 3D Integrated Cell:https://www.biorxiv.org/content/early/2017/12/21/238378
+Building a 3D Integrated Cell: https://www.biorxiv.org/content/early/2017/12/21/238378
 
-This is a updated 3D version of the following manuscript:
+This is a updated 3D version of the following manuscript:  
 
-* Image-driven generative cell modelling with adversarial autoencoders *
-Manuscript: https://arxiv.org/abs/1705.00092
-GitHub: https://github.com/AllenCellModeling/torch_integrated_cell
+**Image-driven generative cell modelling with adversarial autoencoders**  
+Manuscript: https://arxiv.org/abs/1705.00092  
+GitHub: https://github.com/AllenCellModeling/torch_integrated_cell 
 
 ## Installation
 Installing on linux is recommended.
