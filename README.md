@@ -5,7 +5,7 @@ Pyorch Integrated Cell
 
 Building a 3D Integrated Cell: https://www.biorxiv.org/content/early/2017/12/21/238378
 
-This is a updated 3D version of the following manuscript:  
+### This is a updated 3D version of the following manuscript:  
 
 **Image-driven generative cell modelling with adversarial autoencoders**  
 Manuscript: https://arxiv.org/abs/1705.00092  
@@ -13,6 +13,12 @@ GitHub: https://github.com/AllenCellModeling/torch_integrated_cell
 
 ## Installation
 Installing on linux is recommended.
+
+### prerequisites
+Running on docker is recommended, though not required.
+ - install pytorch on docker / nvidia-docker as in e.g. this guide: https://github.com/AllenCellModeling/docker_pytorch_extended  
+ 	**Note**: The model will not converge with pytorch versions later that 0.20 due to changes **cuDNN**. Make sure your version has **cuDNN 7.0.2** or earlier.
+ - download the training images: **todo**
 
 ## Project website
 Example outputs of this model can be viewed at http://www.allencell.org
