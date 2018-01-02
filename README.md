@@ -7,7 +7,7 @@ Building a 3D Integrated Cell: https://www.biorxiv.org/content/early/2017/12/21/
 
 ### This is a updated 3D version of the following manuscript:  
 
-**Image-driven generative cell modelling with adversarial autoencoders**  
+**Generative Modeling with Conditional Autoencoders: Building an Integrated Cell**  
 Manuscript: https://arxiv.org/abs/1705.00092  
 GitHub: https://github.com/AllenCellModeling/torch_integrated_cell 
 
