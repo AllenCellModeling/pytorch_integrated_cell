@@ -5,7 +5,7 @@ Pyorch 3D Integrated Cell
 
 Building a 3D Integrated Cell: https://www.biorxiv.org/content/early/2017/12/21/238378
 
-### This is a updated 3D version of the following manuscript:  
+### For the original 2D manuscript and software:  
 
 **Generative Modeling with Conditional Autoencoders: Building an Integrated Cell**  
 Manuscript: https://arxiv.org/abs/1705.00092  
