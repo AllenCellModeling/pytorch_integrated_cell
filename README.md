@@ -1,11 +1,23 @@
-# pytorch_integrated_cell
-Integrated Cell project implemented in pytorch
+Pyorch Integrated Cell
+===============================
 
+![Model Architecture](doc/images/model_arch.png?raw=true "Model Architecture")
 
-Readme
+Building a 3D Integrated Cell:https://www.biorxiv.org/content/early/2017/12/21/238378
 
+This is a updated 3D version of the following manuscript:
 
-Important files
+* Image-driven generative cell modelling with adversarial autoencoders *
+Manuscript: https://arxiv.org/abs/1705.00092
+GitHub: https://github.com/AllenCellModeling/torch_integrated_cell
+
+## Installation
+Installing on linux is recommended.
+
+## Project website
+Example outputs of this model can be viewed at http://www.allencell.org
+
+## Important files ##
 
 	train_model.py
 		Main function
@@ -40,7 +52,7 @@ Important files
 	data_providers/
 		Definitions for DataProvider objects i.e. loading data into pytorch tensors
 
-		DataProvider3D.py is what we use now. 
+		DataProvider3Dh5.py is what we use now. 
 
 ## Citation
 If you find this code useful in your research, please consider citing the following paper:
