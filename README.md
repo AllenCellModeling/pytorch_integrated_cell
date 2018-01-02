@@ -42,5 +42,34 @@ Important files
 
 		DataProvider3D.py is what we use now. 
 
+## Citation
+If you find this code useful in your research, please consider citing the following paper:
 
+    @article {Johnson238378,
+	author = {Johnson, Gregory R. and Donovan-Maiye, Rory M. and Maleckar, Mary M.},
+	title = {Building a 3D Integrated Cell},
+	year = {2017},
+	doi = {10.1101/238378},
+	publisher = {Cold Spring Harbor Laboratory},
+	URL = {https://www.biorxiv.org/content/early/2017/12/21/238378},
+	eprint = {https://www.biorxiv.org/content/early/2017/12/21/238378.full.pdf},
+	journal = {bioRxiv}
+    }
 			
+## Contact
+Gregory Johnson
+E-mail: gregj@alleninstitute.org
+
+## License
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
