@@ -38,15 +38,15 @@ def shortest_angular_path(theta_start, theta_end, N_points):
     theta_end %= (2*np.pi)
     theta_start %= (2*np.pi)
 
-    print('theta_end = ', theta_end)
-    print('theta_start = ', theta_start)
+#     print('theta_end = ', theta_end)
+#     print('theta_start = ', theta_start)
         
     swap = theta_end < theta_start
     if swap:
         theta_end, theta_start = theta_start, theta_end
         
     theta = theta_end - theta_start
-    print('theta = ', theta)            
+#     print('theta = ', theta)            
 
     if theta <= np.pi:
         path = np.linspace(0, theta, N_points)

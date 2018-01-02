@@ -187,9 +187,11 @@ else:
     
 
 #############
-# autoencoded #
+# generated #
 #############
 fname = os.path.join(save_dir,'im_class_log_probs_gen.pickle')
+
+
 
 if os.path.exists(fname) and not args.overwrite:
     pass
@@ -198,25 +200,28 @@ else:
     im_class_log_probs = {}
 
     # For train or test
-    for class_id in range(0, dp.get_n_classes()):
-    #     ndat = dp.get_n_dat(train_or_test)
-        ndat = 2000
-        inds = np.arange(0, ndat)    
+    for train_or_test in ['test', 'train']:
+        ndat = dp.get_n_dat(train_or_test)
+        inds = np.arange(0, ndat)      
 
         pred_log_probs = np.zeros([ndat,opt.nClasses])
 
         iter_struct = [inds[j:j+opt.batch_size] for j in range(0, len(inds), opt.batch_size)] 
 
-        # For each cell in the data split
-        for i in tqdm(iter_struct, desc='gen, ' + str(class_id+1) + os.sep + str(dp.get_n_classes()) ):
+        for i in tqdm(iter_struct, desc='gen, ' + train_or_test):
 
-            # create the log onehot class vector
-            classes = Variable(torch.Tensor(ndat, opt.nClasses).fill_(-25).cuda(gpu_id), volatile=True)
-            classes[:, class_id] = 0
+            npts = len(i)
+            # Load the image
+            class_ids = dp.get_classes(i, train_or_test)
+
+            classes = Variable(torch.Tensor(npts, opt.nClasses).fill_(-25).cuda(gpu_id), volatile=True)
+            
+            for j, class_id  in zip(range(0, npts), class_ids):
+                classes[j, class_id] = 0
 
             # sample random latent space vectors
-            ref = Variable(torch.Tensor(ndat, opt.nRef).normal_().cuda(gpu_id), volatile=True)
-            struct = Variable(torch.Tensor(ndat, opt.nRef).normal_().cuda(gpu_id), volatile=True)
+            ref = Variable(torch.Tensor(npts, opt.nRef).normal_().cuda(gpu_id), volatile=True)
+            struct = Variable(torch.Tensor(npts, opt.nRef).normal_().cuda(gpu_id), volatile=True)
 
             # generate a fake cell of corresponding class
             img_in = dec([classes, ref, struct])
@@ -232,6 +237,110 @@ else:
 
     with open(fname, 'wb') as handle:
         pickle.dump(im_class_log_probs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    
 
+#############
+# print csv #
+#############
+
+dirname = args.parent_dir
+fname = 'analysis/inception_score/im_class_log_probs_data.pickle'
+with open(os.path.join(dirname, fname), 'rb') as handle:
+    data_logprobs = pickle.load(handle)
+
+fname = 'analysis/inception_score/im_class_log_probs_autoencode.pickle'
+with open(os.path.join(dirname, fname), 'rb') as handle:
+    autoencode_logprobs = pickle.load(handle)   
+
+fname = 'analysis/inception_score/im_class_log_probs_gen.pickle'
+with open(os.path.join(dirname, fname), 'rb') as handle:
+    gen_logprobs = pickle.load(handle)  
+    
+    
+    
+    
+def D_KL(P,Q):
+    return -np.sum(P*np.log(Q/P))  
+
+def inception_score_all_ims(P_yGx):
+    p_y = np.mean(P_yGx, axis=0)
+    KL_divs = np.array([D_KL(p_yGx,p_y) for p_yGx in P_yGx])
+    return np.exp(np.mean(KL_divs))
+
+def KL_divs_per_im(P_yGx):
+    p_y = np.mean(P_yGx, axis=0)
+    KL_divs = np.array([D_KL(p_yGx,p_y) for p_yGx in P_yGx])
+    return KL_divs
+
+
+df = pd.DataFrame(columns=['phase', 'inds_phase', 'inds_master', 
+                           'structureProteinName',
+                           'KLdiv_data', 'KLdiv_autoencode', 'KLdiv_gen'])
+
+# Get all of the inception scores into a big list
+data_list = list()
+for phase in dp.data.keys():
+    
+    KL_divs_data = KL_divs_per_im(np.exp(data_logprobs[phase]))
+    KL_divs_autoencode = KL_divs_per_im(np.exp(autoencode_logprobs[phase]))
+    KL_divs_gen = KL_divs_per_im(np.exp(gen_logprobs[phase]))
+    
+    for ind_phase, ind_master in enumerate(tqdm(dp.data[phase]['inds'])):
+        
+        data = [phase, ind_phase, ind_master,
+                              dp.label_names[dp.get_classes([ind_phase], phase)[0]],
+                              KL_divs_data[ind_phase], KL_divs_autoencode[ind_phase], KL_divs_gen[ind_phase]]
+        
+        data_list.append(data)
+
+df = pd.DataFrame(data_list, columns=['phase', 'inds_phase', 'inds_master', 
+                   'structureProteinName',
+                   'KLdiv_data', 'KLdiv_autoencode', 'KLdiv_gen'])  
+
+# compute the inception scores for each class, and all classes for training, test, and generated data
+inception_scores = list()
+
+train_inds = df['phase'] == 'train';
+test_inds = df['phase'] == 'test';
+
+for label in dp.label_names:
+
+    struct_inds = df['structureProteinName'] == label;
+    
+    all_train_inds = train_inds & struct_inds
+    all_test_inds = test_inds & struct_inds
+
+    incept_gen_train = np.exp(np.mean(df['KLdiv_gen'][all_train_inds]))
+    incept_gen_test = np.exp(np.mean(df['KLdiv_gen'][all_test_inds]))
+
+
+    incept_data_train = np.exp(np.mean(df['KLdiv_data'][all_train_inds]))
+    incept_data_test = np.exp(np.mean(df['KLdiv_data'][all_test_inds]))
+
+    incept_autoencode_train = np.exp(np.mean(df['KLdiv_autoencode'][all_train_inds]))
+    incept_autoencode_test = np.exp(np.mean(df['KLdiv_autoencode'][all_test_inds]))     
+
+    inception_scores.append([incept_data_train, incept_data_test, 
+                             incept_autoencode_train, incept_autoencode_test, 
+                             incept_gen_train, incept_gen_test])
 
     
+incept_gen_train = np.exp(np.mean(df['KLdiv_gen'][train_inds]))
+incept_gen_test = np.exp(np.mean(df['KLdiv_gen'][test_inds]))
+
+incept_data_train = np.exp(np.mean(df['KLdiv_data'][train_inds]))
+incept_data_test = np.exp(np.mean(df['KLdiv_data'][test_inds]))
+
+incept_autoencode_train = np.exp(np.mean(df['KLdiv_autoencode'][train_inds]))
+incept_autoencode_test = np.exp(np.mean(df['KLdiv_autoencode'][test_inds]))
+
+
+inception_scores.append([incept_data_train, incept_data_test, incept_autoencode_train, incept_autoencode_test, incept_gen_train, incept_gen_test])
+ 
+df_inception_scores = pd.DataFrame(inception_scores, index=list(dp.label_names) + ['all classes'], columns=['data train', 'data test', 'autoencoded data train', 'autoencoded data test', 'generated data train', 'generated data test'])
+
+
+df_inception_scores.to_csv(save_dir + os.sep + 'inception_scores.csv')
+
+df_inception_scores_sigfigs = df_inception_scores.round(decimals=3)
+df_inception_scores_sigfigs.to_csv(save_dir + os.sep + 'inception_scores_sigfigs.csv')
