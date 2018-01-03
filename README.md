@@ -21,7 +21,7 @@ Running on docker is recommended, though not required.
  - download the training images: **todo**
  
 ## Running the Code
-After you clone this repository, you will need to edit the mount points for the images in `start_docker.sh` to point to where you saved them.
+After you clone this repository, you will need to edit the mount points for the images in `start_pytorch_docker.sh` to point to where you saved them.
 Once those locations are properly set, you can start the docker image with
 
 `bash start_pytorch_docker.sh`
