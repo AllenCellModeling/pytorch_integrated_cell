@@ -22,6 +22,20 @@ Running on docker is recommended, though not required.
  
 ## Running the Code
 After you clone this repository, you will need to edit the mount points for the images in `start_pytorch_docker.sh` to point to where you saved them.
+
+Example of changed mount points in dockerfile:
+
+```
+nvidia-docker run -it \
+	-v /allen/aics/modeling/jacksonb/projects:/root/projects \
+  	-v /allen/aics/modeling/jacksonb/results:/root/results \
+	-v /allen/aics/modeling/jacksonb/data/ipp_17_10_25:/root/data/ipp/ipp_17_10_25 \
+	rorydm/pytorch_extras:jupyter \
+	bash
+```
+
+Replace any 'jacksonb' or 'gregj' paths with your paths and replace the 'rorydm' or 'gregj' docker image with your docker image tag.
+
 Once those locations are properly set, you can start the docker image with
 
 `bash start_pytorch_docker.sh`
