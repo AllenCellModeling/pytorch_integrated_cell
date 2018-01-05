@@ -18,7 +18,7 @@ Installing on linux is recommended.
 Running on docker is recommended, though not required.
  - install pytorch on docker / nvidia-docker as in e.g. this guide: https://github.com/AllenCellModeling/docker_pytorch_extended  
  	**Note**: The model will not converge with pytorch versions later that 0.20 due to changes **cuDNN**. Make sure your version has **cuDNN 7.0.2** or earlier.
- - download the training images: http://downloads.allencell.org/publication-data/building-a-3d-integrated-cell/
+ - download the training images: http://downloads.allencell.org/publication-data/building-a-3d-integrated-cell/  
  	**Note**: This tarball will decompress to about 150gb
  
 ## Running the Code
