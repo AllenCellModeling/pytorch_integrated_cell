@@ -42,6 +42,8 @@ parser.add_argument('--parent_dir', help='save dir')
 parser.add_argument('--gpu_ids', nargs='+', type=int, default=[0], help='gpu id')
 parser.add_argument('--interp_method',default='arc', help='interp method')
 parser.add_argument('--overwrite', type=bool, default=False, help='overwrite')
+parser.add_argument('--n_steps_per', type=int, default=10, help='number of samples between mitosis states')
+parser.add_argument('--suffix', type=str, default='', help='suffix on save dir')
 args = parser.parse_args()
 
 model_dir = args.parent_dir + os.sep + 'struct_model'
@@ -52,7 +54,7 @@ df_mito = pd.read_csv(mito_file)
 df_mito = df_mito[['inputFolder', 'inputFilename', 'outputThisCellIndex', 'MitosisLabel']]
 
 
-save_dir = args.parent_dir + os.sep + 'analysis' + os.sep + 'latent_walk_mitosis_' + args.interp_method + os.sep
+save_dir = args.parent_dir + os.sep + 'analysis' + os.sep + 'latent_walk_mitosis_' + args.interp_method + args.suffix+ os.sep
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
         
@@ -134,7 +136,7 @@ nclasses = dp.get_n_classes()
 nref = opt.nRef
 nlatent = opt.nlatentdim
 
-nsamples = 10
+nsamples = args.n_steps_per
 interp_states =  list(range(0,5))
 
 # interp_states = [0, 3]
@@ -302,7 +304,7 @@ df_impaths = pd.DataFrame(im_paths, columns=['save path', 'save path wide', 'sav
 df_out = pd.concat([df_states, df_impaths], axis=1)
 df_out.to_csv(save_dir + os.sep + 'data.csv')
     
-im_out = list()    
+
     
 import scipy.misc as misc    
 
@@ -311,6 +313,8 @@ from PIL import ImageDraw
 from PIL import ImageFont
 
 nrows = len(df_out['save path wide v2'])
+
+im_out = list()    
 
 for i in range(0, nrows):
     im = misc.imread(df_out['save path wide v2'][i])
@@ -334,6 +338,29 @@ spacer = np.ones([im_out_sub2.shape[0], 3, 3])*255
 im_out = np.hstack([im_out_sub1, spacer, im_out_sub2])
 
 scipy.misc.imsave('{0}/all_steps.png'.format(save_dir), im_out)
+
+im_out = list()    
+
+
+
+for i in range(0, nrows,2):
+    im = misc.imread(df_out['save path wide v2'][i])
+    
+#     pdb.set_trace()
+    
+    im = Image.open(df_out['save path wide v2'][i], "r").convert('RGB')
+    
+    
+#     draw = ImageDraw.Draw(im,'RGB')
+#     font = PIL.ImageFont.load_default()
+#     draw.text((10,10), str(int(i)), (255, 255, 255))#,font=font)
+    
+    
+    im_out.append(np.asarray(im))
+    
+im_out = np.vstack(im_out);
+
+scipy.misc.imsave('{0}/all_steps_short.png'.format(save_dir), im_out)
 
 
 
