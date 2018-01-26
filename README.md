@@ -5,9 +5,9 @@ Pyorch 3D Integrated Cell
 
 Building a 3D Integrated Cell: https://www.biorxiv.org/content/early/2017/12/21/238378
 
-### This is a updated 3D version of the following manuscript:  
+### For the original 2D manuscript and software:  
 
-**Image-driven generative cell modelling with adversarial autoencoders**  
+**Generative Modeling with Conditional Autoencoders: Building an Integrated Cell**  
 Manuscript: https://arxiv.org/abs/1705.00092  
 GitHub: https://github.com/AllenCellModeling/torch_integrated_cell 
 
@@ -18,7 +18,34 @@ Installing on linux is recommended.
 Running on docker is recommended, though not required.
  - install pytorch on docker / nvidia-docker as in e.g. this guide: https://github.com/AllenCellModeling/docker_pytorch_extended  
  	**Note**: The model will not converge with pytorch versions later that 0.20 due to changes **cuDNN**. Make sure your version has **cuDNN 7.0.2** or earlier.
- - download the training images: **todo**
+ - download the training images: http://downloads.allencell.org/publication-data/building-a-3d-integrated-cell/  
+ 	**Note**: This tarball will decompress to about 150gb
+ 
+## Running the Code
+After you clone this repository, you will need to edit the mount points for the images in `start_pytorch_docker.sh` to point to where you saved them.
+
+Example of changed mount points in dockerfile:
+
+```
+nvidia-docker run -it \
+	-v /allen/aics/modeling/jacksonb/projects:/root/projects \
+  	-v /allen/aics/modeling/jacksonb/results:/root/results \
+	-v /allen/aics/modeling/jacksonb/data/ipp_17_10_25:/root/data/ipp/ipp_17_10_25 \
+	rorydm/pytorch_extras:jupyter \
+	bash
+```
+
+Replace any 'jacksonb' or 'gregj' paths with your paths and replace the 'rorydm' or 'gregj' docker image with your docker image tag.
+
+Once those locations are properly set, you can start the docker image with
+
+`bash start_pytorch_docker.sh`
+
+Once you're in the docker container, you can train the model with 
+
+`bash start_training.sh`
+
+This will take a while, probably about 2 weeks.
 
 ## Project website
 Example outputs of this model can be viewed at http://www.allencell.org
