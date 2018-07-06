@@ -51,6 +51,8 @@ parser.add_argument('--lrEncD', type=float, default=0.00005, help='learning rate
 parser.add_argument('--lrDecD', type=float, default=0.00005, help='learning rate for decD')
 
 parser.add_argument('--kwargs_optim', type=json.loads, default={}, help='kwargs for optimizer')
+parser.add_argument('--kwargs_model', type=json.loads, default={}, help='kwargs for the model')
+parser.add_argument('--kwargs_network', type=json.loads, default={}, help='kwargs for the network')
 
 parser.add_argument('--lambdaEncD', type=float, default=5E-3, help='scalar applied to the update gradient from encD')
 parser.add_argument('--lambdaDecD', type=float, default=1E-4, help='scalar applied to the update gradient from decD')
@@ -170,7 +172,8 @@ model = model_module.Model(data_provider = dp,
                             n_latent_dim = opt.nlatentdim,
                             n_classes = opt.n_classes,
                             n_ref = opt.n_ref,
-                            gpu_ids = opt.gpu_ids)
+                            gpu_ids = opt.gpu_ids,
+                            **opt.kwargs_model)
 
 
 pickle.dump(opt, open('{0}/opt.pkl'.format(opt.save_dir), 'wb'))
