@@ -5,13 +5,13 @@ from torch.autograd import Variable
 import numpy as np
 import pdb
 
-from integrated_cell.models import bvae 
+from integrated_cell.models import bvaegan 
 import importlib
 
 from integrated_cell.model_utils import *
 
 
-class Model(bvae.Model):
+class Model(bvaegan.Model):
     def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids):
         super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
  
