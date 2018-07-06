@@ -5,11 +5,19 @@ from integrated_cell.model_utils import init_opts
 
 import integrated_cell.utils.spectral_norm as spectral_norm
 
+import integrated_cell.models.bvae as bvae
+
 ksize = 4
 dstep = 2
 
+def get_activation(activation):
+    if activation.lower() == 'relu':
+        return nn.ReLU()
+    if activation.lower() == 'prelu':
+        return nn.PReLU()
+
 class Enc(nn.Module):
-    def __init__(self, nLatentDim, nClasses, nRef, nch, gpu_ids, opt=None):
+    def __init__(self, nLatentDim, nClasses, nRef, nch, gpu_ids, activation='ReLU'):
         super(Enc, self).__init__()
 
         self.gpu_ids = gpu_ids
@@ -23,27 +31,27 @@ class Enc(nn.Module):
             nn.Conv3d(nch, 64, ksize, dstep, 1),
             nn.BatchNorm3d(64),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.Conv3d(64, 128, ksize, dstep, 1),
             nn.BatchNorm3d(128),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.Conv3d(128, 256, ksize, dstep, 1),
             nn.BatchNorm3d(256),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.Conv3d(256, 512, ksize, dstep, 1),
             nn.BatchNorm3d(512),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.Conv3d(512, 1024, ksize, dstep, 1),
             nn.BatchNorm3d(1024),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.Conv3d(1024, 1024, ksize, dstep, 1),
             nn.BatchNorm3d(1024),
 
-            nn.ReLU(inplace=True)
+            get_activation(activation)
         )
 
         if self.nClasses > 0:
@@ -65,7 +73,7 @@ class Enc(nn.Module):
             self.latentOutMu = nn.Sequential(
                 nn.Linear(1024*int(self.fcsize*1*1), self.nLatentDim))
 
-            self.latentOutSigma = nn.Sequential(
+            self.latentOutLogSigma = nn.Sequential(
                 nn.Linear(1024*int(self.fcsize*1*1), self.nLatentDim))
 
     def forward(self, x, reparameterize=False):
@@ -90,19 +98,19 @@ class Enc(nn.Module):
 
         if self.nLatentDim > 0:
             xLatentMu = nn.parallel.data_parallel(self.latentOutMu, x, gpu_ids)
-            xLatentSigma = nn.parallel.data_parallel(self.latentOutSigma, x, gpu_ids)
+            xLatentLogSigma = nn.parallel.data_parallel(self.latentOutLogSigma, x, gpu_ids)
             
             if self.training:
-                xOut.append([xLatentMu, xLatentSigma])
+                xOut.append([xLatentMu, xLatentLogSigma])
             else:
-                xOut.append(xLatentMu + xLatentSigma.div(2).exp())
+                xOut.append(bvae.reparameterize(xLatentMu, xLatentLogSigma, add_noise=False))
 
 
 
         return xOut
 
 class Dec(nn.Module):
-    def __init__(self, nLatentDim, nClasses, nRef, nch, gpu_ids, opt=None):
+    def __init__(self, nLatentDim, nClasses, nRef, nch, gpu_ids, activation='ReLU'):
         super(Dec, self).__init__()
 
         self.gpu_ids = gpu_ids
@@ -117,27 +125,27 @@ class Dec(nn.Module):
         self.main = nn.Sequential(
             nn.BatchNorm3d(1024),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.ConvTranspose3d(1024, 1024, ksize, dstep, 1, output_padding = (0,1,0)),
             nn.BatchNorm3d(1024),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.ConvTranspose3d(1024, 512, ksize, dstep, 1),
             nn.BatchNorm3d(512),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.ConvTranspose3d(512, 256, ksize, dstep, 1),
             nn.BatchNorm3d(256),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.ConvTranspose3d(256, 128, ksize, dstep, 1),
             nn.BatchNorm3d(128),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.ConvTranspose3d(128, 64, ksize, dstep, 1),
             nn.BatchNorm3d(64),
 
-            nn.ReLU(inplace=True),
+            get_activation(activation),
             nn.ConvTranspose3d(64, nch, ksize, dstep, 1),
             # nn.BatchNorm3d(nch),
             nn.Sigmoid()
