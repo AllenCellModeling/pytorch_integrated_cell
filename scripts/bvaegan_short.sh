@@ -6,8 +6,8 @@ python /root/projects/pytorch_integrated_cell/train_model.py \
 	--lrDecD 2E-4 \
 	--lambdaDecD 1E-3 \
 	--model_name vaaegan3D \
-	--train_module bvae \
-    --kwargs_decD '{"noise_std": 1E-1}' \
+	--train_module bvaegan \
+        --kwargs_decD '{"noise_std": 1E-1}' \
 	--kwargs_optim '{"betas": [0, 0.9]}' \
 	--imdir /root/results/ipp/ipp_17_10_25 \
 	--dataProvider DataProvider3Dh5 \
