@@ -110,7 +110,7 @@ class Enc(nn.Module):
         return xOut
 
 class Dec(nn.Module):
-    def __init__(self, nLatentDim, nClasses, nRef, nch, gpu_ids, activation='ReLU'):
+    def __init__(self, nLatentDim, nClasses, nRef, nch, gpu_ids, activation='ReLU', exponentiate_classes = True):
         super(Dec, self).__init__()
 
         self.gpu_ids = gpu_ids
@@ -119,6 +119,8 @@ class Dec(nn.Module):
         self.nLatentDim = nLatentDim
         self.nClasses = nClasses
         self.nRef = nRef
+        
+        self.exponentiate_classes = exponentiate_classes
 
         self.fc = nn.Linear(self.nLatentDim + self.nClasses + self.nRef, 1024*int(self.fcsize*1*1))
 
@@ -156,7 +158,7 @@ class Dec(nn.Module):
         # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
         gpu_ids = self.gpu_ids
 
-        if self.nClasses > 0:
+        if self.nClasses > 0 and self.exponentiate_classes:
             xIn[0] = torch.exp(xIn[0])
 
         x = torch.cat(xIn, 1)
