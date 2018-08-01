@@ -8,6 +8,7 @@ import pdb
 
 from integrated_cell.model_utils import *
 from integrated_cell.utils import plots as plots
+import integrated_cell.utils as utils
 
 from integrated_cell.models import base_model 
 
@@ -42,19 +43,21 @@ def kl_divergence(mu, logvar):
 
 
 class Model(base_model.Model):
-    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids, beta = 1, beta_step = None, objective = 'H'):
+    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids, beta = 1, c_iters_max = 1.2E5, gamma = 1000, objective = 'H', provide_decoder_vars = 'False'):
         super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
         
-        if beta_step is None:
+        self.provide_decoder_vars = provide_decoder_vars
+        
+        if objective == 'H':
             self.beta = beta
-            self.beta_step = None
         else:
-            self.beta = 0
-            self.beta_step = beta_step
-            self.beta_max = beta
+            self.c_max = beta
+            self.gamma = gamma
+            self.c_iters_max = c_iters_max
             
         self.objective = objective
 
+        self.global_iter = 0
     def iteration(self,
                   enc, dec,
                   optEnc, optDec,
@@ -69,6 +72,12 @@ class Model(base_model.Model):
 
         self.x.data.copy_(data_provider.get_images(inds,'train'))
         x = self.x
+        
+        if self.n_classes > 0:
+            classes = data_provider.get_classes(inds,'train').type_as(x).long()
+
+        if self.n_ref > 0:
+            ref = data_provider.get_ref(inds,'train').type_as(x)
 
         #####################
         ### train autoencoder
@@ -89,43 +98,52 @@ class Model(base_model.Model):
             classLoss = critZClass(zAll[c], classes)
             classLoss.backward(retain_graph=True)
             classLoss = classLoss.data[0]
+            
+            if self.provide_decoder_vars:
+                zAll[c] = torch.log(utils.index_to_onehot(classes, data_provider.get_n_classes()) + 1E-8)
+            
             c += 1
-
+            
         ### Update the reference shape discriminator
         if self.n_ref > 0:
             refLoss = critZRef(zAll[c], ref)
             refLoss.backward(retain_graph=True)
             refLoss = refLoss.data[0]
-            c += 1
+            
+            if self.provide_decoder_vars:
+                zAll[c] = ref
 
+            c += 1
+                
         total_kld, dimension_wise_kld, mean_kld = kl_divergence(zAll[c][0], zAll[c][1])
         
 
-        zLatent = zAll[c][0]
+        zLatent = zAll[c][0].data.cpu()
+        
         zAll[c] = reparameterize(zAll[c][0], zAll[c][1])
 
         xHat = dec(zAll)
 
         ### Update the image reconstruction
-        reconLoss = critRecon(xHat, x)
+        recon_loss = critRecon(xHat, x)
 
-        if self.beta == 0:
-            beta_vae_loss = reconLoss
-        elif self.objective == 'H':
-            beta_vae_loss = reconLoss + self.beta*total_kld
+        if self.objective == 'H':
+            beta_vae_loss = recon_loss + self.beta*total_kld
         elif self.objective == 'B':
-            C = torch.clamp(self.C_max/self.C_stop_iter*self.global_iter, 0, self.C_max.data[0])
+            C = torch.clamp(torch.Tensor([self.c_max/self.c_iters_max*self.global_iter]).type_as(x), 0, self.c_max)
             beta_vae_loss = recon_loss + self.gamma*(total_kld-C).abs()
 
         beta_vae_loss.backward()
         
         kld_loss = mean_kld.data[0]
-        reconLoss = reconLoss.data[0]
+        recon_loss = recon_loss.data[0]
 
         optEnc.step()
         optDec.step()
 
-        errors = (reconLoss,)
+        self.global_iter += 1
+        
+        errors = (recon_loss,)
         if self.n_classes > 0:
             errors += (classLoss,)
 
@@ -134,13 +152,9 @@ class Model(base_model.Model):
 
         errors += (kld_loss,)
         
-        if self.beta_step is not None:
-            self.beta += self.beta_step
-            
-            if self.beta > self.beta_max:
-                self.beta = self.beta_max
 
-        return errors, zLatent.data
+        errors = [error.cpu() for error in errors]
+        return errors, zLatent
 
 
     def load(self, model_name, opt):
@@ -203,8 +217,8 @@ class Model(base_model.Model):
 
         criterions = dict()
         criterions['critRecon'] = eval('nn.' + opt.critRecon + '(size_average=False)')
-        criterions['critZClass'] = nn.NLLLoss()
-        criterions['critZRef'] = nn.MSELoss()
+        criterions['critZClass'] = nn.NLLLoss(size_average=False)
+        criterions['critZRef'] = nn.MSELoss(size_average=False)
 
         if opt.latentDistribution == 'uniform':
             from integrated_cell.model_utils import sampleUniform as latentSample
@@ -229,9 +243,10 @@ class Model(base_model.Model):
 
         gpu_id = self.gpu_ids[0]
 
-        save_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
-        save_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
-
         pickle.dump(zAll, open('{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
         pickle.dump(logger, open('{0}/logger.pkl'.format(opt.save_dir), 'wb'))
+
+        save_state(enc, optEnc, '{0}/enc_{1}.pth'.format(opt.save_dir, int(self.global_iter)), gpu_id)
+        save_state(dec, optDec, '{0}/dec_{1}.pth'.format(opt.save_dir, int(self.global_iter)), gpu_id)
+        pickle.dump(zAll, open('{0}/embedding_{1}.pkl'.format(opt.save_dir, int(self.global_iter)), 'wb'))
 
