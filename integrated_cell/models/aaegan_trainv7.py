@@ -5,16 +5,17 @@ from torch.autograd import Variable
 import numpy as np
 import pdb
 
-from integrated_cell.models import bvaegan 
 import importlib
 
 from integrated_cell.model_utils import *
+from integrated_cell.models import base_model 
 
-
-class Model(bvaegan.Model):
-    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids):
+class Model(base_model.Model):
+    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids, provide_decoder_vars = 'False'):
         super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
  
+        self.provide_decoder_vars = provide_decoder_vars
+
     def iteration(self,
                   enc, dec, encD, decD,
                   optEnc, optDec, optEncD, optDecD,
@@ -241,8 +242,9 @@ class Model(bvaegan.Model):
             errors += (refLoss,)
 
         errors += (minimaxEncDLoss, encDLoss, minimaxDecLoss, decDLoss)
-
-        return errors, zFake.data
+        errors = [error.cpu() for error in errors]
+        
+        return errors, zFake.data.cpu()
 
     def load(self, model_name, opt):
 
