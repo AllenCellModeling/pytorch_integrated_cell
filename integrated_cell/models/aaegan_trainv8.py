@@ -5,46 +5,28 @@ from torch.autograd import Variable
 import numpy as np
 import pdb
 
+import importlib
 
 from integrated_cell.model_utils import *
-from integrated_cell.utils import plots as plots
-import integrated_cell.utils as utils
-
-# This is the trainer for the Beta-VAE
-
-
-from integrated_cell.models import bvae
 from integrated_cell.models import base_model 
 
-
 class Model(base_model.Model):
-    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids, beta = 1, beta_step = None, objective = 'H', provide_decoder_vars = 'False'):
+    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids, provide_decoder_vars = 'False'):
         super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
-        
+ 
         self.provide_decoder_vars = provide_decoder_vars
-        
-        self.beta_step  = beta_step
-        
-        if beta_step is None:
-            self.beta = beta
-        else:
-            self.beta = 0
-            self.beta_max = beta
-            
-        self.objective = objective
-
-        self.global_iter = 0
 
     def iteration(self,
-                  enc, dec, decD,
-                  optEnc, optDec, optDecD,
-                  critRecon, critZClass, critZRef, critDecD,
+                  enc, dec, encD, decD,
+                  optEnc, optDec, optEncD, optDecD,
+                  critRecon, critZClass, critZRef, critEncD, critDecD,
                   data_provider, opt):
         gpu_id = self.gpu_ids[0]
 
         #do this just incase anything upstream changes these values
         enc.train(True)
         dec.train(True)
+        encD.train(True)
         decD.train(True)
 
         ###update the discriminator
@@ -63,13 +45,18 @@ class Model(base_model.Model):
             y_xReal = self.y_xReal
             y_zFake = self.y_zFake
         else:
-            classes = data_provider.get_classes(inds,'train').type_as(x).long()
+            self.classes.data.copy_(data_provider.get_classes(inds,'train'))
+            classes = self.classes
 
             y_xReal = classes
             y_zFake = classes
 
         if self.n_ref > 0:
-            ref = data_provider.get_ref(inds,'train').type_as(x)
+            self.ref.data.copy_(data_provider.get_ref(inds,'train'))
+            ref = self.ref
+
+        for p in encD.parameters(): # reset requires_grad
+            p.requires_grad = True # they are set to False below in netG update
 
         for p in decD.parameters():
             p.requires_grad = True
@@ -82,24 +69,39 @@ class Model(base_model.Model):
 
         zAll = enc(x)
 
-        for i in range(len(zAll)-1):
-                zAll[i].detach_()
-
-        for var in zAll[-1]:
+        for var in zAll:
             var.detach_()
-
-        zAll[-1] = bvae.reparameterize(zAll[-1][0], zAll[-1][1])
 
         xHat = dec(zAll)
 
         self.zReal.data.normal_()
         zReal = self.zReal
-        # zReal = Variable(opt.latentSample(self.batch_size, self.n_latent_dim).cuda(gpu_id))
+        # zReal = Variable(opt.latentSample(self.batch_size, opt.nlatentdim).cuda(gpu_id))
         zFake = zAll[-1]
 
         optEnc.zero_grad()
         optDec.zero_grad()
+        optEncD.zero_grad()
         optDecD.zero_grad()
+
+        ###############
+        ### train encD
+        ###############
+
+        ### train with real
+        yHat_zReal = encD(zReal)
+        errEncD_real = critEncD(yHat_zReal, y_zReal)
+
+        ### train with fake
+        yHat_zFake = encD(zFake)
+        errEncD_fake = critEncD(yHat_zFake, y_zFake)
+
+        encDLoss = (errEncD_real + errEncD_fake)/2
+        encDLoss.backward(retain_graph=True)
+
+        optEncD.step()
+
+        encDLoss = encDLoss.data[0]
 
         ##############
         ### Train decD
@@ -126,6 +128,9 @@ class Model(base_model.Model):
 
         decDLoss = decDLoss.data[0]
 
+        errEncD_real = None
+        errEncD_fake = None
+
         errDecD_real = None
         errDecD_fake = None
         errDecD_fake2 = None
@@ -136,11 +141,15 @@ class Model(base_model.Model):
         for p in dec.parameters():
             p.requires_grad = True
 
+        for p in encD.parameters():
+            p.requires_grad = False
+
         for p in decD.parameters():
             p.requires_grad = False
 
         optEnc.zero_grad()
         optDec.zero_grad()
+        optEncD.zero_grad()
         optDecD.zero_grad()
 
         #####################
@@ -156,44 +165,27 @@ class Model(base_model.Model):
             classLoss = critZClass(zAll[c], classes)
             classLoss.backward(retain_graph=True)
             classLoss = classLoss.data[0]
-            
-            if self.provide_decoder_vars:
-                zAll[c] = torch.log(utils.index_to_onehot(classes, data_provider.get_n_classes()) + 1E-8)
-            
             c += 1
-            
+
         ### Update the reference shape discriminator
         if self.n_ref > 0:
             refLoss = critZRef(zAll[c], ref)
             refLoss.backward(retain_graph=True)
             refLoss = refLoss.data[0]
-            
-            if self.provide_decoder_vars:
-                zAll[c] = ref
-
             c += 1
-
-
-        total_kld, dimension_wise_kld, mean_kld = bvae.kl_divergence(zAll[c][0], zAll[c][1])
-        kld_loss = total_kld.data[0]
-        minimaxEncDLoss = 0
-
-        zAll[c] = bvae.reparameterize(zAll[c][0], zAll[c][1])
 
         xHat = dec(zAll)
 
         ### Update the image reconstruction
         reconLoss = critRecon(xHat, x)
-
-        if self.objective == 'H':
-            beta_vae_loss = reconLoss + self.beta*total_kld
-        elif self.objective == 'B':
-            C = torch.clamp(self.C_max/self.C_stop_iter*self.global_iter, 0, self.C_max.data[0])
-            beta_vae_loss = recon_loss + self.gamma*(total_kld-C).abs()
-
-
-        beta_vae_loss.backward(retain_graph=True)
+        reconLoss.backward(retain_graph=True)
         reconLoss = reconLoss.data[0]
+
+        ### update wrt encD
+        yHat_zFake = encD(zAll[c])
+        minimaxEncDLoss = critEncD(yHat_zFake, y_zReal)
+        (minimaxEncDLoss.mul(opt.lambdaEncD)).backward(retain_graph=True)
+        minimaxEncDLoss = minimaxEncDLoss.data[0]
 
         optEnc.step()
 
@@ -241,8 +233,6 @@ class Model(base_model.Model):
         minimaxDecLoss = (minimaxDecDLoss+minimaxDecDLoss2)/2
 
         optDec.step()
-        
-        self.global_iter += 1
 
         errors = (reconLoss,)
         if self.n_classes > 0:
@@ -251,19 +241,10 @@ class Model(base_model.Model):
         if self.n_ref > 0:
             errors += (refLoss,)
 
-        errors += (kld_loss, minimaxDecLoss, decDLoss)
-
-        
-        if self.beta_step is not None:
-            self.beta += self.beta_step
-            
-            if self.beta > self.beta_max:
-                self.beta = self.beta_max
-        
+        errors += (minimaxEncDLoss, encDLoss, minimaxDecLoss, decDLoss)
         errors = [error.cpu() for error in errors]
         
         return errors, zFake.data.cpu()
-
 
     def load(self, model_name, opt):
 
@@ -271,26 +252,30 @@ class Model(base_model.Model):
 
         enc = model_provider.Enc(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **opt.kwargs_enc)
         dec = model_provider.Dec(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **opt.kwargs_dec)
+        encD = model_provider.EncD(self.n_latent_dim, self.n_classes+1, self.gpu_ids, **opt.kwargs_encD)
         decD = model_provider.DecD(self.n_classes+1, self.n_channels, self.gpu_ids, **opt.kwargs_decD)
 
         enc.apply(weights_init)
         dec.apply(weights_init)
+        encD.apply(weights_init)
         decD.apply(weights_init)
 
         gpu_id = self.gpu_ids[0]
 
         enc.cuda(gpu_id)
         dec.cuda(gpu_id)
+        encD.cuda(gpu_id)
         decD.cuda(gpu_id)
 
         if opt.optimizer == 'RMSprop':
             optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
             optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
+            optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
             optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
         elif opt.optimizer == 'adam':
-
             optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, **opt.kwargs_optim)
             optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, **opt.kwargs_optim)
+            optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, **opt.kwargs_optim)
             optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, **opt.kwargs_optim)
 
         columns = ('epoch', 'iter', 'reconLoss',)
@@ -304,8 +289,8 @@ class Model(base_model.Model):
             columns += ('refLoss',)
             print_str += ' refLoss: %.6f'
 
-        columns += ('kldLoss', 'minimaxDecDLoss', 'decDLoss', 'time')
-        print_str += ' kld: %.6f mmDecD: %.6f decD: %.6f time: %.2f'
+        columns += ('minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time')
+        print_str += ' mmEncD: %.6f encD: %.6f  mmDecD: %.6f decD: %.6f time: %.2f'
 
         logger = SimpleLogger(columns,  print_str)
 
@@ -314,6 +299,7 @@ class Model(base_model.Model):
 
             load_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
             load_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
+            load_state(encD, optEncD, '{0}/encD.pth'.format(opt.save_dir), gpu_id)
             load_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
 
             logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
@@ -321,11 +307,12 @@ class Model(base_model.Model):
             this_epoch = max(logger.log['epoch']) + 1
             iteration = max(logger.log['iter'])
 
-        models = {'enc': enc, 'dec': dec, 'decD': decD}
+        models = {'enc': enc, 'dec': dec, 'encD': encD, 'decD': decD}
 
         optimizers = dict()
         optimizers['optEnc'] = optEnc
         optimizers['optDec'] = optDec
+        optimizers['optEncD'] = optEncD
         optimizers['optDecD'] = optDecD
 
         criterions = dict()
@@ -336,11 +323,14 @@ class Model(base_model.Model):
 
         if self.n_classes > 0:
             criterions['critDecD'] = nn.CrossEntropyLoss(size_average=False)
+            criterions['critEncD'] = nn.CrossEntropyLoss(size_average=False)
         else:
+            criterions['critEncD'] = nn.BCEWithLogitsLoss(size_average=False)
             criterions['critDecD'] = nn.BCEWithLogitsLoss(size_average=False)
 
         if opt.latentDistribution == 'uniform':
             from integrated_cell.model_utils import sampleUniform as latentSample
+
         elif opt.latentDistribution == 'gaussian':
             from integrated_cell.model_utils import sampleGaussian as latentSample
 
@@ -351,21 +341,26 @@ class Model(base_model.Model):
         self.criterions = criterions
         self.logger = logger
         self.opt = opt
-        
-        return models, optimizers, criterions, logger
 
-    def save(self, enc, dec, decD,
-                   optEnc, optDec, optDecD,
-                   logger, zAll, opt):
-    #         for saving and loading see:
-    #         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
+        return models, optimizers, criterions, logger
+    
+    def save(self, enc, dec, encD, decD,
+                       optEnc, optDec, optEncD, optDecD,
+                       logger, zAll, opt):
+#         for saving and loading see:
+#         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
 
         gpu_id = self.gpu_ids[0]
 
+
         save_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
         save_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
+        save_state(encD, optEncD, '{0}/encD.pth'.format(opt.save_dir), gpu_id)
         save_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
 
         pickle.dump(zAll, open('{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
         pickle.dump(logger, open('{0}/logger.pkl'.format(opt.save_dir), 'wb'))
 
+
+
+        
