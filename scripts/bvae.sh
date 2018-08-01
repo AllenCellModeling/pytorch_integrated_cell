@@ -3,7 +3,7 @@ python /root/projects/pytorch_integrated_cell/train_model.py \
 	--gpu_ids $1 \
 	--save_parent ./results/test_bvae/ \
 	--lrEnc 1E-4 --lrDec 1E-4 \
-	--data_save_path ./test_bvae/data.pyt \
+	--data_save_path ./results/data.pyt \
 	--critRecon BCELoss \
 	--model_name vaaegan3D \
 	--kwargs_model '{"beta": 1}' \
