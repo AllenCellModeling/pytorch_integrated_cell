@@ -21,4 +21,4 @@ class SimpleLogger:
             self.log[self.fields[i]].append(input[i])
             
         if isinstance(self.print_format, str):
-            print(self.print_format % input)
+            print(self.print_format % tuple(input))
