@@ -5,18 +5,57 @@ mpl.use('Agg')
 
 import matplotlib.pyplot as plt
 
-def history(logger, save_path):
-    plt.figure()
-    
-    for i in range(2, len(logger.fields)-1):
-        field = logger.fields[i]
-        plt.plot(logger.log['iter'], logger.log[field], label=field)
+import pdb
 
-    plt.legend()
-    plt.title('History')
-    plt.xlabel('iteration')
+dpi = 100
+figx = 6
+figy = 4.5
+
+def history(logger, save_path):
+    
+    #Figure out the default color order, and use these for the plots
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    
+    plt.figure(figsize=(figx, figy), dpi=dpi)
+    
+    ax = plt.gca()
+    
+    plts = list()
+    
+    #Plot reconstruction loss
+    plts += ax.plot(logger.log['iter'], logger.log['reconLoss'], label='reconLoss', color=colors[0])
+    
+    plt.ylabel('reconLoss')
+    
+    ax_max = np.percentile(logger.log['reconLoss'], 99.5)
+    ax_min = np.percentile(logger.log['reconLoss'], 0)
+                          
+    ax.set_ylim([ax_min,ax_max])
+    
+    #Plot everything else that isn't below
+    do_not_print= ['epoch', 'iter', 'time', 'reconLoss']
+    
+    #Print off the reconLoss on it's own scale
+    ax2 = plt.gca().twinx()
+    i = 1
+    for field in logger.fields:
+        if field not in do_not_print:
+            plts += ax2.plot(logger.log['iter'], logger.log[field], label=field, color=colors[i])
+            i += 1
+
+    #Get all the labels for the legend from both axes
+    labs = [l.get_label() for l in plts]
+
+    #Print legend
+    ax.legend(plts, labs)
+    
     plt.ylabel('loss')
-    plt.savefig(save_path, bbox_inches='tight')
+    plt.title('History')
+    plt.xlabel('iteration')    
+    
+    #Save
+    plt.tight_layout()
+    plt.savefig(save_path, bbox_inches='tight', dpi=dpi)
     plt.close()
 
 def short_history(logger, save_path, max_history_len = 10000):
@@ -45,7 +84,7 @@ def short_history(logger, save_path, max_history_len = 10000):
 
     mval = np.mean(losses)
 
-    plt.figure()
+    plt.figure(figsize=(figx, figy), dpi=dpi)
     plt.plot(x, y, label='reconLoss')
     plt.plot(epoch_iters, epoch_losses, color='darkorange', label='epoch avg')
     plt.plot([np.min(iters), np.max(iters)], [mval, mval], color='darkorange', linestyle=':', label='window avg')
@@ -54,11 +93,13 @@ def short_history(logger, save_path, max_history_len = 10000):
     plt.title('Short history')
     plt.xlabel('iteration')
     plt.ylabel('loss')
-    plt.savefig(save_path, bbox_inches='tight')
+    
+    plt.tight_layout()
+    plt.savefig(save_path, bbox_inches='tight', dpi=dpi)
     plt.close()
     
 def embeddings(embedding, save_path):
-    plt.figure()
+    plt.figure(figsize=(figx, figy), dpi=dpi)
     colors = plt.get_cmap('plasma')(np.linspace(0, 1, embedding.shape[0]))
     plt.scatter(embedding[:,0], embedding[:,1], s = 2, color = colors)
     plt.xlim([-4, 4])
@@ -67,6 +108,8 @@ def embeddings(embedding, save_path):
     plt.xlabel('z1')
     plt.ylabel('z2')
     plt.title('latent space embedding')
-    plt.savefig(save_path, bbox_inches='tight')
+    
+    plt.tight_layout()
+    plt.savefig(save_path, bbox_inches='tight', dpi=dpi)
     plt.close()
 
