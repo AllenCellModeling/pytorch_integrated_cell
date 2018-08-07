@@ -43,7 +43,7 @@ def kl_divergence(mu, logvar):
 
 
 class Model(base_model.Model):
-    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids, beta = 1, c_iters_max = 1.2E5, gamma = 1000, objective = 'H', provide_decoder_vars = 'False'):
+    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids, beta = 1, c_max = 25, c_iters_max = 1.2E5, gamma = 1000, objective = 'H', provide_decoder_vars = 'False'):
         super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
         
         self.provide_decoder_vars = provide_decoder_vars
@@ -51,7 +51,7 @@ class Model(base_model.Model):
         if objective == 'H':
             self.beta = beta
         else:
-            self.c_max = beta
+            self.c_max = c_max
             self.gamma = gamma
             self.c_iters_max = c_iters_max
             
@@ -117,7 +117,6 @@ class Model(base_model.Model):
                 
         total_kld, dimension_wise_kld, mean_kld = kl_divergence(zAll[c][0], zAll[c][1])
         
-
         zLatent = zAll[c][0].data.cpu()
         
         zAll[c] = reparameterize(zAll[c][0], zAll[c][1])
