@@ -93,6 +93,9 @@ parser.add_argument('--dtype', default='float', help='data type that the datapro
 
 parser.add_argument('--overwrite_opts', default=False, type=str2bool, help='Overwrite options file')
 
+parser.add_argument('--ref_dir', default='ref_model', type=str, help='Directory name for reference model')
+parser.add_argument('--struct_dir', default='struct_model', type=str, help='Directory name for structure model')
+
 opt = parser.parse_args()
 
 if (opt.save_parent is not None) and (opt.save_dir is not None):
@@ -154,7 +157,7 @@ iters_per_epoch = np.ceil(opt.ndat/opt.batch_size)
 ### TRAIN REFERENCE MODEL
 #######
 
-opt.save_dir = os.path.join(opt.save_parent,'ref_model')
+opt.save_dir = os.path.join(opt.save_parent, opt.ref_dir)
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
 
@@ -197,7 +200,7 @@ for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
     stop = time.time()
     deltaT = stop-start
 
-    logger.add((epoch, this_iter) + errors +(deltaT,))
+    logger.add([epoch, this_iter] + errors + [deltaT])
 
     if model_utils.maybe_save(model, epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
         zAll = list()
@@ -226,7 +229,7 @@ dp.embeddings = embeddings
 import types
 dp.get_ref = types.MethodType(get_ref, dp)
 
-opt.save_dir = opt.save_parent + os.sep + 'struct_model'
+opt.save_dir = os.path.join(opt.save_parent, opt.struct_dir)
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
 
@@ -270,7 +273,7 @@ for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs_pt2):
     stop = time.time()
     deltaT = stop-start
 
-    logger.add((epoch, this_iter) + errors +(deltaT,))
+    logger.add([epoch, this_iter] + errors + [deltaT,])
 
     if model_utils.maybe_save(model, epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
         zAll = list()
