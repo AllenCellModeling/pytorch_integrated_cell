@@ -1,0 +1,23 @@
+name: pytorch_integrated_cell
+channels:
+    - conda-forge
+    - defaults
+    - pytorch
+dependencies:
+    - python=3.6
+    - pytorch=0.4.1
+    - cuda91=1.0
+    - git=2.17.1
+    - pip:
+	- "editable=git+https://github.com/AllenCellModeling/pytorch_integrated_cell.git"
+        - git+https://github.com/AllenCellModeling/aicsimage.git
+        - matplotlib==2.2.2
+        - numpy==1.15.0
+        - pandas==0.22
+        - Pillow==5.2.0
+        - scikit-image==0.14.0
+        - scipy==1.1.0
+        - tifffile==0.15.0
+        - h5py==2.7.1
+        - tqdm==4.23.4
+        - natsort==5.3.2
