@@ -123,6 +123,7 @@ def load_data_provider(data_path, im_dir, dp_module, **kwargs):
 
     if os.path.exists(data_path):
         dp = torch.load(data_path)
+        dp.image_parent = im_dir
     else:
         dp = DP.DataProvider(im_dir, **kwargs)
         torch.save(dp, data_path)
