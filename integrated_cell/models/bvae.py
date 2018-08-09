@@ -43,30 +43,41 @@ def kl_divergence(mu, logvar):
 
 
 class Model(base_model.Model):
-    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids, beta = 1, c_max = 25, c_iters_max = 1.2E5, gamma = 1000, objective = 'H', provide_decoder_vars = 'False'):
+    def __init__(self, data_provider, 
+                 n_channels, 
+                 batch_size, 
+                 n_latent_dim, 
+                 n_classes, 
+                 n_ref, 
+                 gpu_ids, 
+                 beta = 1, 
+                 c_max = 25, 
+                 c_iters_max = 1.2E5, 
+                 gamma = 1000, 
+                 objective = 'H', 
+                 provide_decoder_vars = 'False'):
         super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
         
         self.provide_decoder_vars = provide_decoder_vars
         
         if objective == 'H':
             self.beta = beta
-        else:
+        elif objective == 'B':
             self.c_max = c_max
             self.gamma = gamma
             self.c_iters_max = c_iters_max
             
         self.objective = objective
 
-        self.global_iter = 0
+        
     def iteration(self,
                   enc, dec,
                   optEnc, optDec,
                   critRecon, critZClass, critZRef,
                   data_provider, opt):
+        
         gpu_id = self.gpu_ids[0]
         
-        
-    
         rand_inds_encD = np.random.permutation(opt.ndat)
         inds = rand_inds_encD[0:self.batch_size]
 
@@ -129,7 +140,7 @@ class Model(base_model.Model):
         if self.objective == 'H':
             beta_vae_loss = recon_loss + self.beta*total_kld
         elif self.objective == 'B':
-            C = torch.clamp(torch.Tensor([self.c_max/self.c_iters_max*self.global_iter]).type_as(x), 0, self.c_max)
+            C = torch.clamp(torch.Tensor([self.c_max/self.c_iters_max*len(self.logger)]).type_as(x), 0, self.c_max)
             beta_vae_loss = recon_loss + self.gamma*(total_kld-C).abs()
 
         beta_vae_loss.backward()
@@ -140,8 +151,6 @@ class Model(base_model.Model):
         optEnc.step()
         optDec.step()
 
-        self.global_iter += 1
-        
         errors = (recon_loss,)
         if self.n_classes > 0:
             errors += (classLoss,)
@@ -195,16 +204,17 @@ class Model(base_model.Model):
 
         logger = SimpleLogger(columns,  print_str)
 
-        if os.path.exists('{0}/enc.pth'.format(opt.save_dir)):
+        logger_path = '{0}/logger.pkl'.format(opt.save_dir)
+        if os.path.exists(logger_path):
+
             print('Loading from ' + opt.save_dir)
 
-            load_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
-            load_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
-
             logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
-
-            this_epoch = max(logger.log['epoch']) + 1
-            iteration = max(logger.log['iter'])
+            
+            this_iter = len(logger)
+            
+            load_state(enc, optEnc, '{0}/enc_{1}.pth'.format(opt.save_dir, this_iter), gpu_id)
+            load_state(dec, optDec, '{0}/dec_{1}.pth'.format(opt.save_dir, this_iter), gpu_id)
 
         models = dict()
         models['enc'] = enc
@@ -244,8 +254,9 @@ class Model(base_model.Model):
 
         pickle.dump(zAll, open('{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
         pickle.dump(logger, open('{0}/logger.pkl'.format(opt.save_dir), 'wb'))
+        
 
-        save_state(enc, optEnc, '{0}/enc_{1}.pth'.format(opt.save_dir, int(self.global_iter)), gpu_id)
-        save_state(dec, optDec, '{0}/dec_{1}.pth'.format(opt.save_dir, int(self.global_iter)), gpu_id)
-        pickle.dump(zAll, open('{0}/embedding_{1}.pkl'.format(opt.save_dir, int(self.global_iter)), 'wb'))
+        save_state(enc, optEnc, '{0}/enc_{1}.pth'.format(opt.save_dir, int(len(self.logger))), gpu_id)
+        save_state(dec, optDec, '{0}/dec_{1}.pth'.format(opt.save_dir, int(len(self.logger))), gpu_id)
+        pickle.dump(zAll, open('{0}/embedding_{1}.pkl'.format(opt.save_dir, int(len(self.logger))), 'wb'))
 
