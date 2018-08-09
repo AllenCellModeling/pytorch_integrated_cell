@@ -11,10 +11,33 @@ from integrated_cell.model_utils import *
 from integrated_cell.models import base_model 
 
 class Model(base_model.Model):
-    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids, provide_decoder_vars = 'False'):
+    def __init__(self, data_provider, 
+                 n_channels, 
+                 batch_size, 
+                 n_latent_dim, 
+                 n_classes, 
+                 n_ref, 
+                 gpu_ids, 
+                 lambda_encD_loss = 5E-3,
+                 lambda_decD_loss = 1E-4,
+                 lambda_ref_loss = 1,
+                 lambda_class_loss = 1,
+                 size_average_losses = False,
+                 provide_decoder_vars = False,
+                ):
+        
         super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
  
         self.provide_decoder_vars = provide_decoder_vars
+    
+        self.size_average_losses = size_average_losses
+    
+        self.lambda_encD_loss = lambda_encD_loss
+        self.lambda_decD_loss = lambda_decD_loss
+        self.lambda_ref_loss = lambda_ref_loss
+        self.lambda_class_loss = lambda_class_loss
+        
+        self.size_average_losses = size_average_losses
 
     def iteration(self,
                   enc, dec, encD, decD,
@@ -104,7 +127,7 @@ class Model(base_model.Model):
         encDLoss = encDLoss.data[0]
 
         ##############
-        ### Train decD
+        ### Train discriminators
         ##############
 
         yHat_xReal = decD(x)
@@ -163,14 +186,14 @@ class Model(base_model.Model):
         ### Update the class discriminator
         if self.n_classes > 0:
             classLoss = critZClass(zAll[c], classes)
-            classLoss.backward(retain_graph=True)
+            classLoss.mul(self.lambda_class_loss).backward(retain_graph=True)
             classLoss = classLoss.data[0]
             c += 1
 
         ### Update the reference shape discriminator
         if self.n_ref > 0:
             refLoss = critZRef(zAll[c], ref)
-            refLoss.backward(retain_graph=True)
+            refLoss.mul(self.lambda_ref_loss).backward(retain_graph=True)
             refLoss = refLoss.data[0]
             c += 1
 
@@ -184,7 +207,7 @@ class Model(base_model.Model):
         ### update wrt encD
         yHat_zFake = encD(zAll[c])
         minimaxEncDLoss = critEncD(yHat_zFake, y_zReal)
-        (minimaxEncDLoss.mul(opt.lambdaEncD)).backward(retain_graph=True)
+        (minimaxEncDLoss.mul(self.lambda_encD_loss)).backward(retain_graph=True)
         minimaxEncDLoss = minimaxEncDLoss.data[0]
 
         optEnc.step()
@@ -195,7 +218,7 @@ class Model(base_model.Model):
         ### update wrt decD(dec(enc(X)))
         yHat_xFake = decD(xHat)
         minimaxDecDLoss = critDecD(yHat_xFake, y_xReal)
-        (minimaxDecDLoss.mul(opt.lambdaDecD).div(2)).backward(retain_graph=True)
+        (minimaxDecDLoss.mul(self.lambda_decD_loss).div(2)).backward(retain_graph=True)
         minimaxDecDLoss = minimaxDecDLoss.data[0]
         yHat_xFake = None
 
@@ -226,7 +249,7 @@ class Model(base_model.Model):
 
         yHat_xFake2 = decD(xHat)
         minimaxDecDLoss2 = critDecD(yHat_xFake2, y_xReal)
-        (minimaxDecDLoss2.mul(opt.lambdaDecD).div(2)).backward(retain_graph=True)
+        (minimaxDecDLoss2.mul(self.lambda_decD_loss).div(2)).backward(retain_graph=True)
         minimaxDecDLoss2 = minimaxDecDLoss2.data[0]
         yHat_xFake2 = None
 
@@ -316,17 +339,17 @@ class Model(base_model.Model):
         optimizers['optDecD'] = optDecD
 
         criterions = dict()
-        criterions['critRecon'] = eval('nn.' + opt.critRecon + '(size_average=False)')
-        criterions['critZClass'] = nn.NLLLoss(size_average=False)
-        criterions['critZRef'] = nn.MSELoss(size_average=False)
+        criterions['critRecon'] = eval('nn.' + opt.critRecon + '(size_average=' + str(bool(self.size_average_losses)) + ')')
+        criterions['critZClass'] = nn.NLLLoss(size_average=self.size_average_losses)
+        criterions['critZRef'] = nn.MSELoss(size_average=self.size_average_losses)
 
 
         if self.n_classes > 0:
-            criterions['critDecD'] = nn.CrossEntropyLoss(size_average=False)
-            criterions['critEncD'] = nn.CrossEntropyLoss(size_average=False)
+            criterions['critDecD'] = nn.CrossEntropyLoss(size_average=self.size_average_losses)
+            criterions['critEncD'] = nn.CrossEntropyLoss(size_average=self.size_average_losses)
         else:
-            criterions['critEncD'] = nn.BCEWithLogitsLoss(size_average=False)
-            criterions['critDecD'] = nn.BCEWithLogitsLoss(size_average=False)
+            criterions['critEncD'] = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
+            criterions['critDecD'] = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
 
         if opt.latentDistribution == 'uniform':
             from integrated_cell.model_utils import sampleUniform as latentSample

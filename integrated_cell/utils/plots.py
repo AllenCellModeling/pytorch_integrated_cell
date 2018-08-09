@@ -4,6 +4,9 @@ import matplotlib as mpl
 mpl.use('Agg')
 
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from matplotlib import cm
+import pickle
 
 import pdb
 
@@ -113,3 +116,26 @@ def embeddings(embedding, save_path):
     plt.savefig(save_path, bbox_inches='tight', dpi=dpi)
     plt.close()
 
+def embedding_variation(embedding_paths, figsize = (8, 4), save_path = None):
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    colors = cm.viridis(np.linspace(0,1, len(embedding_paths)))
+    
+    for path, color in zip(embedding_paths, colors):
+        embeddings = pickle.load(open(path, 'rb'))
+        
+        var_dims = np.sort(np.var(embeddings, axis=0))[::-1]
+        ax1.plot(var_dims, color = color)
+        ax1.set_xlabel('dimension #')
+        ax1.set_ylabel('dimension variation')
+        ax1.set_ylim(0, 1.05)
+
+        ax2.plot(np.cumsum(var_dims)/np.sum(var_dims), color = color)
+        ax2.set_xlabel('dimension #')
+        ax2.set_ylabel('cumulative variation')
+
+    fig.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches='tight', dpi=dpi)
+        plt.close()

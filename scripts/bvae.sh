@@ -1,5 +1,5 @@
 cd ..
-python /root/projects/pytorch_integrated_cell/train_model.py \
+python ./train_model.py \
 	--gpu_ids $1 \
 	--save_parent ./results/test_bvae/ \
 	--lrEnc 1E-4 --lrDec 1E-4 \

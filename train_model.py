@@ -54,8 +54,13 @@ parser.add_argument('--kwargs_optim', type=json.loads, default={}, help='kwargs 
 parser.add_argument('--kwargs_model', type=json.loads, default={}, help='kwargs for the model')
 parser.add_argument('--kwargs_network', type=json.loads, default={}, help='kwargs for the network')
 
+
+##### pass these in via KWARGS_MODEL parameters
 parser.add_argument('--lambdaEncD', type=float, default=5E-3, help='scalar applied to the update gradient from encD')
 parser.add_argument('--lambdaDecD', type=float, default=1E-4, help='scalar applied to the update gradient from decD')
+
+parser.add_argument('--lambdaRefLoss', type=float, default=1E3, help='scalar applied to the update gradient from the reference loss')
+parser.add_argument('--lambdaClassLoss', type=float, default=1E3, help='scalar applied to the update gradient from class loss')
 
 parser.add_argument('--kwargs_enc', type=json.loads, default={}, help='kwargs for the enc')
 parser.add_argument('--kwargs_dec', type=json.loads, default={}, help='kwargs for the dec')

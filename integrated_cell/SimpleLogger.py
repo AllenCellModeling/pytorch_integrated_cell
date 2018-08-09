@@ -22,3 +22,6 @@ class SimpleLogger:
             
         if isinstance(self.print_format, str):
             print(self.print_format % tuple(input))
+            
+    def __len__(self):
+        return len(self.log[self.fields[0]])
