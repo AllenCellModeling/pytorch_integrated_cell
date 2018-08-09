@@ -18,18 +18,30 @@ from integrated_cell.models import base_model
 
 
 class Model(base_model.Model):
-    def __init__(self, data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids, beta = 1, beta_step = None, objective = 'H', provide_decoder_vars = 'False'):
+    def __init__(self, data_provider, 
+                 n_channels, 
+                 batch_size, 
+                 n_latent_dim, n_classes, n_ref, 
+                 gpu_ids, 
+                 beta = 1, 
+                 c_max = 25, 
+                 c_iters_max = 1.2E5, 
+                 gamma = 1000, 
+                 objective = 'H', 
+                 provide_decoder_vars = 'False'):
+        
         super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
         
         self.provide_decoder_vars = provide_decoder_vars
         
         self.beta_step  = beta_step
         
-        if beta_step is None:
+        if objective == 'H':
             self.beta = beta
-        else:
-            self.beta = 0
-            self.beta_max = beta
+        elif objective == 'B':
+            self.c_max = c_max
+            self.gamma = gamma
+            self.c_iters_max = c_iters_max
             
         self.objective = objective
 
