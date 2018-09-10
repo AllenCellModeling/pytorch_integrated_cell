@@ -28,13 +28,16 @@ class Model(base_model.Model):
                  c_iters_max = 1.2E5, 
                  gamma = 1000, 
                  objective = 'H', 
-                 provide_decoder_vars = 'False'):
+                 lambda_encD_loss = 5E-3,
+                 lambda_decD_loss = 1E-4,
+                 lambda_ref_loss = 1,
+                 lambda_class_loss = 1,
+                 size_average_losses = False,
+                 provide_decoder_vars = False):
         
         super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
         
         self.provide_decoder_vars = provide_decoder_vars
-        
-        self.beta_step  = beta_step
         
         if objective == 'H':
             self.beta = beta
@@ -44,8 +47,13 @@ class Model(base_model.Model):
             self.c_iters_max = c_iters_max
             
         self.objective = objective
-
-        self.global_iter = 0
+        
+        self.lambda_encD_loss = lambda_encD_loss
+        self.lambda_decD_loss = lambda_decD_loss
+        self.lambda_ref_loss = lambda_ref_loss
+        self.lambda_class_loss = lambda_class_loss
+        
+        self.size_average_losses = size_average_losses
 
     def iteration(self,
                   enc, dec, decD,
@@ -165,7 +173,7 @@ class Model(base_model.Model):
         c = 0
         ### Update the class discriminator
         if self.n_classes > 0:
-            classLoss = critZClass(zAll[c], classes)
+            classLoss = critZClass(zAll[c], classes)*self.lambda_class_loss
             classLoss.backward(retain_graph=True)
             classLoss = classLoss.data[0]
             
@@ -176,7 +184,7 @@ class Model(base_model.Model):
             
         ### Update the reference shape discriminator
         if self.n_ref > 0:
-            refLoss = critZRef(zAll[c], ref)
+            refLoss = critZRef(zAll[c], ref)*self.lambda_ref_loss
             refLoss.backward(retain_graph=True)
             refLoss = refLoss.data[0]
             
@@ -187,25 +195,28 @@ class Model(base_model.Model):
 
 
         total_kld, dimension_wise_kld, mean_kld = bvae.kl_divergence(zAll[c][0], zAll[c][1])
-        kld_loss = total_kld.data[0]
-        minimaxEncDLoss = 0
+        
+        zLatent = zAll[c][0].data.cpu()
 
         zAll[c] = bvae.reparameterize(zAll[c][0], zAll[c][1])
 
         xHat = dec(zAll)
 
         ### Update the image reconstruction
-        reconLoss = critRecon(xHat, x)
-
+        recon_loss = critRecon(xHat, x)
+        
         if self.objective == 'H':
-            beta_vae_loss = reconLoss + self.beta*total_kld
+            beta_vae_loss = recon_loss + self.beta*total_kld
         elif self.objective == 'B':
-            C = torch.clamp(self.C_max/self.C_stop_iter*self.global_iter, 0, self.C_max.data[0])
+            C = torch.clamp(torch.Tensor([self.c_max/self.c_iters_max*len(self.logger)]).type_as(x), 0, self.c_max)
             beta_vae_loss = recon_loss + self.gamma*(total_kld-C).abs()
 
 
         beta_vae_loss.backward(retain_graph=True)
-        reconLoss = reconLoss.data[0]
+        kld_loss = total_kld.data[0]
+
+
+        recon_loss = recon_loss.data[0]
 
         optEnc.step()
 
@@ -215,7 +226,7 @@ class Model(base_model.Model):
         ### update wrt decD(dec(enc(X)))
         yHat_xFake = decD(xHat)
         minimaxDecDLoss = critDecD(yHat_xFake, y_xReal)
-        (minimaxDecDLoss.mul(opt.lambdaDecD).div(2)).backward(retain_graph=True)
+        (minimaxDecDLoss.mul(self.lambda_decD_loss).div(2)).backward(retain_graph=True)
         minimaxDecDLoss = minimaxDecDLoss.data[0]
         yHat_xFake = None
 
@@ -246,7 +257,7 @@ class Model(base_model.Model):
 
         yHat_xFake2 = decD(xHat)
         minimaxDecDLoss2 = critDecD(yHat_xFake2, y_xReal)
-        (minimaxDecDLoss2.mul(opt.lambdaDecD).div(2)).backward(retain_graph=True)
+        (minimaxDecDLoss2.mul(self.lambda_decD_loss).div(2)).backward(retain_graph=True)
         minimaxDecDLoss2 = minimaxDecDLoss2.data[0]
         yHat_xFake2 = None
 
@@ -254,27 +265,17 @@ class Model(base_model.Model):
 
         optDec.step()
         
-        self.global_iter += 1
-
-        errors = (reconLoss,)
+        errors = (recon_loss,)
         if self.n_classes > 0:
             errors += (classLoss,)
 
         if self.n_ref > 0:
             errors += (refLoss,)
 
-        errors += (kld_loss, minimaxDecLoss, decDLoss)
-
-        
-        if self.beta_step is not None:
-            self.beta += self.beta_step
-            
-            if self.beta > self.beta_max:
-                self.beta = self.beta_max
-        
+        errors += (kld_loss, minimaxDecLoss, decDLoss)        
         errors = [error.cpu() for error in errors]
         
-        return errors, zFake.data.cpu()
+        return errors, zLatent
 
 
     def load(self, model_name, opt):
@@ -341,15 +342,15 @@ class Model(base_model.Model):
         optimizers['optDecD'] = optDecD
 
         criterions = dict()
-        criterions['critRecon'] = eval('nn.' + opt.critRecon + '(size_average=False)')
-        criterions['critZClass'] = nn.NLLLoss(size_average=False)
-        criterions['critZRef'] = nn.MSELoss(size_average=False)
+        criterions['critRecon'] = eval('nn.' + opt.critRecon + '(size_average=' + str(bool(self.size_average_losses)) + ')')
+        criterions['critZClass'] = nn.NLLLoss(size_average=self.size_average_losses)
+        criterions['critZRef'] = nn.MSELoss(size_average=self.size_average_losses)
 
 
         if self.n_classes > 0:
-            criterions['critDecD'] = nn.CrossEntropyLoss(size_average=False)
+            criterions['critDecD'] = nn.CrossEntropyLoss(size_average=self.size_average_losses)
         else:
-            criterions['critDecD'] = nn.BCEWithLogitsLoss(size_average=False)
+            criterions['critDecD'] = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
 
         if opt.latentDistribution == 'uniform':
             from integrated_cell.model_utils import sampleUniform as latentSample
@@ -374,10 +375,13 @@ class Model(base_model.Model):
 
         gpu_id = self.gpu_ids[0]
 
-        save_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
-        save_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
-        save_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
-
         pickle.dump(zAll, open('{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
         pickle.dump(logger, open('{0}/logger.pkl'.format(opt.save_dir), 'wb'))
+        
+        save_state(enc, optEnc, '{0}/enc_{1}.pth'.format(opt.save_dir, int(len(self.logger))), gpu_id)
+        save_state(dec, optDec, '{0}/dec_{1}.pth'.format(opt.save_dir, int(len(self.logger))), gpu_id)
+        save_state(decD, optDecD, '{0}/decD_{1}.pth'.format(opt.save_dir, int(len(self.logger))), gpu_id)
+
+        pickle.dump(zAll, open('{0}/embedding_{1}.pkl'.format(opt.save_dir, int(len(self.logger))), 'wb'))
+
 
