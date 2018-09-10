@@ -30,10 +30,8 @@ class Model(base_model.Model):
  
         self.provide_decoder_vars = provide_decoder_vars
     
-        self.size_average_losses = size_average_losses
-    
-        self.lambda_encD_loss = lambda_encD_loss
         self.lambda_decD_loss = lambda_decD_loss
+        self.lambda_encD_loss = lambda_encD_loss
         self.lambda_ref_loss = lambda_ref_loss
         self.lambda_class_loss = lambda_class_loss
         
@@ -92,6 +90,16 @@ class Model(base_model.Model):
 
         zAll = enc(x)
 
+        if self.provide_decoder_vars:
+            c = 0
+            if self.n_classes > 0:
+                zAll[c] = torch.log(utils.index_to_onehot(classes, data_provider.get_n_classes()) + 1E-8)
+                c += 1   
+            
+            if self.n_ref > 0:
+                zAll[c] = ref
+            c += 1
+            
         for var in zAll:
             var.detach_()
 
@@ -188,6 +196,10 @@ class Model(base_model.Model):
             classLoss = critZClass(zAll[c], classes)
             classLoss.mul(self.lambda_class_loss).backward(retain_graph=True)
             classLoss = classLoss.data[0]
+            
+            if self.provide_decoder_vars:
+                zAll[c] = torch.log(utils.index_to_onehot(classes, data_provider.get_n_classes()) + 1E-8)
+            
             c += 1
 
         ### Update the reference shape discriminator
@@ -195,6 +207,10 @@ class Model(base_model.Model):
             refLoss = critZRef(zAll[c], ref)
             refLoss.mul(self.lambda_ref_loss).backward(retain_graph=True)
             refLoss = refLoss.data[0]
+            
+            if self.provide_decoder_vars:
+                zAll[c] = ref
+            
             c += 1
 
         xHat = dec(zAll)
