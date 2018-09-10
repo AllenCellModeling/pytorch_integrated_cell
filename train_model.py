@@ -54,21 +54,10 @@ parser.add_argument('--kwargs_optim', type=json.loads, default={}, help='kwargs 
 parser.add_argument('--kwargs_model', type=json.loads, default={}, help='kwargs for the model')
 parser.add_argument('--kwargs_network', type=json.loads, default={}, help='kwargs for the network')
 
-
-##### pass these in via KWARGS_MODEL parameters
-parser.add_argument('--lambdaEncD', type=float, default=5E-3, help='scalar applied to the update gradient from encD')
-parser.add_argument('--lambdaDecD', type=float, default=1E-4, help='scalar applied to the update gradient from decD')
-
-parser.add_argument('--lambdaRefLoss', type=float, default=1E3, help='scalar applied to the update gradient from the reference loss')
-parser.add_argument('--lambdaClassLoss', type=float, default=1E3, help='scalar applied to the update gradient from class loss')
-
 parser.add_argument('--kwargs_enc', type=json.loads, default={}, help='kwargs for the enc')
 parser.add_argument('--kwargs_dec', type=json.loads, default={}, help='kwargs for the dec')
 parser.add_argument('--kwargs_encD', type=json.loads, default={}, help='kwargs for the encD')
 parser.add_argument('--kwargs_decD', type=json.loads, default={}, help='kwargs for the decD')
-
-parser.add_argument('--gp_loss_lambda_decD', type=float, default=0, help='lamba for gradient pentalty in WGAN')
-parser.add_argument('--gp_loss_lambda_encD', type=float, default=0, help='lamba for gradient pentalty in WGAN')
 
 parser.add_argument('--critRecon', default='BCELoss', help='Loss function for image reconstruction')
 
@@ -88,7 +77,11 @@ parser.add_argument('--latentDistribution', default='gaussian', help='Distributi
 
 parser.add_argument('--ndat', type=int, default=-1, help='Number of data points to use')
 parser.add_argument('--optimizer', default='adam', help='type of optimizer, can be {adam, RMSprop}')
-parser.add_argument('--train_module', default='waaegan_train', help='training module')
+
+parser.add_argument('--train_module', default=None, help='training module')
+parser.add_argument('--train_module_pt1', default=None, help='training module')
+parser.add_argument('--train_module_pt2', default=None, help='training module')
+
 parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
 
 parser.add_argument('--channels_pt1', nargs='+', type=int, default=[0,2], help='channels to use for part 1')
@@ -97,14 +90,26 @@ parser.add_argument('--channels_pt2', nargs='+', type=int, default=[0,1,2], help
 parser.add_argument('--dtype', default='float', help='data type that the dataprovider uses. Only \'float\' supported.')
 
 parser.add_argument('--overwrite_opts', default=False, type=str2bool, help='Overwrite options file')
+parser.add_argument('--skip_pt1', default=False, type=str2bool, help='Skip pt 1')
 
 parser.add_argument('--ref_dir', default='ref_model', type=str, help='Directory name for reference model')
 parser.add_argument('--struct_dir', default='struct_model', type=str, help='Directory name for structure model')
 
 opt = parser.parse_args()
 
+skip1 = opt.skip_pt1
+
+ref_dir = opt.ref_dir
+struct_dir = opt.struct_dir
+
+os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(ID) for ID in opt.gpu_ids])
+
+
 if (opt.save_parent is not None) and (opt.save_dir is not None):
     raise ValueError('--save_dir and --save_parent are both set. Please choose one or the other.')
+    
+if ((opt.train_module is not None) and (opt.train_module_pt1 is not None)) or ((opt.train_module is not None) and (opt.train_module_pt2 is not None)):
+    raise ValueError('--train_module and --train_model_pt1 or --train_model_pt2 are both set. Please choose a global train module or specify partial models.')
 
 the_time = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
 if opt.save_parent is not None:
@@ -121,22 +126,31 @@ if not os.path.exists(opt.save_parent):
 
 opt_save_path = '{0}/opt.pkl'.format(opt.save_parent)
 
-if os.path.exists(opt_save_path) and not opt.overwrite_opts:
-    warnings.warn('Options file exists and overwrite is not set to True. Using existing options file.')
+def load_opts(opt):
+    opt.opt_save_path = '{0}/opt.pkl'.format(opt.save_dir)
 
-    #load options file
-    opt = pickle.load( open( opt_save_path, 'rb' ) )
-else:
+    if os.path.exists(opt.opt_save_path) and not opt.overwrite_opts:
+        warnings.warn('Options file exists and overwrite is not set to True. Using existing options file.')
 
-    #make a copy if the opts file exists
-    if os.path.exists(opt_save_path):
-        shutil.copyfile(opt_save_path, '{0}_{1}'.format(opt_save_path, the_time))
+        #load options file
+        opt = pickle.load( open( opt.opt_save_path, 'rb' ) )
+    else:
 
-    pickle.dump(opt, open(opt_save_path, 'wb'))
+        #make a copy if the opts file exists
+        if os.path.exists(opt.opt_save_path):
+            shutil.copyfile(opt.opt_save_path, '{0}_{1}'.format(opt.opt_save_path, the_time))
 
-print(opt)
+        pickle.dump(opt, open(opt.opt_save_path, 'wb'))
+    
+    print(opt)
+    return opt
 
-os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(ID) for ID in opt.gpu_ids])
+
+if opt.train_module is not None:
+    opt.train_module_pt1 = opt.train_module
+    opt.train_module_pt2 = opt.train_module
+    
+
 opt.gpu_ids = list(range(0, len(opt.gpu_ids)))
 
 
@@ -162,53 +176,58 @@ iters_per_epoch = np.ceil(opt.ndat/opt.batch_size)
 ### TRAIN REFERENCE MODEL
 #######
 
-opt.save_dir = os.path.join(opt.save_parent, opt.ref_dir)
+opt.save_dir = os.path.join(opt.save_parent, ref_dir)
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
 
-opt.channelInds = opt.channels_pt1
-dp.opts['channelInds'] = opt.channelInds
-opt.n_channels = len(opt.channelInds)
-opt.n_classes = 0
-opt.n_ref = 0
+if not skip1:
+    opt = load_opts(opt)
+
+    opt.channelInds = opt.channels_pt1
+    dp.opts['channelInds'] = opt.channelInds
+    opt.n_channels = len(opt.channelInds)
+    opt.n_classes = 0
+    opt.n_ref = 0
+
+    model_module = importlib.import_module("integrated_cell.models." + opt.train_module_pt1)
+    model = model_module.Model(data_provider = dp,
+                                batch_size = opt.batch_size,
+                                n_channels = opt.n_channels,
+                                n_latent_dim = opt.nlatentdim,
+                                n_classes = opt.n_classes,
+                                n_ref = opt.n_ref,
+                                gpu_ids = opt.gpu_ids,
+                                **opt.kwargs_model)
 
 
-model_module = importlib.import_module("integrated_cell.models." + opt.train_module)
-model = model_module.Model(data_provider = dp,
-                            batch_size = opt.batch_size,
-                            n_channels = opt.n_channels,
-                            n_latent_dim = opt.nlatentdim,
-                            n_classes = opt.n_classes,
-                            n_ref = opt.n_ref,
-                            gpu_ids = opt.gpu_ids,
-                            **opt.kwargs_model)
+    pickle.dump(opt, open('{0}/opt.pkl'.format(opt.save_dir), 'wb'))
+
+    models, optimizers, criterions, logger = model.load(opt.model_name, opt)
+
+    start_iter = len(logger.log['iter'])
+    zAll = list()
 
 
-pickle.dump(opt, open('{0}/opt.pkl'.format(opt.save_dir), 'wb'))
 
-models, optimizers, criterions, logger = model.load(opt.model_name, opt)
+    for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
+        opt.iter = this_iter
 
-start_iter = len(logger.log['iter'])
-zAll = list()
-for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
-    opt.iter = this_iter
+        epoch = np.floor(this_iter/iters_per_epoch)
+        epoch_next = np.floor((this_iter+1)/iters_per_epoch)
 
-    epoch = np.floor(this_iter/iters_per_epoch)
-    epoch_next = np.floor((this_iter+1)/iters_per_epoch)
+        start = time.time()
 
-    start = time.time()
+        errors, zfake = model.iteration(**models, **optimizers, **criterions, data_provider=dp, opt=opt)
 
-    errors, zfake = model.iteration(**models, **optimizers, **criterions, data_provider=dp, opt=opt)
+        zAll.append(zfake)
 
-    zAll.append(zfake)
+        stop = time.time()
+        deltaT = stop-start
 
-    stop = time.time()
-    deltaT = stop-start
+        logger.add([epoch, this_iter] + errors + [deltaT])
 
-    logger.add([epoch, this_iter] + errors + [deltaT])
-
-    if model_utils.maybe_save(model, epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
-        zAll = list()
+        if model_utils.maybe_save(model, epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
+            zAll = list()
 
 #######
 ### DONE TRAINING REFERENCE MODEL
@@ -219,7 +238,12 @@ for this_iter in range(start_iter, math.ceil(iters_per_epoch)*opt.nepochs):
 #######
 
 embeddings_path = opt.save_dir + os.sep + 'embeddings.pkl'
-embeddings = model_utils.load_embeddings(embeddings_path, models['enc'], dp, opt)
+
+
+if skip1:
+    embeddings = model_utils.load_embeddings(embeddings_path, None, dp, opt)
+else:
+    embeddings = model_utils.load_embeddings(embeddings_path, models['enc'], dp, opt)
 
 models = None
 optimizers = None
@@ -234,10 +258,12 @@ dp.embeddings = embeddings
 import types
 dp.get_ref = types.MethodType(get_ref, dp)
 
-opt.save_dir = os.path.join(opt.save_parent, opt.struct_dir)
+opt.save_dir = os.path.join(opt.save_parent, struct_dir)
 if not os.path.exists(opt.save_dir):
     os.makedirs(opt.save_dir)
 
+opt = load_opts(opt)    
+    
 opt.channelInds = opt.channels_pt2
 dp.opts['channelInds'] = opt.channelInds
 
@@ -245,8 +271,7 @@ opt.n_channels = len(opt.channelInds)
 opt.n_classes = dp.get_n_classes()
 opt.n_ref = opt.nlatentdim
 
-model = None
-
+model_module = importlib.import_module("integrated_cell.models." + opt.train_module_pt2)
 model = model_module.Model(data_provider = dp,
                         batch_size = opt.batch_size,
                         n_channels = opt.n_channels,
