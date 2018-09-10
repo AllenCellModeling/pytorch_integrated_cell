@@ -282,7 +282,7 @@ def load_state(model, optimizer, path, gpu_id):
 
 def save_state(model, optimizer, path, gpu_id):
 
-    model.cpu()
+    model = model.cpu()
     optimizer.state = set_gpu_recursive(optimizer.state, -1)
 
     checkpoint = {'model': model.state_dict(),
@@ -290,7 +290,7 @@ def save_state(model, optimizer, path, gpu_id):
 
     torch.save(checkpoint, path)
 
-    model.cuda(gpu_id)
+    model = model.cuda(gpu_id)
     optimizer.state = set_gpu_recursive(optimizer.state, gpu_id)
 
 def save_state_all(enc, dec, encD, decD,
