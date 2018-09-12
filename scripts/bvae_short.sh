@@ -3,10 +3,9 @@ cd ..
 
 python /root/projects/pytorch_integrated_cell/train_model.py \
 	--gpu_ids $1 \
-	--save_dir ./results/bvae_short_test \
+	--save_dir ./results/bvae_short \
         --data_save_path ./results/data.pyt \
 	--lrEnc 2E-4 --lrDec 2E-4 \
-	--lambdaDecD 1E-3 \
 	--model_name vaaegan3D \
 	--train_module bvae \
 	--kwargs_optim '{"betas": [0.9, 0.999]}' \
