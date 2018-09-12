@@ -5,12 +5,12 @@ python /root/projects/pytorch_integrated_cell/train_model.py \
         --data_save_path ./results/data.pyt \
 	--lrEnc 2E-4 --lrDec 2E-4 \
 	--lrEncD 2E-2 --lrDecD 1E-4 \
-	--lambdaEncD 1E-3 --lambdaDecD 1E-3 \
 	--model_name aaegan3Dv6-relu-exp \
-	--train_module aaegan_trainv7 \
+	--train_module aaegan_trainv8 \
 	--kwargs_encD '{"noise_std": 0}' \
         --kwargs_decD '{"noise_std": 2E-1}' \
 	--kwargs_optim '{"betas": [0, 0.9]}' \
+	--kwargs_model '{"lambda_encD_loss": 10, "lambda_decD_loss": 1, "lambda_class_loss": 1000, "lambda_ref_loss": 1000, "provide_decoder_vars": 1}' \
 	--imdir /root/results/ipp/ipp_17_10_25 \
 	--dataProvider DataProvider3Dh5 \
 	--saveStateIter 1 --saveProgressIter 1 \
