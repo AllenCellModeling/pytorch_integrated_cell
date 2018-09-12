@@ -5,12 +5,16 @@ from torch.autograd import Variable
 import numpy as np
 import pdb
 
-
-from integrated_cell.model_utils import *
+from integrated_cell import model_utils
 from integrated_cell.utils import plots as plots
-import integrated_cell.utils as utils
+from integrated_cell import utils
+from integrated_cell import SimpleLogger
 
 from integrated_cell.models import base_model 
+
+import importlib
+import pickle
+import os
 
 # This is the trainer for the Beta-VAE
 
@@ -44,51 +48,76 @@ def kl_divergence(mu, logvar):
 
 class Model(base_model.Model):
     def __init__(self, data_provider, 
-                 n_channels, 
-                 batch_size, 
+                 n_epochs, 
+                 n_channels,
                  n_latent_dim, 
                  n_classes, 
                  n_ref, 
                  gpu_ids, 
-                 beta = 1, 
-                 c_max = 25, 
-                 c_iters_max = 1.2E5, 
-                 gamma = 1000, 
-                 objective = 'H', 
-                 provide_decoder_vars = 'False'):
-        super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
+                 save_dir,
+                 save_state_iter, 
+                 save_progress_iter,
+                 model_name,
+                 kwargs_enc,
+                 kwargs_dec, 
+                 critRecon,
+                 optimizer,
+                 objective = 'B',
+                 beta = 1,
+                 c_max = 25,
+                 gamma = 1000,
+                 c_iters_max = 1.25E5,
+                 provide_decoder_vars = True,
+                 **kwargs):
         
-        self.provide_decoder_vars = provide_decoder_vars
+        super(Model, self).__init__(data_provider, 
+                                    n_epochs, 
+                                    n_channels, 
+                                    n_latent_dim, 
+                                    n_classes, 
+                                    n_ref, 
+                                    gpu_ids, 
+                                    save_dir = save_dir,
+                                    save_state_iter = save_state_iter, 
+                                    save_progress_iter = save_progress_iter,
+                                    **kwargs)
         
+        self.initialize(model_name, kwargs_enc, kwargs_dec, critRecon, optimizer)
+        
+
         if objective == 'H':
             self.beta = beta
         elif objective == 'B':
             self.c_max = c_max
             self.gamma = gamma
             self.c_iters_max = c_iters_max
-            
+
+        self.provide_decoder_vars = provide_decoder_vars
         self.objective = objective
 
         
-    def iteration(self,
-                  enc, dec,
-                  optEnc, optDec,
-                  critRecon, critZClass, critZRef,
-                  data_provider, opt):
+    def iteration(self):
         
         gpu_id = self.gpu_ids[0]
         
-        rand_inds_encD = np.random.permutation(opt.ndat)
-        inds = rand_inds_encD[0:self.batch_size]
-
-        self.x.data.copy_(data_provider.get_images(inds,'train'))
+        enc, dec = self.enc, self.dec
+        optEnc, optDec = self.optEnc, self.optDec
+        critRecon, critZClass, critZRef = self.critRecon, self.critZClass, self.critZRef
+        
+        
+        x, classes, ref = self.data_provider.get_sample()
+        
+        
+        self.x.data.copy_(x)
         x = self.x
         
+        classes = classes.type_as(x).long()
+        
         if self.n_classes > 0:
-            classes = data_provider.get_classes(inds,'train').type_as(x).long()
+            classes = classes.type_as(x).long()
 
         if self.n_ref > 0:
-            ref = data_provider.get_ref(inds,'train').type_as(x)
+            ref = ref.type_as(x)
 
         #####################
         ### train autoencoder
@@ -111,7 +140,7 @@ class Model(base_model.Model):
             classLoss = classLoss.data[0]
             
             if self.provide_decoder_vars:
-                zAll[c] = torch.log(utils.index_to_onehot(classes, data_provider.get_n_classes()) + 1E-8)
+                zAll[c] = torch.log(utils.index_to_onehot(classes, self.data_provider.get_n_classes()) + 1E-8)
             
             c += 1
             
@@ -165,29 +194,34 @@ class Model(base_model.Model):
         return errors, zLatent
 
 
-    def load(self, model_name, opt):
+    def initialize(self, model_name, kwargs_enc, kwargs_dec, critRecon, optimizer):
 
+        gpu_id = self.gpu_ids[0]
+        
         model_provider = importlib.import_module("integrated_cell.networks." + model_name)
 
-        enc = model_provider.Enc(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **opt.kwargs_enc)
-        dec = model_provider.Dec(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **opt.kwargs_dec)
+        enc = model_provider.Enc(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **kwargs_enc)
+        dec = model_provider.Dec(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **kwargs_dec)
        
-        enc.apply(weights_init)
-        dec.apply(weights_init)
+        enc.apply(model_utils.weights_init)
+        dec.apply(model_utils.weights_init)
        
-        gpu_id = self.gpu_ids[0]
-
         enc.cuda(gpu_id)
         dec.cuda(gpu_id)
        
-        if opt.optimizer == 'RMSprop':
-            optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
-            optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
-        elif opt.optimizer == 'adam':
+        if optimizer == 'RMSprop':
+            optEnc = optim.RMSprop(enc.parameters(), lr=self.lrEnc)
+            optDec = optim.RMSprop(dec.parameters(), lr=self.lrDec)
+        elif optimizer == 'adam':
 
-            optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, **opt.kwargs_optim)
-            optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, **opt.kwargs_optim)
+            optEnc = optim.Adam(enc.parameters(), lr=self.lrEnc, **self.kwargs_optim)
+            optDec = optim.Adam(dec.parameters(), lr=self.lrDec, **self.kwargs_optim)
 
+        self.enc = enc
+        self.dec = dec
+        self.optEnc = optEnc
+        self.optDec = optDec
+            
         columns = ('epoch', 'iter', 'reconLoss',)
         print_str = '[%d][%d] reconLoss: %.6f'
 
@@ -202,61 +236,33 @@ class Model(base_model.Model):
         columns += ('kldLoss', 'time')
         print_str += ' kld: %.6f time: %.2f'
 
-        logger = SimpleLogger(columns,  print_str)
+        self.logger = SimpleLogger(columns,  print_str)
 
-        logger_path = '{0}/logger.pkl'.format(opt.save_dir)
-        if os.path.exists(logger_path):
-
-            print('Loading from ' + opt.save_dir)
-
-            logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
-            
-            this_iter = len(logger)
-            
-            load_state(enc, optEnc, '{0}/enc_{1}.pth'.format(opt.save_dir, this_iter), gpu_id)
-            load_state(dec, optDec, '{0}/dec_{1}.pth'.format(opt.save_dir, this_iter), gpu_id)
-
-        models = dict()
-        models['enc'] = enc
-        models['dec'] = dec
-
-        optimizers = dict()
-        optimizers['optEnc'] = optEnc
-        optimizers['optDec'] = optDec
-
-        criterions = dict()
-        criterions['critRecon'] = eval('nn.' + opt.critRecon + '(size_average=False)')
-        criterions['critZClass'] = nn.NLLLoss(size_average=False)
-        criterions['critZRef'] = nn.MSELoss(size_average=False)
-
-        if opt.latentDistribution == 'uniform':
-            from integrated_cell.model_utils import sampleUniform as latentSample
-        elif opt.latentDistribution == 'gaussian':
-            from integrated_cell.model_utils import sampleGaussian as latentSample
-
-        self.latentSample = latentSample
+        self.critRecon = eval('nn.' + critRecon + '(size_average=False)')
+        self.critZClass = nn.NLLLoss(size_average=False)
+        self.critZRef = nn.MSELoss(size_average=False)
         
-        self.models = models
-        self.optimizers = optimizers
-        self.criterions = criterions
-        self.logger = logger
-        self.opt = opt
         
-        return models, optimizers, criterions, logger
+    def load(self, save_dir):
+        gpu_id = self.gpu_ids[0]
+        
+        if os.path.exists('{0}/enc.pth'.format(save_dir)):
+            print('Loading from ' + save_dir)
 
-    def save(self, enc, dec,
-                   optEnc, optDec,
-                   logger, zAll, opt):
+            self.logger = pickle.load(open( '{0}/logger.pkl'.format(save_dir), "rb" ))
+            
+            model_utils.load_state(self.enc, self.optEnc, '{0}/enc.pth'.format(save_dir), gpu_id)
+            model_utils.load_state(self.dec, self.optDec, '{0}/dec.pth'.format(save_dir), gpu_id)
+
+    
+    def save(self, save_dir):
     #         for saving and loading see:
     #         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
 
         gpu_id = self.gpu_ids[0]
 
-        pickle.dump(zAll, open('{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
-        pickle.dump(logger, open('{0}/logger.pkl'.format(opt.save_dir), 'wb'))
-        
+        model_utils.save_state(self.enc, self.optEnc, '{0}/enc.pth'.format(save_dir), gpu_id)
+        model_utils.save_state(self.dec, self.optDec, '{0}/dec.pth'.format(save_dir), gpu_id)
 
-        save_state(enc, optEnc, '{0}/enc_{1}.pth'.format(opt.save_dir, int(len(self.logger))), gpu_id)
-        save_state(dec, optDec, '{0}/dec_{1}.pth'.format(opt.save_dir, int(len(self.logger))), gpu_id)
-        pickle.dump(zAll, open('{0}/embedding_{1}.pkl'.format(opt.save_dir, int(len(self.logger))), 'wb'))
+        pickle.dump(self.logger, open('{0}/logger.pkl'.format(save_dir), 'wb'))
 

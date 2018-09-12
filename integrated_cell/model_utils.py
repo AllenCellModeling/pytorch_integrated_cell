@@ -15,6 +15,8 @@ from integrated_cell import SimpleLogger
 from integrated_cell import imgtoprojection
 from integrated_cell import models
 
+
+
 import matplotlib as mpl
 mpl.use('Agg')
 
@@ -109,8 +111,10 @@ def get_latent_embeddings(enc, dp, opt):
 
         for i in range(0, len(data_iter)):
             print(str(i) + '/' + str(len(data_iter)))
-            x = Variable(dp.get_images(data_iter[i], mode).cuda(gpu_id), volatile=True)
-            zAll = enc(x)
+            x = dp.get_images(data_iter[i], mode).cuda(gpu_id)
+            
+            with torch.no_grad():
+                zAll = enc(x)
 
             embeddings.index_copy_(0, torch.LongTensor(data_iter[i]), zAll[-1].data[:].cpu())
 
@@ -118,16 +122,17 @@ def get_latent_embeddings(enc, dp, opt):
 
     return embedding
 
-def load_data_provider(data_path, im_dir, dp_module, **kwargs):
+def load_data_provider(data_path, batch_size, im_dir, dp_module, n_dat = -1, **kwargs):
     DP = importlib.import_module("integrated_cell.data_providers." + dp_module)
 
     if os.path.exists(data_path):
         dp = torch.load(data_path)
         dp.image_parent = im_dir
     else:
-        dp = DP.DataProvider(im_dir, **kwargs)
+        dp = DP.DataProvider(im_dir, batch_size = batch_size, n_dat = n_dat, **kwargs)
         torch.save(dp, data_path)
 
+    dp.batch_size = batch_size
     return dp
 
 
@@ -174,102 +179,97 @@ def fix_data_paths(parent_dir, new_im_dir = None, data_save_path = None):
     pass
 
 
-def load_model(model_name, opt):
+# def load_model(model_name, opt):
 
-    model_provider = importlib.import_module("integrated_cell.models." + model_name)
+#     model_provider = importlib.import_module("integrated_cell.models." + model_name)
 
-    enc = model_provider.Enc(opt.nlatentdim, opt.nClasses, opt.nRef, opt.nch, opt.gpu_ids, **opt.kwargs_enc)
-    dec = model_provider.Dec(opt.nlatentdim, opt.nClasses, opt.nRef, opt.nch, opt.gpu_ids, **opt.kwargs_dec)
-    encD = model_provider.EncD(opt.nlatentdim, opt.nClasses+1, opt.gpu_ids, **opt.kwargs_encD)
-    decD = model_provider.DecD(opt.nClasses+1, opt.nch, opt.gpu_ids, **opt.kwargs_decD)
+#     enc = model_provider.Enc(opt.nlatentdim, opt.nClasses, opt.nRef, opt.nch, opt.gpu_ids, **opt.kwargs_enc)
+#     dec = model_provider.Dec(opt.nlatentdim, opt.nClasses, opt.nRef, opt.nch, opt.gpu_ids, **opt.kwargs_dec)
+#     encD = model_provider.EncD(opt.nlatentdim, opt.nClasses+1, opt.gpu_ids, **opt.kwargs_encD)
+#     decD = model_provider.DecD(opt.nClasses+1, opt.nch, opt.gpu_ids, **opt.kwargs_decD)
 
-    enc.apply(weights_init)
-    dec.apply(weights_init)
-    encD.apply(weights_init)
-    decD.apply(weights_init)
+#     enc.apply(weights_init)
+#     dec.apply(weights_init)
+#     encD.apply(weights_init)
+#     decD.apply(weights_init)
 
-    gpu_id = opt.gpu_ids[0]
+#     gpu_id = opt.gpu_ids[0]
 
-    enc.cuda(gpu_id)
-    dec.cuda(gpu_id)
-    encD.cuda(gpu_id)
-    decD.cuda(gpu_id)
+#     enc.cuda(gpu_id)
+#     dec.cuda(gpu_id)
+#     encD.cuda(gpu_id)
+#     decD.cuda(gpu_id)
 
-    if opt.optimizer == 'RMSprop':
-        optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
-        optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
-        optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
-        optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
-    elif opt.optimizer == 'adam':
-#         optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, betas=(0.5, 0.999))
-#         optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, betas=(0.5, 0.999))
-#         optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, betas=(0.5, 0.999))
-#         optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, betas=(0.5, 0.999))
+#     if opt.optimizer == 'RMSprop':
+#         optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
+#         optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
+#         optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
+#         optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
+#     elif opt.optimizer == 'adam':
+#         optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, **opt.kwargs_optim)
+#         optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, **opt.kwargs_optim)
+#         optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, **opt.kwargs_optim)
+#         optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, **opt.kwargs_optim)
 
-        optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, **opt.kwargs_optim)
-        optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, **opt.kwargs_optim)
-        optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, **opt.kwargs_optim)
-        optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, **opt.kwargs_optim)
+#     columns = ('epoch', 'iter', 'reconLoss',)
+#     print_str = '[%d][%d] reconLoss: %.6f'
 
-    columns = ('epoch', 'iter', 'reconLoss',)
-    print_str = '[%d][%d] reconLoss: %.6f'
+#     if opt.nClasses > 0:
+#         columns += ('classLoss',)
+#         print_str += ' classLoss: %.6f'
 
-    if opt.nClasses > 0:
-        columns += ('classLoss',)
-        print_str += ' classLoss: %.6f'
+#     if opt.nRef > 0:
+#         columns += ('refLoss',)
+#         print_str += ' refLoss: %.6f'
 
-    if opt.nRef > 0:
-        columns += ('refLoss',)
-        print_str += ' refLoss: %.6f'
+#     columns += ('minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time')
+#     print_str += ' mmEncD: %.6f encD: %.6f  mmDecD: %.6f decD: %.6f time: %.2f'
 
-    columns += ('minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time')
-    print_str += ' mmEncD: %.6f encD: %.6f  mmDecD: %.6f decD: %.6f time: %.2f'
+#     logger = SimpleLogger(columns,  print_str)
 
-    logger = SimpleLogger(columns,  print_str)
+#     if os.path.exists('{0}/enc.pth'.format(opt.save_dir)):
+#         print('Loading from ' + opt.save_dir)
 
-    if os.path.exists('{0}/enc.pth'.format(opt.save_dir)):
-        print('Loading from ' + opt.save_dir)
+#         load_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
+#         load_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
+#         load_state(encD, optEncD, '{0}/encD.pth'.format(opt.save_dir), gpu_id)
+#         load_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
 
-        load_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
-        load_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
-        load_state(encD, optEncD, '{0}/encD.pth'.format(opt.save_dir), gpu_id)
-        load_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
+#         logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
 
-        logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
+#         this_epoch = max(logger.log['epoch']) + 1
+#         iteration = max(logger.log['iter'])
 
-        this_epoch = max(logger.log['epoch']) + 1
-        iteration = max(logger.log['iter'])
+#     models = {'enc': enc, 'dec': dec, 'encD': encD, 'decD': decD}
 
-    models = {'enc': enc, 'dec': dec, 'encD': encD, 'decD': decD}
+#     optimizers = dict()
+#     optimizers['optEnc'] = optEnc
+#     optimizers['optDec'] = optDec
+#     optimizers['optEncD'] = optEncD
+#     optimizers['optDecD'] = optDecD
 
-    optimizers = dict()
-    optimizers['optEnc'] = optEnc
-    optimizers['optDec'] = optDec
-    optimizers['optEncD'] = optEncD
-    optimizers['optDecD'] = optDecD
-
-    criterions = dict()
-    criterions['critRecon'] = eval('nn.' + opt.critRecon + '()')
-    criterions['critZClass'] = nn.NLLLoss()
-    criterions['critZRef'] = nn.MSELoss()
+#     criterions = dict()
+#     criterions['critRecon'] = eval('nn.' + opt.critRecon + '()')
+#     criterions['critZClass'] = nn.NLLLoss()
+#     criterions['critZRef'] = nn.MSELoss()
 
 
-    if opt.nClasses > 0:
-        criterions['critDecD'] = nn.CrossEntropyLoss()
-        criterions['critEncD'] = nn.CrossEntropyLoss()
-    else:
-        criterions['critEncD'] = nn.BCEWithLogitsLoss()
-        criterions['critDecD'] = nn.BCEWithLogitsLoss()
+#     if opt.nClasses > 0:
+#         criterions['critDecD'] = nn.CrossEntropyLoss()
+#         criterions['critEncD'] = nn.CrossEntropyLoss()
+#     else:
+#         criterions['critEncD'] = nn.BCEWithLogitsLoss()
+#         criterions['critDecD'] = nn.BCEWithLogitsLoss()
 
-    if opt.latentDistribution == 'uniform':
-        from integrated_cell.model_utils import sampleUniform as latentSample
+#     if opt.latentDistribution == 'uniform':
+#         from integrated_cell.model_utils import sampleUniform as latentSample
 
-    elif opt.latentDistribution == 'gaussian':
-        from integrated_cell.model_utils import sampleGaussian as latentSample
+#     elif opt.latentDistribution == 'gaussian':
+#         from integrated_cell.model_utils import sampleGaussian as latentSample
 
-    opt.latentSample = latentSample
+#     opt.latentSample = latentSample
 
-    return models, optimizers, criterions, logger, opt
+#     return models, optimizers, criterions, logger, opt
 
 def load_state(model, optimizer, path, gpu_id):
     checkpoint = torch.load(path)
@@ -293,173 +293,173 @@ def save_state(model, optimizer, path, gpu_id):
     model = model.cuda(gpu_id)
     optimizer.state = set_gpu_recursive(optimizer.state, gpu_id)
 
-def save_state_all(enc, dec, encD, decD,
-               optEnc, optDec, optEncD, optDecD,
-               logger, zAll, opt):
-#         for saving and loading see:
-#         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
+# def save_state_all(enc, dec, encD, decD,
+#                optEnc, optDec, optEncD, optDecD,
+#                logger, zAll, opt):
+# #         for saving and loading see:
+# #         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
 
-    gpu_id = opt.gpu_ids[0]
-
-
-    save_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
-    save_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
-    save_state(encD, optEncD, '{0}/encD.pth'.format(opt.save_dir), gpu_id)
-    save_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
-
-    pickle.dump(zAll, open('{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
-    pickle.dump(logger, open('{0}/logger.pkl'.format(opt.save_dir), 'wb'))
+#     gpu_id = opt.gpu_ids[0]
 
 
-def save_progress(enc, dec, dataProvider, logger, embedding, opt):
+#     save_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
+#     save_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
+#     save_state(encD, optEncD, '{0}/encD.pth'.format(opt.save_dir), gpu_id)
+#     save_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
 
-    gpu_id = opt.gpu_ids[0]
-
-    epoch = max(logger.log['epoch'])
-
-    enc.train(False)
-    dec.train(False)
-
-#     pdb.set_trace()
-    train_classes = dataProvider.get_classes(np.arange(0, dataProvider.get_n_dat('train')), 'train')
-    _, train_inds = np.unique(train_classes.numpy(), return_index=True)
-
-    x = Variable(dataProvider.get_images(train_inds,'train').cuda(gpu_id), volatile=True)
-
-    xHat = dec(enc(x))
-    imgX = tensor2img(x.data.cpu())
-    imgXHat = tensor2img(xHat.data.cpu())
-    imgTrainOut = np.concatenate((imgX, imgXHat), 0)
-
-    test_classes = dataProvider.get_classes(np.arange(0, dataProvider.get_n_dat('test')), 'test')
-    _, test_inds = np.unique(test_classes.numpy(), return_index=True)
-
-    x = Variable(dataProvider.get_images(test_inds,'test').cuda(gpu_id), volatile=True)
-    xHat = dec(enc(x))
+#     pickle.dump(zAll, open('{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
+#     pickle.dump(logger, open('{0}/logger.pkl'.format(opt.save_dir), 'wb'))
 
 
-    z = list()
-    if opt.nClasses > 0:
-        class_var = Variable(torch.Tensor(dataProvider.get_classes(test_inds, 'test', 'one_hot').float()).cuda(gpu_id), volatile=True)
-        class_var = (class_var-1) * 25
-        z.append(class_var)
+# def save_progress(enc, dec, dataProvider, logger, embedding, opt):
 
-    if opt.nRef > 0:
-        ref_var = Variable(torch.Tensor(dataProvider.get_n_classes(), opt.nRef).normal_(0,1).cuda(gpu_id), volatile=True)
-        z.append(ref_var)
+#     gpu_id = opt.gpu_ids[0]
 
-    loc_var = Variable(torch.Tensor(dataProvider.get_n_classes(), opt.nlatentdim).normal_(0,1).cuda(gpu_id), volatile=True)
-    z.append(loc_var)
+#     epoch = max(logger.log['epoch'])
 
-    x_z = dec(z)
+#     enc.train(False)
+#     dec.train(False)
 
-    imgX = tensor2img(x.data.cpu())
-    imgXHat = tensor2img(xHat.data.cpu())
-    imgX_z = tensor2img(x_z.data.cpu())
-    imgTestOut = np.concatenate((imgX, imgXHat, imgX_z), 0)
+# #     pdb.set_trace()
+#     train_classes = dataProvider.get_classes(np.arange(0, dataProvider.get_n_dat('train')), 'train')
+#     _, train_inds = np.unique(train_classes.numpy(), return_index=True)
 
-    imgOut = np.concatenate((imgTrainOut, imgTestOut))
+#     x = Variable(dataProvider.get_images(train_inds,'train').cuda(gpu_id), volatile=True)
 
-    scipy.misc.imsave('{0}/progress_{1}.png'.format(opt.save_dir, int(epoch)), imgOut)
+#     xHat = dec(enc(x))
+#     imgX = tensor2img(x.data.cpu())
+#     imgXHat = tensor2img(xHat.data.cpu())
+#     imgTrainOut = np.concatenate((imgX, imgXHat), 0)
 
-    enc.train(True)
-    dec.train(True)
+#     test_classes = dataProvider.get_classes(np.arange(0, dataProvider.get_n_dat('test')), 'test')
+#     _, test_inds = np.unique(test_classes.numpy(), return_index=True)
 
-    # pdb.set_trace()
-    # zAll = torch.cat(zAll,0).cpu().numpy()
-
-    pickle.dump(embedding, open('{0}/embedding_tmp.pkl'.format(opt.save_dir), 'wb'))
-    pickle.dump(logger, open('{0}/logger_tmp.pkl'.format(opt.save_dir), 'wb'))
+#     x = Variable(dataProvider.get_images(test_inds,'test').cuda(gpu_id), volatile=True)
+#     xHat = dec(enc(x))
 
 
+#     z = list()
+#     if opt.nClasses > 0:
+#         class_var = Variable(torch.Tensor(dataProvider.get_classes(test_inds, 'test', 'one_hot').float()).cuda(gpu_id), volatile=True)
+#         class_var = (class_var-1) * 25
+#         z.append(class_var)
 
-    ### History
-    plt.figure()
+#     if opt.nRef > 0:
+#         ref_var = Variable(torch.Tensor(dataProvider.get_n_classes(), opt.nRef).normal_(0,1).cuda(gpu_id), volatile=True)
+#         z.append(ref_var)
 
-    for i in range(2, len(logger.fields)-1):
-        field = logger.fields[i]
-        plt.plot(logger.log['iter'], logger.log[field], label=field)
+#     loc_var = Variable(torch.Tensor(dataProvider.get_n_classes(), opt.nlatentdim).normal_(0,1).cuda(gpu_id), volatile=True)
+#     z.append(loc_var)
 
-    plt.legend()
-    plt.title('History')
-    plt.xlabel('iteration')
-    plt.ylabel('loss')
-    plt.savefig('{0}/history.png'.format(opt.save_dir), bbox_inches='tight')
-    plt.close()
+#     x_z = dec(z)
 
-    ### Short History
-    history = int(len(logger.log['epoch'])/2)
+#     imgX = tensor2img(x.data.cpu())
+#     imgXHat = tensor2img(xHat.data.cpu())
+#     imgX_z = tensor2img(x_z.data.cpu())
+#     imgTestOut = np.concatenate((imgX, imgXHat, imgX_z), 0)
 
-    if history > 10000:
-        history = 10000
+#     imgOut = np.concatenate((imgTrainOut, imgTestOut))
 
-    ydat = [logger.log['encDLoss'], logger.log['minimaxEncDLoss'], logger.log['decDLoss'], logger.log['minimaxDecDLoss']]
-    ymin = np.min(ydat.append(logger.log['reconLoss']))
-    ymax = np.max(ydat)
-    plt.ylim([ymin, ymax])
+#     scipy.misc.imsave('{0}/progress_{1}.png'.format(opt.save_dir, int(epoch)), imgOut)
 
-    x = logger.log['iter'][-history:]
-    y = logger.log['reconLoss'][-history:]
+#     enc.train(True)
+#     dec.train(True)
 
-    epochs = np.floor(np.array(logger.log['epoch'][-history:]))
-    losses = np.array(logger.log['reconLoss'][-history:])
-    iters = np.array(logger.log['iter'][-history:])
-    uepochs = np.unique(epochs)
+#     # pdb.set_trace()
+#     # zAll = torch.cat(zAll,0).cpu().numpy()
 
-    epoch_losses = np.zeros(len(uepochs))
-    epoch_iters = np.zeros(len(uepochs))
-    i = 0
-    for uepoch in uepochs:
-        inds = np.equal(epochs, uepoch)
-        loss = np.mean(losses[inds])
-        epoch_losses[i] = loss
-        epoch_iters[i] = np.mean(iters[inds])
-        i+=1
+#     pickle.dump(embedding, open('{0}/embedding_tmp.pkl'.format(opt.save_dir), 'wb'))
+#     pickle.dump(logger, open('{0}/logger_tmp.pkl'.format(opt.save_dir), 'wb'))
 
-    mval = np.mean(losses)
 
-    plt.figure()
-    plt.plot(x, y, label='reconLoss')
-    plt.plot(epoch_iters, epoch_losses, color='darkorange', label='epoch avg')
-    plt.plot([np.min(iters), np.max(iters)], [mval, mval], color='darkorange', linestyle=':', label='window avg')
 
-    plt.legend()
-    plt.title('Short history')
-    plt.xlabel('iteration')
-    plt.ylabel('loss')
-    plt.savefig('{0}/history_short.png'.format(opt.save_dir), bbox_inches='tight')
-    plt.close()
+#     ### History
+#     plt.figure()
 
-    ### Embedding figure
-    plt.figure()
-    colors = plt.get_cmap('plasma')(np.linspace(0, 1, embedding.shape[0]))
-    plt.scatter(embedding[:,0], embedding[:,1], s = 2, color = colors)
-    plt.xlim([-4, 4])
-    plt.ylim([-4, 4])
-    plt.axis('equal')
-    plt.xlabel('z1')
-    plt.ylabel('z2')
-    plt.title('latent space embedding')
-    plt.savefig('{0}/embedding.png'.format(opt.save_dir), bbox_inches='tight')
-    plt.close()
+#     for i in range(2, len(logger.fields)-1):
+#         field = logger.fields[i]
+#         plt.plot(logger.log['iter'], logger.log[field], label=field)
 
-    xHat = None
-    x = None
+#     plt.legend()
+#     plt.title('History')
+#     plt.xlabel('iteration')
+#     plt.ylabel('loss')
+#     plt.savefig('{0}/history.png'.format(opt.save_dir), bbox_inches='tight')
+#     plt.close()
 
-def maybe_save(model, epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
-    saved = False
-    if epoch != epoch_next and ((epoch_next % opt.saveProgressIter) == 0 or (epoch_next % opt.saveStateIter) == 0):
+#     ### Short History
+#     history = int(len(logger.log['epoch'])/2)
 
-        zAll = torch.cat(zAll,0).cpu().numpy()
+#     if history > 10000:
+#         history = 10000
 
-        if (epoch_next % opt.saveProgressIter) == 0:
-            print('saving progress')
-            model.save_progress(models['enc'], models['dec'], dp, logger, zAll, opt)
+#     ydat = [logger.log['encDLoss'], logger.log['minimaxEncDLoss'], logger.log['decDLoss'], logger.log['minimaxDecDLoss']]
+#     ymin = np.min(ydat.append(logger.log['reconLoss']))
+#     ymax = np.max(ydat)
+#     plt.ylim([ymin, ymax])
 
-        if (epoch_next % opt.saveStateIter) == 0:
-            print('saving state')
-            model.save(**models, **optimizers, logger=logger, zAll=zAll, opt=opt)
+#     x = logger.log['iter'][-history:]
+#     y = logger.log['reconLoss'][-history:]
 
-        saved = True
+#     epochs = np.floor(np.array(logger.log['epoch'][-history:]))
+#     losses = np.array(logger.log['reconLoss'][-history:])
+#     iters = np.array(logger.log['iter'][-history:])
+#     uepochs = np.unique(epochs)
 
-    return saved
+#     epoch_losses = np.zeros(len(uepochs))
+#     epoch_iters = np.zeros(len(uepochs))
+#     i = 0
+#     for uepoch in uepochs:
+#         inds = np.equal(epochs, uepoch)
+#         loss = np.mean(losses[inds])
+#         epoch_losses[i] = loss
+#         epoch_iters[i] = np.mean(iters[inds])
+#         i+=1
+
+#     mval = np.mean(losses)
+
+#     plt.figure()
+#     plt.plot(x, y, label='reconLoss')
+#     plt.plot(epoch_iters, epoch_losses, color='darkorange', label='epoch avg')
+#     plt.plot([np.min(iters), np.max(iters)], [mval, mval], color='darkorange', linestyle=':', label='window avg')
+
+#     plt.legend()
+#     plt.title('Short history')
+#     plt.xlabel('iteration')
+#     plt.ylabel('loss')
+#     plt.savefig('{0}/history_short.png'.format(opt.save_dir), bbox_inches='tight')
+#     plt.close()
+
+#     ### Embedding figure
+#     plt.figure()
+#     colors = plt.get_cmap('plasma')(np.linspace(0, 1, embedding.shape[0]))
+#     plt.scatter(embedding[:,0], embedding[:,1], s = 2, color = colors)
+#     plt.xlim([-4, 4])
+#     plt.ylim([-4, 4])
+#     plt.axis('equal')
+#     plt.xlabel('z1')
+#     plt.ylabel('z2')
+#     plt.title('latent space embedding')
+#     plt.savefig('{0}/embedding.png'.format(opt.save_dir), bbox_inches='tight')
+#     plt.close()
+
+#     xHat = None
+#     x = None
+
+# def maybe_save(model, epoch, epoch_next, models, optimizers, logger, zAll, dp, opt):
+#     saved = False
+#     if epoch != epoch_next and ((epoch_next % opt.saveProgressIter) == 0 or (epoch_next % opt.saveStateIter) == 0):
+
+#         zAll = torch.cat(zAll,0).cpu().numpy()
+
+#         if (epoch_next % opt.saveProgressIter) == 0:
+#             print('saving progress')
+#             model.save_progress(models['enc'], models['dec'], dp, logger, zAll, opt)
+
+#         if (epoch_next % opt.saveStateIter) == 0:
+#             print('saving state')
+#             model.save(**models, **optimizers, logger=logger, zAll=zAll, opt=opt)
+
+#         saved = True
+
+#     return saved

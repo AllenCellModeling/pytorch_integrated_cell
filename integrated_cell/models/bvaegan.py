@@ -6,38 +6,67 @@ import numpy as np
 import pdb
 
 
-from integrated_cell.model_utils import *
+from integrated_cell import model_utils
 from integrated_cell.utils import plots as plots
 import integrated_cell.utils as utils
 
 # This is the trainer for the Beta-VAE
 
-
+from integrated_cell import utils
 from integrated_cell.models import bvae
 from integrated_cell.models import base_model 
+from integrated_cell import SimpleLogger
+
+import os
+import importlib
+import pickle
+
 
 
 class Model(base_model.Model):
-    def __init__(self, data_provider, 
-                 n_channels, 
-                 batch_size, 
-                 n_latent_dim, n_classes, n_ref, 
+    def __init__(self, data_provider,
+                 n_epochs, 
+                 n_channels,
+                 n_latent_dim, 
+                 n_classes, 
+                 n_ref, 
                  gpu_ids, 
+                 save_dir,
+                 save_state_iter, 
+                 save_progress_iter,
+                 model_name,
+                 kwargs_enc,
+                 kwargs_dec,
+                 kwargs_decD,
+                 critRecon,
+                 optimizer, 
                  beta = 1, 
                  c_max = 25, 
                  c_iters_max = 1.2E5, 
                  gamma = 1000, 
                  objective = 'H', 
-                 lambda_encD_loss = 5E-3,
                  lambda_decD_loss = 1E-4,
                  lambda_ref_loss = 1,
                  lambda_class_loss = 1,
                  size_average_losses = False,
-                 provide_decoder_vars = False):
+                 provide_decoder_vars = False,
+                 **kwargs):
         
-        super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
+        super(Model, self).__init__(data_provider, 
+                            n_epochs, 
+                            n_channels, 
+                            n_latent_dim, 
+                            n_classes, 
+                            n_ref, 
+                            gpu_ids, 
+                            save_dir = save_dir,
+                            save_state_iter = save_state_iter, 
+                            save_progress_iter = save_progress_iter,
+                            **kwargs)
         
-        self.provide_decoder_vars = provide_decoder_vars
+        self.size_average_losses = size_average_losses
+        
+        self.initialize(model_name, kwargs_enc, kwargs_dec, kwargs_decD, critRecon, optimizer)
         
         if objective == 'H':
             self.beta = beta
@@ -45,23 +74,23 @@ class Model(base_model.Model):
             self.c_max = c_max
             self.gamma = gamma
             self.c_iters_max = c_iters_max
-            
+
+        self.provide_decoder_vars = provide_decoder_vars
         self.objective = objective
         
-        self.lambda_encD_loss = lambda_encD_loss
         self.lambda_decD_loss = lambda_decD_loss
         self.lambda_ref_loss = lambda_ref_loss
         self.lambda_class_loss = lambda_class_loss
         
-        self.size_average_losses = size_average_losses
+        
 
-    def iteration(self,
-                  enc, dec, decD,
-                  optEnc, optDec, optDecD,
-                  critRecon, critZClass, critZRef, critDecD,
-                  data_provider, opt):
+    def iteration(self):
         gpu_id = self.gpu_ids[0]
 
+        enc, dec, decD = self.enc, self.dec, self.decD
+        optEnc, optDec, optDecD = self.optEnc, self.optDec, self.optDecD
+        critRecon, critZClass, critZRef, critDecD = self.critRecon, self.critZClass, self.critZRef, self.critDecD
+        
         #do this just incase anything upstream changes these values
         enc.train(True)
         dec.train(True)
@@ -69,11 +98,9 @@ class Model(base_model.Model):
 
         ###update the discriminator
         #maximize log(AdvZ(z)) + log(1 - AdvZ(Enc(x)))
-
-        rand_inds_encD = np.random.permutation(opt.ndat)
-        inds = rand_inds_encD[0:self.batch_size]
-
-        self.x.data.copy_(data_provider.get_images(inds,'train'))
+        x, classes, ref = self.data_provider.get_sample()
+        
+        self.x.data.copy_(x)
         x = self.x
 
         y_xFake = self.y_xFake
@@ -83,13 +110,13 @@ class Model(base_model.Model):
             y_xReal = self.y_xReal
             y_zFake = self.y_zFake
         else:
-            classes = data_provider.get_classes(inds,'train').type_as(x).long()
+            classes = classes.type_as(x).long()
 
             y_xReal = classes
             y_zFake = classes
 
         if self.n_ref > 0:
-            ref = data_provider.get_ref(inds,'train').type_as(x)
+            ref = ref.type_as(x)
 
         for p in decD.parameters():
             p.requires_grad = True
@@ -178,7 +205,7 @@ class Model(base_model.Model):
             classLoss = classLoss.data[0]
             
             if self.provide_decoder_vars:
-                zAll[c] = torch.log(utils.index_to_onehot(classes, data_provider.get_n_classes()) + 1E-8)
+                zAll[c] = torch.log(utils.index_to_onehot(classes, self.n_classes) + 1E-8)
             
             c += 1
             
@@ -237,7 +264,7 @@ class Model(base_model.Model):
         if self.n_classes > 0:
             shuffle_inds = np.arange(0, zAll[0].size(0))
 
-            classes_one_hot = Variable((data_provider.get_classes(inds,'train', 'one hot') - 1) * 25).type_as(zAll[c].data).cuda(self.gpu_ids[0])
+            classes_one_hot = ((utils.index_to_onehot(classes, self.n_classes) - 1) * 25).type_as(zAll[c].data).cuda(self.gpu_ids[0])
 
             np.random.shuffle(shuffle_inds)
             zAll[c] = classes_one_hot[shuffle_inds,:]
@@ -278,17 +305,17 @@ class Model(base_model.Model):
         return errors, zLatent
 
 
-    def load(self, model_name, opt):
+    def initialize(self, model_name, kwargs_enc, kwargs_dec, kwargs_decD, critRecon, optimizer):
 
         model_provider = importlib.import_module("integrated_cell.networks." + model_name)
 
-        enc = model_provider.Enc(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **opt.kwargs_enc)
-        dec = model_provider.Dec(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **opt.kwargs_dec)
-        decD = model_provider.DecD(self.n_classes+1, self.n_channels, self.gpu_ids, **opt.kwargs_decD)
+        enc = model_provider.Enc(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **kwargs_enc)
+        dec = model_provider.Dec(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **kwargs_dec)
+        decD = model_provider.DecD(self.n_classes+1, self.n_channels, self.gpu_ids, **kwargs_decD)
 
-        enc.apply(weights_init)
-        dec.apply(weights_init)
-        decD.apply(weights_init)
+        enc.apply(model_utils.weights_init)
+        dec.apply(model_utils.weights_init)
+        decD.apply(model_utils.weights_init)
 
         gpu_id = self.gpu_ids[0]
 
@@ -296,16 +323,24 @@ class Model(base_model.Model):
         dec.cuda(gpu_id)
         decD.cuda(gpu_id)
 
-        if opt.optimizer == 'RMSprop':
-            optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
-            optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
-            optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
-        elif opt.optimizer == 'adam':
+        if optimizer == 'RMSprop':
+            optEnc = optim.RMSprop(enc.parameters(), lr=self.lrEnc)
+            optDec = optim.RMSprop(dec.parameters(), lr=self.lrDec)
+            optDecD = optim.RMSprop(decD.parameters(), lr=self.lrDecD)
+        elif optimizer == 'adam':
 
-            optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, **opt.kwargs_optim)
-            optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, **opt.kwargs_optim)
-            optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, **opt.kwargs_optim)
+            optEnc = optim.Adam(enc.parameters(), lr=self.lrEnc, **self.kwargs_optim)
+            optDec = optim.Adam(dec.parameters(), lr=self.lrDec, **self.kwargs_optim)
+            optDecD = optim.Adam(decD.parameters(), lr=self.lrDecD, **self.kwargs_optim)
 
+        self.enc = enc
+        self.dec = dec
+        self.decD = decD
+        
+        self.optEnc = optEnc
+        self.optDec = optDec
+        self.optDecD = optDecD
+            
         columns = ('epoch', 'iter', 'reconLoss',)
         print_str = '[%d][%d] reconLoss: %.6f'
 
@@ -320,68 +355,46 @@ class Model(base_model.Model):
         columns += ('kldLoss', 'minimaxDecDLoss', 'decDLoss', 'time')
         print_str += ' kld: %.6f mmDecD: %.6f decD: %.6f time: %.2f'
 
-        logger = SimpleLogger(columns,  print_str)
+        self.logger = SimpleLogger(columns,  print_str)
 
-        if os.path.exists('{0}/enc.pth'.format(opt.save_dir)):
-            print('Loading from ' + opt.save_dir)
-
-            load_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
-            load_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
-            load_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
-
-            logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
-
-            this_epoch = max(logger.log['epoch']) + 1
-            iteration = max(logger.log['iter'])
-
-        models = {'enc': enc, 'dec': dec, 'decD': decD}
-
-        optimizers = dict()
-        optimizers['optEnc'] = optEnc
-        optimizers['optDec'] = optDec
-        optimizers['optDecD'] = optDecD
-
-        criterions = dict()
-        criterions['critRecon'] = eval('nn.' + opt.critRecon + '(size_average=' + str(bool(self.size_average_losses)) + ')')
-        criterions['critZClass'] = nn.NLLLoss(size_average=self.size_average_losses)
-        criterions['critZRef'] = nn.MSELoss(size_average=self.size_average_losses)
-
-
+        self.critRecon = eval('nn.' + critRecon + '(size_average=' + str(bool(self.size_average_losses)) + ')')
+        self.critZClass = nn.NLLLoss(size_average=self.size_average_losses)
+        self.critZRef = nn.MSELoss(size_average=self.size_average_losses)
+        
         if self.n_classes > 0:
-            criterions['critDecD'] = nn.CrossEntropyLoss(size_average=self.size_average_losses)
+            self.critDecD = nn.CrossEntropyLoss(size_average=self.size_average_losses)
         else:
-            criterions['critDecD'] = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
+            self.critDecD = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
 
-        if opt.latentDistribution == 'uniform':
+        if self.latent_distribution == 'uniform':
             from integrated_cell.model_utils import sampleUniform as latentSample
-        elif opt.latentDistribution == 'gaussian':
+        elif self.latent_distribution == 'gaussian':
             from integrated_cell.model_utils import sampleGaussian as latentSample
-
-        self.latentSample = latentSample
+    
+    def load(self, save_dir):
+        gpu_id = self.gpu_ids[0]
         
-        self.models = models
-        self.optimizers = optimizers
-        self.criterions = criterions
-        self.logger = logger
-        self.opt = opt
-        
-        return models, optimizers, criterions, logger
+        if os.path.exists('{0}/logger.pkl'.format(save_dir)):
+            print('Loading from ' + save_dir)
 
-    def save(self, enc, dec, decD,
-                   optEnc, optDec, optDecD,
-                   logger, zAll, opt):
+            self.logger = pickle.load(open( '{0}/logger.pkl'.format(save_dir), "rb" ))
+
+            model_utils.load_state(self.enc, self.optEnc, '{0}/enc_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
+            model_utils.load_state(self.dec, self.optDec, '{0}/dec_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
+            model_utils.load_state(self.decD, self.optDecD, '{0}/decD_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
+
+            
+    def save(self, save_dir):
     #         for saving and loading see:
     #         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
 
         gpu_id = self.gpu_ids[0]
 
-        pickle.dump(zAll, open('{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
-        pickle.dump(logger, open('{0}/logger.pkl'.format(opt.save_dir), 'wb'))
+        pickle.dump(self.logger, open('{0}/logger.pkl'.format(save_dir), 'wb'))
         
-        save_state(enc, optEnc, '{0}/enc_{1}.pth'.format(opt.save_dir, int(len(self.logger))), gpu_id)
-        save_state(dec, optDec, '{0}/dec_{1}.pth'.format(opt.save_dir, int(len(self.logger))), gpu_id)
-        save_state(decD, optDecD, '{0}/decD_{1}.pth'.format(opt.save_dir, int(len(self.logger))), gpu_id)
+        model_utils.save_state(self.enc, self.optEnc, '{0}/enc_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
+        model_utils.save_state(self.dec, self.optDec, '{0}/dec_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
+        model_utils.save_state(self.decD, self.optDecD, '{0}/decD_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
 
-        pickle.dump(zAll, open('{0}/embedding_{1}.pkl'.format(opt.save_dir, int(len(self.logger))), 'wb'))
 
 

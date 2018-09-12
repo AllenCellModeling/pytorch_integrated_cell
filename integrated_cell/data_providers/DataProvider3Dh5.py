@@ -25,7 +25,7 @@ from integrated_cell.data_providers.DataProviderABC import DataProviderABC
 
 class DataProvider(DataProviderABC):
 
-    def __init__(self, image_parent, csv_name='data_jobs_out.csv', opts={}):
+    def __init__(self, image_parent, batch_size, n_dat = -1, csv_name='data_jobs_out.csv', opts={}):
         self.data = {}
 
         opts_default = {'rotate': False,
@@ -159,6 +159,21 @@ class DataProvider(DataProviderABC):
         self.data['train']['inds'] = np.where(np.array(img_nums) > opts['hold_out'])[0]
 
         self.imsize = self.load_h5(self.image_parent + os.sep +  csv_df.iloc[0].save_h5_reg_path).shape
+        
+        self.batch_size = batch_size
+        
+        self.embeddings = {}
+        self.embeddings['train'] = torch.zeros(len(self.data['train']['inds']))
+        self.embeddings['test'] = torch.zeros(len(self.data['train']['inds']))
+        
+        self.n_dat = {}
+        
+        if n_dat == -1:
+            self.n_dat['train'] = len(self.data['train']['inds'])
+        else:
+            self.n_dat['train'] = n_dat
+            
+        self.n_dat['test'] = len(self.data['test']['inds'])
 
     def load_h5(self, h5_path):
         chInds = self.channel_lookup_table[np.asarray(self.opts['channelInds'])]
@@ -169,11 +184,18 @@ class DataProvider(DataProviderABC):
         image = image.astype('double')/255
 
         return image
-
-    def get_n_dat(self, train_or_test = 'train'):
-        return len(self.data[train_or_test]['inds'])
-
-
+    
+    def get_n_dat(self, train_or_test = 'train', override = False):
+        
+        if override:
+            n_dat = len(self.data[train_or_test]['inds'])
+        else:
+            n_dat = self.n_dat[train_or_test]    
+        
+        return n_dat  
+    
+    def __len__(self, train_or_test = 'train'):
+        return self.get_n_dat(train_or_test)
 
     def get_n_classes(self):
         return self.labels_onehot.shape[1]
@@ -223,20 +245,41 @@ class DataProvider(DataProviderABC):
         labels = torch.LongTensor(labels)
         return labels
 
-    # train minibatches cycle through entire data set
-    # test minibatches are random draws each time to match the size of train minibatch
-    def make_random_minibatch_inds_train_and_test(self, batch_size=8):
+#     # train minibatches cycle through entire data set
+#     # test minibatches are random draws each time to match the size of train minibatch
+#     def make_random_minibatch_inds_train_and_test(self, batch_size=8):
 
-        n_train = self.get_n_dat('train')
-        inds_train_shuf = random.sample(range(n_train),n_train)
-        mini_batches_inds_train = [inds_train_shuf[i:i + batch_size] for i in range(0, len(inds_train_shuf), batch_size)]
+#         n_train = self.get_n_dat('train')
+#         inds_train_shuf = random.sample(range(n_train),n_train)
+#         mini_batches_inds_train = [inds_train_shuf[i:i + batch_size] for i in range(0, len(inds_train_shuf), batch_size)]
 
-        mini_batch_train_lens = [len(b) for b in mini_batches_inds_train]
-        n_test = self.get_n_dat('test')
-        mini_batches_inds_test = [random.sample(range(n_test),b_size) for b_size in mini_batch_train_lens]
+#         mini_batch_train_lens = [len(b) for b in mini_batches_inds_train]
+#         n_test = self.get_n_dat('test')
+#         mini_batches_inds_test = [random.sample(range(n_test),b_size) for b_size in mini_batch_train_lens]
 
-        minibatch_inds_list = {}
-        minibatch_inds_list['train'] = mini_batches_inds_train
-        minibatch_inds_list['test'] = mini_batches_inds_test
+#         minibatch_inds_list = {}
+#         minibatch_inds_list['train'] = mini_batches_inds_train
+#         minibatch_inds_list['test'] = mini_batches_inds_test
 
-        return(minibatch_inds_list)
+#         return(minibatch_inds_list)
+
+
+    
+    def set_ref(self, embeddings):
+        self.embeddings = embeddings
+    
+    def get_ref(self, inds, train_or_test='train'):
+        inds = torch.LongTensor(inds)
+        return self.embeddings[train_or_test][inds]
+    
+    def get_sample(self, train_or_test = 'train'):
+        
+        rand_inds_encD = np.random.permutation(self.get_n_dat(train_or_test))
+        inds = rand_inds_encD[0:self.batch_size]
+        
+        x = self.get_images(inds, train_or_test)
+        classes = self.get_classes(inds, train_or_test)
+        ref = self.get_ref(inds, train_or_test)
+        
+        
+        return x, classes, ref
