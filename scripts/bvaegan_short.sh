@@ -1,10 +1,10 @@
 cd ..
 python /root/projects/pytorch_integrated_cell/train_model.py \
 	--gpu_ids $1 \
-	--save_dir ./results/bvaegan_short_test \
+	--save_dir ./results/bvaegan_short \
+	--data_save_path ./results/data.pyt \
 	--lrEnc 2E-4 --lrDec 2E-4 \
 	--lrDecD 2E-4 \
-	--lambdaDecD 1E-3 \
 	--model_name vaaegan3D \
 	--train_module bvaegan \
         --kwargs_decD '{"noise_std": 1E-1}' \
