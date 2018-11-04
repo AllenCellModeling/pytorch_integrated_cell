@@ -70,15 +70,15 @@ def setup(args):
     return args
 
 def setup_kwargs_data_provider(args):
-    kwargs_data_provider = {}
-    kwargs_data_provider['name'] = args['kwargs_data_provider']
-    kwargs_data_provider['kwargs']['data_path'] = args['data_save_path']
-    kwargs_data_provider['kwargs']['batch_size'] = args['batch_size']
-    kwargs_data_provider['kwargs']['im_dir'] = args['im_dir']
-    kwargs_data_provider['kwargs']['n_dat'] = args['n_dat']
-    kwargs_data_provider['kwargs']['channelInds'] = args['channel_inds']
+    data_provider_kwargs = args['kwargs_dp']
     
-    return kwargs_data_provider
+    data_provider_kwargs['data_path'] = args['data_save_path']
+    data_provider_kwargs['batch_size'] = args['batch_size']
+    data_provider_kwargs['im_dir'] = args['im_dir']
+    data_provider_kwargs['n_dat'] = args['n_dat']
+    data_provider_kwargs['channelInds'] = args['channel_inds']
+    
+    return args['dataProvider'], data_provider_kwargs
 
 def setup_kwargs_network(args):
 
@@ -137,6 +137,7 @@ parser.add_argument('--kwargs_model', type=json.loads, default={}, help='kwargs 
 parser.add_argument('--kwargs_enc', type=json.loads, default={}, help='kwargs for the enc')
 parser.add_argument('--kwargs_dec', type=json.loads, default={}, help='kwargs for the dec')
 
+parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
 parser.add_argument('--kwargs_dp', type=json.loads, default={}, help='kwargs for the data provider')
 
 parser.add_argument('--critRecon', default='BCELoss', help='Loss function for image reconstruction')
@@ -161,7 +162,7 @@ parser.add_argument('--train_module', default=None, help='training module')
 parser.add_argument('--train_module_pt1', default=None, help='training module')
 parser.add_argument('--train_module_pt2', default=None, help='training module')
 
-parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
+
 
 parser.add_argument('--channels_pt1', nargs='+', type=int, default=[0,2], help='channels to use for part 1')
 parser.add_argument('--channels_pt2', nargs='+', type=int, default=[0,1,2], help='channels to use for part 2')
@@ -181,17 +182,27 @@ args = setup(args)
 save_dir = args['save_dir']
 
 ###load the all of the parameters    
-args = utils.save_load_dict(save_dir + 'args.json', args, args['overwrite_opts'])
+args = utils.save_load_dict('{}/{}'.format(save_dir, 'args.json'), 
+                            args, 
+                            args['overwrite_opts']
+                           )
+
 args['save_dir'] = '{}/{}'.format(save_dir, 'ref_model')
 
 
 ###load the dataprovider
 args['channel_inds'] = args['channels_pt1']
-kwargs_dp = utils.save_load_dict(save_dir + 'args_dp.json', setup_kwargs_data_provider(args), args['overwrite_opts'])
-dp = model_utils.load_data_provider(**kwargs_dp)
+dp_name, dp_kwargs = utils.save_load_dict('{}/{}'.format(save_dir,'args_dp.json'), 
+                                 setup_kwargs_data_provider(args), 
+                                 args['overwrite_opts']
+                                )
+dp = model_utils.load_data_provider(**dp_name)
 
 ###load the trainer model
-kwargs_trainer_model = utils.save_load_dict(save_dir + 'args_trainer.json', setup_kwargs_trainer_model(args), args['overwrite_opts'])
+kwargs_trainer_model = utils.save_load_dict('{}/{}'.format(save_dir, 'args_trainer.json'), 
+                                            setup_kwargs_trainer_model(args), 
+                                            args['overwrite_opts']
+                                           )
 
 trainer_module = importlib.import_module("integrated_cell.models." + kwargs_trainer_model['name'])
 trainer = trainer_module(**kwargs_trainer_model['kwargs'])
