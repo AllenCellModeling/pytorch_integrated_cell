@@ -2,6 +2,7 @@ from torch import nn
 import torch
 import pdb
 from integrated_cell.model_utils import init_opts
+import numpy as np
 
 ksize = 4
 dstep = 2
@@ -17,32 +18,25 @@ class Enc(nn.Module):
         self.nClasses = nClasses
         self.nRef = nRef
         
-        self.main = nn.Sequential(
-            nn.Conv3d(nch, 64, ksize, dstep, 1),
-            nn.BatchNorm3d(64),
+        self.first = nn.Sequential(
+                            nn.Conv3d(nch, 64, ksize, dstep, 1),
+                            nn.BatchNorm3d(64),
+                            nn.ReLU(inplace=True))
         
-            nn.ReLU(inplace=True),
-            nn.Conv3d(64, 128, ksize, dstep, 1),
-            nn.BatchNorm3d(128),
+        layer_sizes = (2**np.arange(6, 12))
+        layer_sizes[layer_sizes>1024] = 1024
         
-            nn.ReLU(inplace=True),
-            nn.Conv3d(128, 256, ksize, dstep, 1),
-            nn.BatchNorm3d(256),
-            
-            nn.ReLU(inplace=True),
-            nn.Conv3d(256, 512, ksize, dstep, 1),
-            nn.BatchNorm3d(512),
-            
-            nn.ReLU(inplace=True),
-            nn.Conv3d(512, 1024, ksize, dstep, 1),
-            nn.BatchNorm3d(1024),
-            
-            nn.ReLU(inplace=True),
-            nn.Conv3d(1024, 1024, ksize, dstep, 1),
-            nn.BatchNorm3d(1024),
+        self.poolBlocks = nn.ModuleList([])
+        self.transitionBlocks = nn.ModuleList([])
         
-            nn.ReLU(inplace=True)
-        )
+        for i in range(1, len(layer_sizes)):
+            self.poolBlocks.append(nn.AvgPool3d(2**i, stride=2**i))
+            self.transitionBlocks.append(nn.Sequential(
+                                            nn.Conv3d(int(layer_sizes[i-1]+nch), int(layer_sizes[i]), ksize, dstep, 1),
+                                            nn.BatchNorm3d(int(layer_sizes[i])),
+                                            nn.ReLU(inplace=True),
+                                        ))
+
         
         if self.nClasses > 0:
             self.classOut = nn.Sequential(
@@ -68,8 +62,14 @@ class Enc(nn.Module):
         # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
         gpu_ids = self.gpu_ids
             
-        x = nn.parallel.data_parallel(self.main, x, gpu_ids)
-        x = x.view(x.size()[0], 1024*int(self.fcsize*1*1))
+        x_tmp = nn.parallel.data_parallel(self.first, x, gpu_ids)
+        
+        for pool, trans in zip(self.poolBlocks, self.transitionBlocks):
+            x_sub = pool(x)
+            x_tmp = nn.parallel.data_parallel(trans, torch.cat([x_sub, x_tmp], 1), gpu_ids)
+        
+        
+        x = x_tmp.view(x_tmp.size()[0], 1024*int(self.fcsize*1*1))
         
         xOut = list()
                 
@@ -217,40 +217,27 @@ class DecD(nn.Module):
         
         self.noise = torch.zeros(0)
         
-        self.main = nn.Sequential(
-            nn.Conv3d(nch, 64, ksize, dstep, 1),
-            # nn.BatchNorm3d(64),
-            
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv3d(64, 128, ksize, dstep, 1),
-            nn.BatchNorm3d(128),
-            
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv3d(128, 256, ksize, dstep, 1),
-            nn.BatchNorm3d(256),
-            
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv3d(256, 512, ksize, dstep, 1),
-            nn.BatchNorm3d(512),
-            
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv3d(512, 1024, ksize, dstep, 1),
-            nn.BatchNorm3d(1024),
-            
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv3d(1024, 1024, ksize, dstep, 1),
-            nn.BatchNorm3d(1024),
-            
-            nn.LeakyReLU(0.2, inplace=True)
-        )
+        self.start = nn.Conv3d(nch, 64, ksize, dstep, 1)
         
+        
+        layer_sizes = (2**np.arange(6, 12))
+        layer_sizes[layer_sizes>1024] = 1024
+        
+        self.poolBlocks = nn.ModuleList([])
+        self.transitionBlocks = nn.ModuleList([])
+        
+        for i in range(1, len(layer_sizes)):
+            self.poolBlocks.append(nn.AvgPool3d(2**i, stride=2**i))
+            self.transitionBlocks.append(nn.Sequential(
+                                            nn.LeakyReLU(0.2, inplace=True),
+                                            nn.Conv3d(int(layer_sizes[i-1]+nch), int(layer_sizes[i]), ksize, dstep, 1),
+                                            nn.BatchNorm3d(int(layer_sizes[i])),
+                                        ))
+    
+        self.end = nn.LeakyReLU(0.2, inplace=True)
         self.fc = nn.Linear(1024*int(self.fcsize), nout)
 
-        # if nout == 1:
-        #     self.nlEnd = nn.Sigmoid()
-        # else:
-        #     self.nlEnd = nn.LogSoftmax()
-            
+
     def forward(self, x):
         # gpu_ids = None
         # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
@@ -268,7 +255,13 @@ class DecD(nn.Module):
             #add to input
             x = x + noise
         
-        x = nn.parallel.data_parallel(self.main, x, gpu_ids)
+        x_tmp = nn.parallel.data_parallel(self.start, x, gpu_ids)
+        
+        for pool, trans in zip(self.poolBlocks, self.transitionBlocks):
+            x_sub = pool(x)
+            x_tmp = nn.parallel.data_parallel(trans, torch.cat([x_sub, x_tmp], 1), gpu_ids)
+        
+        x = self.end(x_tmp)
         x = x.view(x.size()[0], 1024*int(self.fcsize))
         x = self.fc(x)
         

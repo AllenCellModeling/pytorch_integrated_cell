@@ -92,7 +92,7 @@ class Enc(nn.Module):
         return xOut
     
 class Dec(nn.Module):
-    def __init__(self, nLatentDim, nClasses, nRef, nch, gpu_ids):
+    def __init__(self, nLatentDim, nClasses, nRef, nch, gpu_ids, output_padding = (0,1,0)):
         super(Dec, self).__init__()
         
         self.gpu_ids = gpu_ids
@@ -108,7 +108,7 @@ class Dec(nn.Module):
             nn.BatchNorm3d(1024),
             
             nn.ReLU(inplace=True),
-            spectral_norm(nn.ConvTranspose3d(1024, 1024, ksize, dstep, 1, output_padding = (0,1,0))),
+            spectral_norm(nn.ConvTranspose3d(1024, 1024, ksize, dstep, 1, output_padding = output_padding)),
             nn.BatchNorm3d(1024),
             
             nn.ReLU(inplace=True),
@@ -210,8 +210,6 @@ class EncD(nn.Module):
 class DecD(nn.Module):
     def __init__(self, nout, nch, gpu_ids, **kwargs):
         super(DecD, self).__init__()
-        
-        
         
         self.noise_std = 0
         for key in (['noise_std']):
