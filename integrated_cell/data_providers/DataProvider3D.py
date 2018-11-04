@@ -31,12 +31,11 @@ class DataProvider(DataProviderABC):
                  hold_out=0.1,
                  verbose = True,
                  target_col = 'StructureId/Name',
-                 image_col = 'save_reg_path_flat',
+                 image_col = 'save_reg_path',
                  channelInds = [0,1,2],
                  check_files = True,
                  split_seed = 1,
                  crop_to = None,
-                 return2D = False,
                 ):
         
         self.data = {}
@@ -52,13 +51,23 @@ class DataProvider(DataProviderABC):
 
         self.image_parent = image_parent
         self.csv_name = csv_name
-        self.return2D = return2D
 
         # translate short channel name spassed in into longer csv column names
-        self.channel_lookup = [0, #0 means memb
-                                1, #1 means struct
-                                2] #2 means dna
+        self.channel_index_dict = {
+            0:'save_nuc_reg_path',
+            1:'save_cell_reg_path',
+            2:'save_dna_reg_path',
+            3:'save_memb_reg_path',
+            4:'save_struct_reg_path',
+            5:'save_trans_reg_path'
+        }
 
+        self.channel_lookup = [3, #0 means memb
+                                4, #1 means struct
+                                2, #2 means dna
+                                1, #3 means seg cell
+                                0, #4 means seg nuc
+                                5] #5 means transmitted
 
         # channel_column_list = [col for col in self.channel_index_to_column_dict.values()]
 
@@ -66,7 +75,8 @@ class DataProvider(DataProviderABC):
         csv_path = os.path.join(self.image_parent,self.csv_name)
         if self.verbose:
             print('reading csv manifest')
-        csv_df = pd.read_csv(csv_path)        
+        csv_df = pd.read_csv(csv_path)
+        
         im_paths = list()
         
         for i, im_path in enumerate(csv_df[self.image_col]):
@@ -88,15 +98,15 @@ class DataProvider(DataProviderABC):
                 is_good_row = True
 
                 row = csv_df.loc[index]
+
                 image_path = os.sep + row[self.image_col]
                 
-                try:
-                    np.asarray(Image.open(image_parent + os.sep + image_path))
-                    
+                try:                
+                    tifffile.imread(image_parent + os.sep + image_path)
                 except:
                     print('Could not load from image. ' + image_path)
-                    
                     is_good_row = False
+
 
                 csv_df.loc[index, 'valid_row'] = is_good_row
 
@@ -151,8 +161,8 @@ class DataProvider(DataProviderABC):
         self.batch_size = batch_size
         
         self.embeddings = {}
-        self.embeddings['train'] = torch.zeros(len(self.data['train']['inds']))
-        self.embeddings['test'] = torch.zeros(len(self.data['train']['inds']))
+        self.embeddings['train'] = torch.zeros([len(self.data['train']['inds']), 0])
+        self.embeddings['test'] = torch.zeros([len(self.data['train']['inds']), 0])
         
         self.n_dat = {}
         
@@ -164,16 +174,25 @@ class DataProvider(DataProviderABC):
         self.n_dat['test'] = len(self.data['test']['inds'])
 
     def load_image(self, im_path):
-        im_tmp = np.asarray(Image.open(im_path)).astype('float')
-        im_tmp = im_tmp.transpose([2, 0, 1])
-
+        im_tmp = tifffile.imread(im_path)
+    
         ch_inds = np.array(self.channelInds)
         ch_lookup = np.array(self.channel_lookup)
     
-        im_inds = ch_lookup[ch_inds]        
+        im_inds = ch_lookup[ch_inds]
+    
         im = im_tmp[im_inds]
         
-
+        for i, ch_ind in enumerate(ch_inds):
+            
+            if ch_ind == 2: #if dna, crop with dna seg
+                im[i] = im[i] * (im_tmp[ch_lookup[4]] > 0)
+            elif ch_ind == 5: #if transmitted, crop dont crop
+                pass #its transmitted, dont crop
+            else: #otherwise crop with cell
+                im[i] = im[i] * (im_tmp[ch_lookup[3]] > 0)
+    
+        im = im.transpose([0,2,3,1])
         im = im/255
         return im
     
@@ -189,8 +208,9 @@ class DataProvider(DataProviderABC):
     def __len__(self, train_or_test = 'train'):
         return self.get_n_dat(train_or_test)
 
-    def get_n_classes(self):
-        return self.labels_onehot.shape[1]
+
+    
+
 
     def get_image_paths(self, inds_tt, train_or_test):
         inds_master = self.data[train_or_test]['inds'][inds_tt]
@@ -226,7 +246,7 @@ class DataProvider(DataProviderABC):
             
             crop_post[crop_post == 0] = - np.array(images.shape[2:])[crop_post == 0]
             
-            images = images[:,:,crop_pre[0]:-crop_post[0], crop_pre[1]:-crop_post[1]]
+            images = images[:,:,crop_pre[0]:-crop_post[0], crop_pre[1]:-crop_post[1], crop_pre[2]:-crop_post[2]]
              
         return images
 
@@ -244,6 +264,9 @@ class DataProvider(DataProviderABC):
 
         labels = torch.LongTensor(labels)
         return labels
+    
+    def get_n_classes(self):
+        return self.labels_onehot.shape[1]
 
     def set_ref(self, embeddings):
         self.embeddings = embeddings
@@ -251,6 +274,10 @@ class DataProvider(DataProviderABC):
     def get_ref(self, inds, train_or_test='train'):
         inds = torch.LongTensor(inds)
         return self.embeddings[train_or_test][inds]
+    
+    def get_n_ref(self):
+        #returns the number of dimensiosn of the reference space
+        return self.embeddings.shape[1]
     
     def get_sample(self, train_or_test = 'train'):
         

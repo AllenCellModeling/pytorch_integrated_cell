@@ -25,14 +25,13 @@ from integrated_cell.data_providers.DataProviderABC import DataProviderABC
 
 class DataProvider(DataProviderABC):
 
-    def __init__(self, image_parent, batch_size, n_dat = -1, csv_name='data_jobs_out.csv', opts={}):
+    def __init__(self, image_parent, batch_size, n_dat = -1, csv_name='data_jobs_out.csv', channelInds = [0,1,2], opts={}):
         self.data = {}
 
         opts_default = {'rotate': False,
                         'hold_out': 1/10,
                         'verbose': True,
                         'target_col':'structureProteinName',
-                        'channelInds': [0, 1, 2],
                         'h5_file': True,
                         'check_files':True,
                         'split_seed': 1}
@@ -176,7 +175,7 @@ class DataProvider(DataProviderABC):
         self.n_dat['test'] = len(self.data['test']['inds'])
 
     def load_h5(self, h5_path):
-        chInds = self.channel_lookup_table[np.asarray(self.opts['channelInds'])]
+        chInds = self.channel_lookup_table[np.asarray(self.channelInds)]
 
         f = h5py.File(h5_path,'r')
 
@@ -215,7 +214,7 @@ class DataProvider(DataProviderABC):
     def get_images(self, inds_tt, train_or_test):
         dims = list(self.imsize)
 
-        dims[0] = len(self.opts['channelInds'])
+        dims[0] = len(self.channelInds)
         dims.insert(0, len(inds_tt))
 
         inds_master = self.data[train_or_test]['inds'][inds_tt]
@@ -272,11 +271,12 @@ class DataProvider(DataProviderABC):
         inds = torch.LongTensor(inds)
         return self.embeddings[train_or_test][inds]
     
-    def get_sample(self, train_or_test = 'train'):
+    def get_sample(self, inds = None, train_or_test = 'train'):
         
-        rand_inds_encD = np.random.permutation(self.get_n_dat(train_or_test))
-        inds = rand_inds_encD[0:self.batch_size]
-        
+        if inds is None:
+            rand_inds_encD = np.random.permutation(self.get_n_dat(train_or_test))
+            inds = rand_inds_encD[0:self.batch_size]
+
         x = self.get_images(inds, train_or_test)
         classes = self.get_classes(inds, train_or_test)
         ref = self.get_ref(inds, train_or_test)

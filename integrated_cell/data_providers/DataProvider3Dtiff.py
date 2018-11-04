@@ -25,7 +25,7 @@ from integrated_cell.data_providers.DataProviderABC import DataProviderABC
 
 class DataProvider(DataProviderABC):
     
-    def __init__(self, image_parent, csv_name='data_jobs_out.csv', opts={}):
+    def __init__(self, image_parent, batch_size, csv_name='data_jobs_out.csv', opts={}):
         self.data = {}
         
         opts_default = {'rotate': False,
@@ -137,6 +137,14 @@ class DataProvider(DataProviderABC):
         self.data['train']['inds'] = np.where(np.array(img_nums) > opts['hold_out'])[0]
         
         self.imsize = self.load_tiff(image_paths).shape
+        
+        self.ndat['train'] = len(self.data['train']['inds'])
+        self.ndat['test'] = len(self.data['test']['inds'])
+        
+        self.batch_size = batch_size
+        
+        self.embeddings['train'] = torch.zeros(len(self.data['train']['inds']))
+        self.embeddings['test'] = torch.zeros(len(self.data['train']['inds']))
     
     # load one tiff image, using one row index of the (potentially filtered) csv dataframe
     def load_tiff(self, channel_paths):
@@ -159,8 +167,15 @@ class DataProvider(DataProviderABC):
 
         return image
     
+    def set_n_dat(self, n_dat, train_or_test = 'train'):
+        self.n_dat[train_or_test] = n_dat
+        
     def get_n_dat(self, train_or_test = 'train'):
-        return len(self.data[train_or_test]['inds'])
+        return self.n_dat[train_or_test]
+    
+    
+    def __len__(self):
+        return get_n_dat(train_or_test = 'train')
     
     def get_n_classes(self):
         return self.labels_onehot.shape[1]
@@ -227,3 +242,19 @@ class DataProvider(DataProviderABC):
         minibatch_inds_list['test'] = mini_batches_inds_test
         
         return(minibatch_inds_list)
+
+    def set_ref(self, embeddings):
+        self.embeddings = embeddings
+    
+    def get_ref(self, inds, train_or_test='train'):
+        inds = torch.LongTensor(inds)
+        return self.embeddings[train_or_test][inds]
+    
+    def get_sample(self, train_or_test = 'train'):
+        
+        rand_inds_encD = np.random.permutation(self.get_n_dat(train_or_test))
+        inds = rand_inds_encD[0:self.batch_size]
+        
+        x = self.get_images(inds, train_or_test)
+        classes = self.get_classes(inds, train_or_test)
+        ref = self.ref(inds, train_or_test)
