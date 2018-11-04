@@ -16,6 +16,8 @@ from integrated_cell.SimpleLogger import SimpleLogger
 
 import os
 
+from .. import losses
+
 import pickle
 
 class Model(base_model.Model):
@@ -35,8 +37,9 @@ class Model(base_model.Model):
                  kwargs_encD,
                  kwargs_decD,
                  critRecon,
+                 critAdv,
                  optimizer,
-                 size_average_losses = True,
+                 size_average_losses = False,
                  **kwargs
                 ):
         
@@ -52,10 +55,13 @@ class Model(base_model.Model):
                                     save_progress_iter = save_progress_iter,
                                     **kwargs)
  
+
+        
         self.size_average_losses = size_average_losses
-        self.initialize(model_name, kwargs_enc, kwargs_dec, kwargs_encD, kwargs_decD, critRecon, optimizer)
+        self.initialize(model_name, kwargs_enc, kwargs_dec, kwargs_encD, kwargs_decD, critRecon, critAdv, optimizer)
 
-
+        
+        
     def iteration(self):
         
         gpu_id = self.gpu_ids[0]
@@ -268,7 +274,7 @@ class Model(base_model.Model):
 
             np.random.shuffle(shuffle_inds)
             zAll[c] = classes_one_hot[shuffle_inds,:]
-            y_xReal = y_xReal[torch.LongTensor(shuffle_inds).type_as(x)]
+            y_xReal = y_xReal[torch.LongTensor(shuffle_inds)]
 
             c +=1
 
@@ -302,16 +308,37 @@ class Model(base_model.Model):
         errors += (minimaxEncDLoss, encDLoss, minimaxDecLoss, decDLoss)
         errors = [error.cpu() for error in errors]
 
-        return errors, zLatent
+        return errors, zFake.data.cpu()
 
-    def initialize(self, model_name, kwargs_enc, kwargs_dec, kwargs_encD, kwargs_decD, critRecon, optimizer):
+    def initialize(self, model_name, kwargs_enc, kwargs_dec, kwargs_encD, kwargs_decD, critRecon, critAdv, optimizer):
         gpu_id = self.gpu_ids[0]
-        
         model_provider = importlib.import_module("integrated_cell.networks." + model_name)
+        
+        
+        
+        kwargs_enc_tmp = {'nLatentDim': self.n_latent_dim,
+                         'nClasses': self.n_classes,
+                         'nRef': self.n_ref,
+                         'nch': self.n_channels,
+                         'gpu_ids': self.gpu_ids}
+        
+        for k in kwargs_enc: kwargs_enc_tmp[k] = kwargs_enc[k]
+        
+        self.enc = model_provider.Enc(**kwargs_enc_tmp)
+        
+        kwargs_dec_tmp = {'nLatentDim': self.n_latent_dim,
+                 'nClasses': self.n_classes,
+                 'nRef': self.n_ref,
+                 'nch': self.n_channels,
+                 'gpu_ids': self.gpu_ids}
+        
+        for k in kwargs_dec: kwargs_dec_tmp[k] = kwargs_dec[k]
+        
+        self.dec = model_provider.Dec(**kwargs_dec_tmp)
+        
 
-        self.enc = model_provider.Enc(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **kwargs_enc)
-        self.dec = model_provider.Dec(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **kwargs_dec)
         self.encD = model_provider.EncD(self.n_latent_dim, self.n_classes+1, self.gpu_ids, **kwargs_encD)
+
         self.decD = model_provider.DecD(self.n_classes+1, self.n_channels, self.gpu_ids, **kwargs_decD)
 
         self.enc.apply(model_utils.weights_init)
@@ -329,12 +356,31 @@ class Model(base_model.Model):
             self.optDec = optim.RMSprop(self.dec.parameters(), lr=self.lrDec)
             self.optEncD = optim.RMSprop(self.encD.parameters(), lr=self.lrEncD)
             self.optDecD = optim.RMSprop(self.decD.parameters(), lr=self.lrDecD)
-        elif optimizer == 'adam':
+        elif optimizer == 'Adam':
             self.optEnc = optim.Adam(self.enc.parameters(), lr=self.lrEnc, **self.kwargs_optim)
             self.optDec = optim.Adam(self.dec.parameters(), lr=self.lrDec, **self.kwargs_optim)
             self.optEncD = optim.Adam(self.encD.parameters(), lr=self.lrEncD, **self.kwargs_optim)
             self.optDecD = optim.Adam(self.decD.parameters(), lr=self.lrDecD, **self.kwargs_optim)
+   
+        self.critRecon = eval('nn.' + critRecon + '(size_average=' + str(bool(self.size_average_losses)) + ')')
+        self.critZClass = nn.NLLLoss(size_average=self.size_average_losses)
+        self.critZRef = nn.MSELoss(size_average=self.size_average_losses)
+        
+        if self.n_classes > 0:
+            self.critDecD = nn.CrossEntropyLoss(size_average=self.size_average_losses)
+            self.critEncD = nn.CrossEntropyLoss(size_average=self.size_average_losses)
+        else:
+            self.critDecD = eval(critAdv + '(size_average=' + str(bool(self.size_average_losses)) + ')')
+            self.critEncD = eval(critAdv + '(size_average=' + str(bool(self.size_average_losses)) + ')')
 
+        if self.latent_distribution == 'uniform':
+            from integrated_cell.model_utils import sampleUniform as latentSample
+
+        elif self.latent_distribution == 'gaussian':
+            from integrated_cell.model_utils import sampleGaussian as latentSample
+
+        self.latentSample = latentSample
+        
         columns = ('epoch', 'iter', 'reconLoss',)
         print_str = '[%d][%d] reconLoss: %.6f'
 
@@ -350,28 +396,10 @@ class Model(base_model.Model):
         print_str += ' mmEncD: %.6f encD: %.6f  mmDecD: %.6f decD: %.6f time: %.2f'
 
         self.logger = SimpleLogger(columns,  print_str)
-
-   
-        self.critRecon = eval('nn.' + critRecon + '(size_average=' + str(bool(self.size_average_losses)) + ')')
-        self.critZClass = nn.NLLLoss(size_average=self.size_average_losses)
-        self.critZRef = nn.MSELoss(size_average=self.size_average_losses)
         
-        if self.n_classes > 0:
-            self.critDecD = nn.CrossEntropyLoss(size_average=self.size_average_losses)
-            self.critEncD = nn.CrossEntropyLoss(size_average=self.size_average_losses)
-        else:
-            self.critDecD = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
-            self.critEncD = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
-
-        if self.latent_distribution == 'uniform':
-            from integrated_cell.model_utils import sampleUniform as latentSample
-
-        elif self.latent_distribution == 'gaussian':
-            from integrated_cell.model_utils import sampleGaussian as latentSample
-
-        self.latentSample = latentSample
-        
-         
+    
+            
+            
     def load(self, save_dir):
         gpu_id = self.gpu_ids[0]
         
@@ -382,6 +410,7 @@ class Model(base_model.Model):
             model_utils.load_state(self.dec, self.optDec, '{0}/dec.pth'.format(save_dir), gpu_id)
             model_utils.load_state(self.encD, self.optEncD, '{0}/encD.pth'.format(save_dir), gpu_id)
             model_utils.load_state(self.decD, self.optDecD, '{0}/decD.pth'.format(save_dir), gpu_id)
+
 
             self.logger = pickle.load(open( '{0}/logger.pkl'.format(save_dir), "rb" ))
 

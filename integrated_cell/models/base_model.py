@@ -8,6 +8,8 @@ import pdb
 
 from integrated_cell.model_utils import *
 from integrated_cell.utils import plots as plots
+import integrated_cell.utils as utils
+
 
 import time
 
@@ -146,7 +148,9 @@ class Model(object):
         enc.train(False)
         dec.train(False)
 
-    #     pdb.set_trace()
+        ###############
+        #TRAINING DATA
+        ###############
         train_classes = data_provider.get_classes(np.arange(0, data_provider.get_n_dat('train', override=True)), 'train')
         _, train_inds = np.unique(train_classes.numpy(), return_index=True)
 
@@ -159,6 +163,10 @@ class Model(object):
         imgXHat = tensor2img(xHat.data.cpu())
         imgTrainOut = np.concatenate((imgX, imgXHat), 0)
 
+        
+        ###############
+        #TESTING DATA
+        ###############        
         test_classes = data_provider.get_classes(np.arange(0, data_provider.get_n_dat('test')), 'test')
         _, test_inds = np.unique(test_classes.numpy(), return_index=True)
 
@@ -189,7 +197,7 @@ class Model(object):
 
         imgOut = np.concatenate((imgTrainOut, imgTestOut))
 
-        scipy.misc.imsave('{0}/progress_{1}.png'.format(self.save_dir, int(epoch)), imgOut)
+        scipy.misc.imsave('{0}/progress_{1}.png'.format(self.save_dir, int(epoch-1)), imgOut)
 
         enc.train(True)
         dec.train(True)
@@ -218,7 +226,7 @@ class Model(object):
         
     def train(self):
         start_iter = self.get_current_iter()
-
+        
         for this_iter in range(int(start_iter), int(np.ceil(self.iters_per_epoch)*self.n_epochs)):
 
             start = time.time()
@@ -235,3 +243,15 @@ class Model(object):
                 self.zAll = list()
             
 
+    def setup_decoder_vars(self, z, classes, ref):
+        if self.provide_decoder_vars:
+            c = 0
+            if self.n_classes > 0:
+                z[c] = torch.log(utils.index_to_onehot(classes, self.data_provider.get_n_classes()) + 1E-8)
+                c += 1   
+
+            if self.n_ref > 0:
+                z[c] = ref
+                c += 1
+                
+        return z
