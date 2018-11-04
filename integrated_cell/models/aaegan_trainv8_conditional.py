@@ -8,43 +8,28 @@ import pdb
 import importlib
 
 from integrated_cell.model_utils import *
-from integrated_cell.models import base_model 
+from integrated_cell.models import aaegan_trainv8 
+from integrated_cell.utils import plots as plots
 
-class Model(base_model.Model):
-    def __init__(self, data_provider, 
-                 n_channels, 
-                 batch_size, 
-                 n_latent_dim, 
-                 n_classes, 
-                 n_ref, 
-                 gpu_ids, 
-                 lambda_encD_loss = 5E-3,
-                 lambda_decD_loss = 1E-4,
-                 lambda_ref_loss = 1,
-                 lambda_class_loss = 1,
-                 size_average_losses = False,
-                 provide_decoder_vars = False,
-                 target_channels = [1]
-                ):
+import integrated_cell.utils as utils
+
+
+
+class Model(aaegan_trainv8.Model):
+    def __init__(self, source_channels = [0,1,2], target_channels = [1], **kwargs):
         
-        super(Model, self).__init__(data_provider, n_channels, batch_size, n_latent_dim, n_classes, n_ref, gpu_ids)
- 
-        self.provide_decoder_vars = provide_decoder_vars
-    
-        self.lambda_decD_loss = lambda_decD_loss
-        self.lambda_encD_loss = lambda_encD_loss
-        self.lambda_ref_loss = lambda_ref_loss
-        self.lambda_class_loss = lambda_class_loss
-        
-        self.size_average_losses = size_average_losses
+        super(Model, self).__init__(**kwargs)
+   
         self.target_channels = target_channels
+        self.source_channels = source_channels
 
-    def iteration(self,
-                  enc, dec, encD, decD,
-                  optEnc, optDec, optEncD, optDecD,
-                  critRecon, critZClass, critZRef, critEncD, critDecD,
-                  data_provider, opt):
+    def iteration(self):
+        
         gpu_id = self.gpu_ids[0]
+        
+        enc, dec, encD, decD = self.enc, self.dec, self.encD, self.decD
+        optEnc, optDec, optEncD, optDecD = self.optEnc, self.optDec, self.optEncD, self.optDecD
+        critRecon, critZClass, critZRef, critDecD, critEncD = self.critRecon, self.critZClass, self.critZRef, self.critDecD, self.critEncD
 
         #do this just incase anything upstream changes these values
         enc.train(True)
@@ -55,10 +40,9 @@ class Model(base_model.Model):
         ###update the discriminator
         #maximize log(AdvZ(z)) + log(1 - AdvZ(Enc(x)))
 
-        rand_inds_encD = np.random.permutation(opt.ndat)
-        inds = rand_inds_encD[0:self.batch_size]
+        x, classes, ref = self.data_provider.get_sample()
 
-        self.x.data.copy_(data_provider.get_images(inds,'train'))
+        self.x.data.copy_(x)
         x = self.x
         
         xHat_full = x.clone()
@@ -70,14 +54,14 @@ class Model(base_model.Model):
             y_xReal = self.y_xReal
             y_zFake = self.y_zFake
         else:
-            self.classes.data.copy_(data_provider.get_classes(inds,'train'))
+            self.classes.data.copy_(classes)
             classes = self.classes
 
             y_xReal = classes
             y_zFake = classes
 
         if self.n_ref > 0:
-            self.ref.data.copy_(data_provider.get_ref(inds,'train'))
+            self.ref.data.copy_(ref)
             ref = self.ref
 
         for p in encD.parameters(): # reset requires_grad
@@ -92,12 +76,12 @@ class Model(base_model.Model):
         for p in dec.parameters():
             p.requires_grad = False
 
-        zAll = enc(x)
+        zAll = enc(x[:, self.source_channels])
 
         if self.provide_decoder_vars:
             c = 0
             if self.n_classes > 0:
-                zAll[c] = torch.log(utils.index_to_onehot(classes, data_provider.get_n_classes()) + 1E-8)
+                zAll[c] = torch.log(utils.index_to_onehot(classes, self.data_provider.get_n_classes()) + 1E-8)
                 c += 1   
             
             if self.n_ref > 0:
@@ -197,7 +181,7 @@ class Model(base_model.Model):
         #####################
 
         ### Forward passes
-        zAll = enc(x)
+        zAll = enc(x[:, self.source_channels])
 
         c = 0
         ### Update the class discriminator
@@ -207,7 +191,7 @@ class Model(base_model.Model):
             classLoss = classLoss.data[0]
             
             if self.provide_decoder_vars:
-                zAll[c] = torch.log(utils.index_to_onehot(classes, data_provider.get_n_classes()) + 1E-8)
+                zAll[c] = torch.log(utils.index_to_onehot(classes, self.data_provider.get_n_classes()) + 1E-8)
             
             c += 1
 
@@ -257,16 +241,16 @@ class Model(base_model.Model):
         if self.n_classes > 0:
             shuffle_inds = np.arange(0, zAll[0].size(0))
 
-            classes_one_hot = Variable((data_provider.get_classes(inds,'train', 'one hot') - 1) * 25).type_as(zAll[c].data).cuda(self.gpu_ids[0])
+            classes_one_hot = ((utils.index_to_onehot(classes, self.n_classes) - 1) * 25).type_as(zAll[c].data).type_as(x)
 
             np.random.shuffle(shuffle_inds)
             zAll[c] = classes_one_hot[shuffle_inds,:]
-            y_xReal = y_xReal[torch.LongTensor(shuffle_inds).cuda(self.gpu_ids[0])]
+            y_xReal = y_xReal[torch.LongTensor(shuffle_inds)]
 
             c +=1
 
-        if self.n_ref > 0:
-            zAll[c].data.normal_()
+        # if self.n_ref > 0:
+        #     zAll[c].data.normal_()
 
 
         #sample random positions in the localization space
@@ -297,121 +281,101 @@ class Model(base_model.Model):
         
         return errors, zFake.data.cpu()
 
-    def load(self, model_name, opt):
-
-        model_provider = importlib.import_module("integrated_cell.networks." + model_name)
-
-        enc = model_provider.Enc(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **opt.kwargs_enc)
-        dec = model_provider.Dec(self.n_latent_dim, self.n_classes, self.n_ref, 1, self.gpu_ids, **opt.kwargs_dec)
-        encD = model_provider.EncD(self.n_latent_dim, self.n_classes+1, self.gpu_ids, **opt.kwargs_encD)
-        decD = model_provider.DecD(self.n_classes+1, self.n_channels, self.gpu_ids, **opt.kwargs_decD)
-
-        enc.apply(weights_init)
-        dec.apply(weights_init)
-        encD.apply(weights_init)
-        decD.apply(weights_init)
-
+    def save_progress(self):
         gpu_id = self.gpu_ids[0]
+        epoch = self.get_current_epoch()
 
-        enc.cuda(gpu_id)
-        dec.cuda(gpu_id)
-        encD.cuda(gpu_id)
-        decD.cuda(gpu_id)
+        data_provider = self.data_provider
+        enc = self.enc
+        dec = self.dec
 
-        if opt.optimizer == 'RMSprop':
-            optEnc = optim.RMSprop(enc.parameters(), lr=opt.lrEnc)
-            optDec = optim.RMSprop(dec.parameters(), lr=opt.lrDec)
-            optEncD = optim.RMSprop(encD.parameters(), lr=opt.lrEncD)
-            optDecD = optim.RMSprop(decD.parameters(), lr=opt.lrDecD)
-        elif opt.optimizer == 'adam':
-            optEnc = optim.Adam(enc.parameters(), lr=opt.lrEnc, **opt.kwargs_optim)
-            optDec = optim.Adam(dec.parameters(), lr=opt.lrDec, **opt.kwargs_optim)
-            optEncD = optim.Adam(encD.parameters(), lr=opt.lrEncD, **opt.kwargs_optim)
-            optDecD = optim.Adam(decD.parameters(), lr=opt.lrDecD, **opt.kwargs_optim)
+        enc.train(False)
+        dec.train(False)
 
-        columns = ('epoch', 'iter', 'reconLoss',)
-        print_str = '[%d][%d] reconLoss: %.6f'
+        ###############
+        #TRAINING DATA
+        ###############
+        train_classes = data_provider.get_classes(np.arange(0, data_provider.get_n_dat('train', override=True)), 'train')
+        _, train_inds = np.unique(train_classes.numpy(), return_index=True)
 
+        x, classes, ref = data_provider.get_sample(train_inds,'train')
+        x = x.cuda(gpu_id)
+        classes = classes.cuda(gpu_id)
+        ref = ref.cuda(gpu_id)
+        
+        xHat = x.clone()
+        with torch.no_grad():            
+            zAll = enc(x[:, self.source_channels])            
+            zAll = self.setup_decoder_vars(zAll, classes, ref)
+            xHat[:, self.target_channels] = dec(zAll)
+            
+        imgX = tensor2img(x.data.cpu())
+        imgXHat = tensor2img(xHat.data.cpu())
+        imgTrainOut = np.concatenate((imgX, imgXHat), 0)
+
+
+        ###############
+        #TESTING DATA
+        ###############        
+        test_classes = data_provider.get_classes(np.arange(0, data_provider.get_n_dat('test')), 'test')
+        _, test_inds = np.unique(test_classes.numpy(), return_index=True)
+
+        x, classes, ref = data_provider.get_sample(test_inds,'test')
+        x = x.cuda(gpu_id)
+        classes = classes.cuda(gpu_id)
+        ref = ref.cuda(gpu_id)
+        
+        xHat = x.clone()
+        with torch.no_grad():
+            zAll = enc(x[:, self.source_channels])            
+            zAll = self.setup_decoder_vars(zAll, classes, ref)
+            xHat[:, self.target_channels] = dec(zAll)
+            
+        z = list()
         if self.n_classes > 0:
-            columns += ('classLoss',)
-            print_str += ' classLoss: %.6f'
+            class_var = torch.Tensor(data_provider.get_classes(test_inds, 'test', 'one_hot').float()).cuda(gpu_id)
+            class_var = (class_var-1) * 25
+            z.append(class_var)
 
         if self.n_ref > 0:
-            columns += ('refLoss',)
-            print_str += ' refLoss: %.6f'
+            ref_var = torch.Tensor(data_provider.get_n_classes(), self.n_ref).normal_(0,1).cuda(gpu_id)
+            z.append(ref_var)
 
-        columns += ('minimaxEncDLoss', 'encDLoss', 'minimaxDecDLoss', 'decDLoss', 'time')
-        print_str += ' mmEncD: %.6f encD: %.6f  mmDecD: %.6f decD: %.6f time: %.2f'
+        loc_var = torch.Tensor(data_provider.get_n_classes(), self.n_latent_dim).normal_(0,1).cuda(gpu_id)
+        z.append(loc_var)
 
-        logger = SimpleLogger(columns,  print_str)
+        x_z = torch.zeros(x.shape).type_as(x)
+        with torch.no_grad():
+            x_z[:, self.target_channels] = dec(z)
 
-        if os.path.exists('{0}/enc.pth'.format(opt.save_dir)):
-            print('Loading from ' + opt.save_dir)
+        imgX = tensor2img(x.data.cpu())
+        imgXHat = tensor2img(xHat.data.cpu())
+        imgX_z = tensor2img(x_z.data.cpu())
+        imgTestOut = np.concatenate((imgX, imgXHat, imgX_z), 0)
 
-            load_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
-            load_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
-            load_state(encD, optEncD, '{0}/encD.pth'.format(opt.save_dir), gpu_id)
-            load_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
+        imgOut = np.concatenate((imgTrainOut, imgTestOut))
 
-            logger = pickle.load(open( '{0}/logger.pkl'.format(opt.save_dir), "rb" ))
+        scipy.misc.imsave('{0}/progress_{1}.png'.format(self.save_dir, int(epoch)), imgOut)
 
-            this_epoch = max(logger.log['epoch']) + 1
-            iteration = max(logger.log['iter'])
+        enc.train(True)
+        dec.train(True)
 
-        models = {'enc': enc, 'dec': dec, 'encD': encD, 'decD': decD}
+        # pdb.set_trace()
+        # zAll = torch.cat(zAll,0).cpu().numpy()
 
-        optimizers = dict()
-        optimizers['optEnc'] = optEnc
-        optimizers['optDec'] = optDec
-        optimizers['optEncD'] = optEncD
-        optimizers['optDecD'] = optDecD
+        embedding = torch.cat(self.zAll,0).cpu().numpy()
 
-        criterions = dict()
-        criterions['critRecon'] = eval('nn.' + opt.critRecon + '(size_average=' + str(bool(self.size_average_losses)) + ')')
-        criterions['critZClass'] = nn.NLLLoss(size_average=self.size_average_losses)
-        criterions['critZRef'] = nn.MSELoss(size_average=self.size_average_losses)
+        pickle.dump(embedding, open('{0}/embedding_tmp.pkl'.format(self.save_dir), 'wb'))
+        pickle.dump(self.logger, open('{0}/logger_tmp.pkl'.format(self.save_dir), 'wb'))
 
+        ### History
+        plots.history(self.logger, '{0}/history.png'.format(self.save_dir))
 
-        if self.n_classes > 0:
-            criterions['critDecD'] = nn.CrossEntropyLoss(size_average=self.size_average_losses)
-            criterions['critEncD'] = nn.CrossEntropyLoss(size_average=self.size_average_losses)
-        else:
-            criterions['critEncD'] = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
-            criterions['critDecD'] = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
+        ### Short History
+        plots.short_history(self.logger, '{0}/history_short.png'.format(self.save_dir))
 
-        if opt.latentDistribution == 'uniform':
-            from integrated_cell.model_utils import sampleUniform as latentSample
+        ### Embedding figure
+        plots.embeddings(embedding, '{0}/embedding.png'.format(self.save_dir))
 
-        elif opt.latentDistribution == 'gaussian':
-            from integrated_cell.model_utils import sampleGaussian as latentSample
-
-        self.latentSample = latentSample
-        
-        self.models = models
-        self.optimizers = optimizers
-        self.criterions = criterions
-        self.logger = logger
-        self.opt = opt
-
-        return models, optimizers, criterions, logger
-    
-    def save(self, enc, dec, encD, decD,
-                       optEnc, optDec, optEncD, optDecD,
-                       logger, zAll, opt):
-#         for saving and loading see:
-#         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
-
-        gpu_id = self.gpu_ids[0]
-
-
-        save_state(enc, optEnc, '{0}/enc.pth'.format(opt.save_dir), gpu_id)
-        save_state(dec, optDec, '{0}/dec.pth'.format(opt.save_dir), gpu_id)
-        save_state(encD, optEncD, '{0}/encD.pth'.format(opt.save_dir), gpu_id)
-        save_state(decD, optDecD, '{0}/decD.pth'.format(opt.save_dir), gpu_id)
-
-        pickle.dump(zAll, open('{0}/embedding.pkl'.format(opt.save_dir), 'wb'))
-        pickle.dump(logger, open('{0}/logger.pkl'.format(opt.save_dir), 'wb'))
-
-
-
-        
+        xHat = None
+        x = None

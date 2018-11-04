@@ -5,58 +5,39 @@ from torch.autograd import Variable
 import numpy as np
 import pdb
 
+from integrated_cell.models import aaegan_trainv8 
 
 
-class trainer(object):
-    def __init__(self, dp, opt):
+class Model(aaegan_trainv8.Model):
+    def __init__(self, data_provider, 
+                 n_channels, 
+                 batch_size, 
+                 n_latent_dim, 
+                 n_classes, 
+                 n_ref, 
+                 gpu_ids, 
+                 lambda_encD_loss = 5E-3,
+                 lambda_decD_loss = 1E-4,
+                 lambda_ref_loss = 1,
+                 lambda_class_loss = 1,
+                 size_average_losses = False,
+                 provide_decoder_vars = False,
+                ):
         
-        self.nClasses = opt.nClasses
-        self.batch_size = opt.batch_size
-        self.gp_loss_lambda_decD = opt.gp_loss_lambda_decD
-        self.gp_loss_lambda_encD = opt.gp_loss_lambda_encD
-        
-        gpu_id = opt.gpu_ids[0]
-        
-        self.x = Variable(dp.get_images(range(0, opt.batch_size),'train').cuda(gpu_id))
-            
-        if opt.nRef > 0:
-            self.ref = Variable(dp.get_ref(range(0, opt.batch_size), train_or_test='train').type_as(self.x.data).cuda(gpu_id))
-        else:
-            self.ref = None
-        
-        self.zReal = Variable(torch.Tensor(opt.batch_size, opt.nlatentdim).type_as(self.x.data).cuda(gpu_id))
-        
-        
-        #zReal is nClasses + 1
-        if opt.nClasses == 0:
-            self.y_zReal = Variable(torch.Tensor(opt.batch_size, 1).type_as(self.x.data).cuda(gpu_id))
-            self.y_zReal.data.fill_(1)
-            
-            self.y_zFake = Variable(torch.Tensor(opt.batch_size, 1).type_as(self.x.data).cuda(gpu_id))
-            self.y_zFake.data.fill_(0)
-            #zFake is nClasses (either 0 (no classification), or opt.nClasses (multi class))
-            
-            self.y_xReal = self.y_zReal
-            self.y_xFake = self.y_zFake
-            
-            
-        else:    
-            self.y_zReal = Variable(torch.LongTensor(opt.batch_size).cuda(gpu_id))
-            self.y_zReal.data.fill_(opt.nClasses)
-            
-            self.y_zFake = Variable(torch.LongTensor(opt.batch_size).cuda(gpu_id))
-            #dont do anything with y_zFake since it gets filled from the dataprovider
-            #self.y_zFake
-            
-
-            self.y_xFake = Variable(torch.LongTensor(opt.batch_size).cuda(gpu_id))
-            self.y_xFake.data.fill_(opt.nClasses)
-            
-            self.y_xReal = Variable(torch.LongTensor(opt.batch_size).cuda(gpu_id))
-            #dont do anything with y_xReal since it gets filled from the dataprovider
-            #self.y_xReal
-    
-            self.classes = Variable(torch.LongTensor(opt.batch_size).cuda(gpu_id))
+        super(Model, self).__init__(data_provider, 
+                 n_channels, 
+                 batch_size, 
+                 n_latent_dim, 
+                 n_classes, 
+                 n_ref, 
+                 gpu_ids, 
+                 lambda_encD_loss,
+                 lambda_decD_loss,
+                 lambda_ref_loss,
+                 lambda_class_loss,
+                 size_average_losses,
+                 provide_decoder_vars,
+                )
         
     def gradient_penalty(self, xreal, xfake, netD, lamba):
         
@@ -128,7 +109,7 @@ class trainer(object):
         #maximize log(AdvZ(z)) + log(1 - AdvZ(Enc(x)))
 
         rand_inds_encD = np.random.permutation(opt.ndat)
-        inds = rand_inds_encD[0:opt.batch_size]
+        inds = rand_inds_encD[0:self.batch_size]
         
         self.x.data.copy_(dataProvider.get_images(inds,'train'))
         x = self.x
@@ -136,7 +117,7 @@ class trainer(object):
         y_xFake = self.y_xFake
         y_zReal = self.y_zReal
         
-        if opt.nClasses == 0:
+        if self.n_classes == 0:
             y_xReal = self.y_xReal
 #             y_xFake = self.y_xFake
             
@@ -149,7 +130,7 @@ class trainer(object):
             y_xReal = classes
             y_zFake = classes
 
-        if opt.nRef > 0:
+        if self.n_ref > 0:
             self.ref.data.copy_(dataProvider.get_ref(inds,'train'))
             ref = self.ref
         
@@ -272,16 +253,16 @@ class trainer(object):
         
         c = 0   
         ### Update the class discriminator
-        if opt.nClasses > 0:
+        if self.nClasses > 0:
             classLoss = critZClass(zAll[c], classes)
-            classLoss.backward(retain_graph=True)        
+            classLoss.mul(self.lambda_class_loss).backward(retain_graph=True)      
             classLoss = classLoss.data[0]
             c += 1
 
         ### Update the reference shape discriminator
-        if opt.nRef > 0:
+        if self.nRef > 0:
             refLoss = critZRef(zAll[c], ref)
-            refLoss.backward(retain_graph=True)   
+            refLoss.mul(self.lambda_ref_loss).backward(retain_graph=True)   
             refLoss = refLoss.data[0]
             c += 1
 
@@ -295,7 +276,7 @@ class trainer(object):
         ### update wrt encD
         yHat_zFake = encD(zAll[c])
         minimaxEncDLoss = critEncD(yHat_zFake, y_zReal)
-        (minimaxEncDLoss.mul(opt.lambdaEncD)).backward(retain_graph=True)
+        (minimaxEncDLoss.mul(self.lambda_encD_loss)).backward(retain_graph=True)
         minimaxEncDLoss = minimaxEncDLoss.data[0]
         
         optEnc.step()
@@ -306,7 +287,7 @@ class trainer(object):
         ### update wrt decD(dec(enc(X)))
         yHat_xFake = decD(xHat)
         minimaxDecDLoss = critDecD(yHat_xFake, y_xReal)
-        (minimaxDecDLoss.mul(opt.lambdaDecD).div(2)).backward(retain_graph=True)
+        (minimaxDecDLoss.mul(self.lambda_decD_loss).div(2)).backward(retain_graph=True)
         minimaxDecDLoss = minimaxDecDLoss.data[0]
         yHat_xFake = None
         
@@ -314,7 +295,7 @@ class trainer(object):
         
         c = 0  
         #if we have classes, create random classes, generate images of random classes
-        if opt.nClasses > 0:
+        if self.n_classes > 0:
             shuffle_inds = np.arange(0, zAll[0].size(0))
             
             classes_one_hot = Variable((dataProvider.get_classes(inds,'train', 'one hot') - 1) * 25).type_as(zAll[c].data).cuda(opt.gpu_ids[0]) 
@@ -325,7 +306,7 @@ class trainer(object):
             
             c +=1
             
-        if opt.nRef > 0:
+        if self.n_ref > 0:
             zAll[c].data.normal_()
 
         
@@ -337,7 +318,7 @@ class trainer(object):
 
         yHat_xFake2 = decD(xHat)
         minimaxDecDLoss2 = critDecD(yHat_xFake2, y_xReal)
-        (minimaxDecDLoss2.mul(opt.lambdaDecD).div(2)).backward(retain_graph=True)
+        (minimaxDecDLoss2.mul(self.lambda_decD_loss).div(2)).backward(retain_graph=True)
         minimaxDecDLoss2 = minimaxDecDLoss2.data[0]
         yHat_xFake2 = None
         
@@ -346,12 +327,13 @@ class trainer(object):
         optDec.step()
         
         errors = (reconLoss,)
-        if opt.nClasses > 0:
+        if self.n_classes > 0:
             errors += (classLoss,)
 
-        if opt.nRef > 0:
+        if self.n_ref > 0:
             errors += (refLoss,)
 
         errors += (minimaxEncDLoss, encDLoss, minimaxDecLoss, decDLoss)
-
-        return errors, zFake.data
+        errors = [error.cpu() for error in errors]
+        
+        return errors, zFake.data.cpu()

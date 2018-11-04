@@ -47,8 +47,7 @@ def kl_divergence(mu, logvar):
 
 
 class Model(base_model.Model):
-    def __init__(self, 
-                 data_provider, 
+    def __init__(self, data_provider, 
                  n_epochs, 
                  n_channels,
                  n_latent_dim, 
@@ -164,6 +163,8 @@ class Model(base_model.Model):
 
         xHat = dec(zAll)
 
+        pdb.set_trace()
+        
         ### Update the image reconstruction
         recon_loss = critRecon(xHat, x)
 
@@ -197,27 +198,31 @@ class Model(base_model.Model):
 
     def initialize(self, model_name, kwargs_enc, kwargs_dec, critRecon, optimizer):
 
+        gpu_id = self.gpu_ids[0]
+        
         model_provider = importlib.import_module("integrated_cell.networks." + model_name)
 
         enc = model_provider.Enc(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **kwargs_enc)
         dec = model_provider.Dec(self.n_latent_dim, self.n_classes, self.n_ref, self.n_channels, self.gpu_ids, **kwargs_dec)
-
+       
         enc.apply(model_utils.weights_init)
         dec.apply(model_utils.weights_init)
-
-        gpu_id = self.gpu_ids[0]
-
+       
         enc.cuda(gpu_id)
         dec.cuda(gpu_id)
+       
+        if optimizer == 'RMSprop':
+            optEnc = optim.RMSprop(enc.parameters(), lr=self.lrEnc)
+            optDec = optim.RMSprop(dec.parameters(), lr=self.lrDec)
+        elif optimizer == 'adam':
 
-        optimizer_constructor = eval("torch.optim." + optimizer)
-
-        self.optEnc = optimizer_constructor(enc.parameters(), lr=self.lrEnc, **self.kwargs_enc_optim)
-        self.optDec = optimizer_constructor(dec.parameters(), lr=self.lrDec, **self.kwargs_dec_optim)
+            optEnc = optim.Adam(enc.parameters(), lr=self.lrEnc, **self.kwargs_optim)
+            optDec = optim.Adam(dec.parameters(), lr=self.lrDec, **self.kwargs_optim)
 
         self.enc = enc
         self.dec = dec
-
+        self.optEnc = optEnc
+        self.optDec = optDec
             
         columns = ('epoch', 'iter', 'reconLoss',)
         print_str = '[%d][%d] reconLoss: %.6f'
@@ -235,21 +240,21 @@ class Model(base_model.Model):
 
         self.logger = SimpleLogger(columns,  print_str)
 
-        self.critRecon = eval('nn.' + critRecon + '(size_average=' + str(bool(self.size_average_losses)) + ')')
-        self.critZClass = nn.NLLLoss(size_average=self.size_average_losses)
-        self.critZRef = nn.MSELoss(size_average=self.size_average_losses)
+        self.critRecon = eval('nn.' + critRecon + '(size_average=False)')
+        self.critZClass = nn.NLLLoss(size_average=False)
+        self.critZRef = nn.MSELoss(size_average=False)
         
         
     def load(self, save_dir):
         gpu_id = self.gpu_ids[0]
-
+        
         if os.path.exists('{0}/enc.pth'.format(save_dir)):
             print('Loading from ' + save_dir)
 
             self.logger = pickle.load(open( '{0}/logger.pkl'.format(save_dir), "rb" ))
             
-            model_utils.load_state(self.enc, self.optEnc, '{0}/enc_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
-            model_utils.load_state(self.dec, self.optDec, '{0}/dec_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
+            model_utils.load_state(self.enc, self.optEnc, '{0}/enc.pth'.format(save_dir), gpu_id)
+            model_utils.load_state(self.dec, self.optDec, '{0}/dec.pth'.format(save_dir), gpu_id)
 
     
     def save(self, save_dir):
@@ -258,11 +263,8 @@ class Model(base_model.Model):
 
         gpu_id = self.gpu_ids[0]
 
-        model_utils.save_state(self.enc, self.optEnc, '{0}/enc_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
-        model_utils.save_state(self.dec, self.optDec, '{0}/dec_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
+        model_utils.save_state(self.enc, self.optEnc, '{0}/enc.pth'.format(save_dir), gpu_id)
+        model_utils.save_state(self.dec, self.optDec, '{0}/dec.pth'.format(save_dir), gpu_id)
 
-        embedding = torch.cat(self.zAll,0).cpu().numpy()
-        pickle.dump(embedding, open('{0}/embedding_{1}.pth'.format(save_dir, int(len(self.logger))), 'wb'))
-        
         pickle.dump(self.logger, open('{0}/logger.pkl'.format(save_dir), 'wb'))
 

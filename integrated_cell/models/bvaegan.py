@@ -21,6 +21,8 @@ import os
 import importlib
 import pickle
 
+from .. import losses
+
 
 
 class Model(base_model.Model):
@@ -39,6 +41,7 @@ class Model(base_model.Model):
                  kwargs_dec,
                  kwargs_decD,
                  critRecon,
+                 critAdv,
                  optimizer, 
                  beta = 1, 
                  c_max = 25, 
@@ -66,7 +69,7 @@ class Model(base_model.Model):
         
         self.size_average_losses = size_average_losses
         
-        self.initialize(model_name, kwargs_enc, kwargs_dec, kwargs_decD, critRecon, optimizer)
+        self.initialize(model_name, kwargs_enc, kwargs_dec, kwargs_decD, critRecon, critAdv, optimizer)
         
         if objective == 'H':
             self.beta = beta
@@ -305,7 +308,7 @@ class Model(base_model.Model):
         return errors, zLatent
 
 
-    def initialize(self, model_name, kwargs_enc, kwargs_dec, kwargs_decD, critRecon, optimizer):
+    def initialize(self, model_name, kwargs_enc, kwargs_dec, kwargs_decD, critRecon, critAdv, optimizer):
 
         model_provider = importlib.import_module("integrated_cell.networks." + model_name)
 
@@ -323,23 +326,17 @@ class Model(base_model.Model):
         dec.cuda(gpu_id)
         decD.cuda(gpu_id)
 
-        if optimizer == 'RMSprop':
-            optEnc = optim.RMSprop(enc.parameters(), lr=self.lrEnc)
-            optDec = optim.RMSprop(dec.parameters(), lr=self.lrDec)
-            optDecD = optim.RMSprop(decD.parameters(), lr=self.lrDecD)
-        elif optimizer == 'adam':
+        
+        optimizer_constructor = eval("torch.optim." + optimizer)
 
-            optEnc = optim.Adam(enc.parameters(), lr=self.lrEnc, **self.kwargs_optim)
-            optDec = optim.Adam(dec.parameters(), lr=self.lrDec, **self.kwargs_optim)
-            optDecD = optim.Adam(decD.parameters(), lr=self.lrDecD, **self.kwargs_optim)
+        self.optEnc = optimizer_constructor(enc.parameters(), lr=self.lrEnc, **self.kwargs_enc_optim)
+        self.optDec = optimizer_constructor(dec.parameters(), lr=self.lrDec, **self.kwargs_dec_optim)
+        self.optDecD = optimizer_constructor(decD.parameters(), lr=self.lrDecD, **self.kwargs_decD_optim)
 
         self.enc = enc
         self.dec = dec
         self.decD = decD
-        
-        self.optEnc = optEnc
-        self.optDec = optDec
-        self.optDecD = optDecD
+
             
         columns = ('epoch', 'iter', 'reconLoss',)
         print_str = '[%d][%d] reconLoss: %.6f'
@@ -361,10 +358,12 @@ class Model(base_model.Model):
         self.critZClass = nn.NLLLoss(size_average=self.size_average_losses)
         self.critZRef = nn.MSELoss(size_average=self.size_average_losses)
         
-        if self.n_classes > 0:
-            self.critDecD = nn.CrossEntropyLoss(size_average=self.size_average_losses)
-        else:
-            self.critDecD = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
+        
+        self.critDecD = eval(critAdv + '(size_average=' + str(bool(self.size_average_losses)) + ')')
+        # if self.n_classes > 0:
+        #     self.critDecD = nn.CrossEntropyLoss(size_average=self.size_average_losses)
+        # else:
+        #     self.critDecD = nn.BCEWithLogitsLoss(size_average=self.size_average_losses)
 
         if self.latent_distribution == 'uniform':
             from integrated_cell.model_utils import sampleUniform as latentSample
@@ -395,6 +394,9 @@ class Model(base_model.Model):
         model_utils.save_state(self.enc, self.optEnc, '{0}/enc_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
         model_utils.save_state(self.dec, self.optDec, '{0}/dec_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
         model_utils.save_state(self.decD, self.optDecD, '{0}/decD_{1}.pth'.format(save_dir, int(len(self.logger))), gpu_id)
+        
+        embedding = torch.cat(self.zAll,0).cpu().numpy()
+        pickle.dump(embedding, open('{0}/embedding_{1}.pkl'.format(save_dir, int(len(self.logger))), 'wb'))
 
 
 
