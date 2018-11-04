@@ -1,7 +1,6 @@
 from torch import nn
 import torch
 import pdb
-from model_utils import init_opts
 
 ksize = 4
 dstep = 2
@@ -21,27 +20,27 @@ class Enc(nn.Module):
             nn.Conv2d(nch, 64, ksize, dstep, 1),
             nn.BatchNorm2d(64),
         
-            nn.PReLU(),
+            nn.ReLU(),
             nn.Conv2d(64, 128, ksize, dstep, 1),
             nn.BatchNorm2d(128),
         
-            nn.PReLU(),
+            nn.ReLU(),
             nn.Conv2d(128, 256, ksize, dstep, 1),
             nn.BatchNorm2d(256),
         
-            nn.PReLU(),
+            nn.ReLU(),
             nn.Conv2d(256, 512, ksize, dstep, 1),
             nn.BatchNorm2d(512),
             
-            nn.PReLU(),
+            nn.ReLU(),
             nn.Conv2d(512, 1024, ksize, dstep, 1),
             nn.BatchNorm2d(1024),
             
-            nn.PReLU(),
+            nn.ReLU(),
             nn.Conv2d(1024, 1024, ksize, dstep, 1),
             nn.BatchNorm2d(1024),
         
-            nn.PReLU()
+            nn.ReLU()
         )
         
         if self.nClasses > 0:
@@ -103,27 +102,27 @@ class Dec(nn.Module):
         self.main = nn.Sequential(
             nn.BatchNorm2d(1024),
             
-            nn.PReLU(),
+            nn.ReLU(),
             nn.ConvTranspose2d(1024, 1024, ksize, dstep, 1),
             nn.BatchNorm2d(1024),
             
-            nn.PReLU(),
+            nn.ReLU(),
             nn.ConvTranspose2d(1024, 512, ksize, dstep, 1),
             nn.BatchNorm2d(512),
             
-            nn.PReLU(),
+            nn.ReLU(),
             nn.ConvTranspose2d(512, 256, ksize, dstep, 1),
             nn.BatchNorm2d(256),
         
-            nn.PReLU(),
+            nn.ReLU(),
             nn.ConvTranspose2d(256, 128, ksize, dstep, 1),
             nn.BatchNorm2d(128),
         
-            nn.PReLU(),
+            nn.ReLU(),
             nn.ConvTranspose2d(128, 64, ksize, dstep, 1),
             nn.BatchNorm2d(64),
         
-            nn.PReLU(),
+            nn.ReLU(),
             nn.ConvTranspose2d(64, nch, ksize, dstep, 1),
             # nn.BatchNorm2d(nch),
             nn.Sigmoid()             
