@@ -40,22 +40,22 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--Diters', type=int, default=5, help='niters for the encD')
-parser.add_argument('--DitersAlt', type=int, default=100, help='niters for the encD')
+
 parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
 parser.add_argument('--myseed', type=int, default=0, help='random seed')
 parser.add_argument('--nlatentdim', type=int, default=16, help='number of latent dimensions')
 parser.add_argument('--lrEnc', type=float, default=0.0005, help='learning rate for encoder')
 parser.add_argument('--lrDec', type=float, default=0.0005, help='learning rate for decoder')
-parser.add_argument('--lrEncD', type=float, default=0.00005, help='learning rate for encD')
 parser.add_argument('--lrDecD', type=float, default=0.00005, help='learning rate for decD')
 
-parser.add_argument('--kwargs_optim', type=json.loads, default={}, help='kwargs for optimizer')
+parser.add_argument('--kwargs_enc_optim', type=json.loads, default='{"betas": [0.5, 0.999]}', help='kwargs for encoder optimizer')
+parser.add_argument('--kwargs_dec_optim', type=json.loads, default='{"betas": [0.5, 0.999]}', help='kwargs for decoder optimizer')
+parser.add_argument('--kwargs_decD_optim', type=json.loads, default='{"betas": [0.5, 0.999]}', help='kwargs for decoder descriminator optimizer')
+
 parser.add_argument('--kwargs_model', type=json.loads, default={}, help='kwargs for the model')
 
 parser.add_argument('--kwargs_enc', type=json.loads, default={}, help='kwargs for the enc')
 parser.add_argument('--kwargs_dec', type=json.loads, default={}, help='kwargs for the dec')
-parser.add_argument('--kwargs_encD', type=json.loads, default={}, help='kwargs for the encD')
 parser.add_argument('--kwargs_decD', type=json.loads, default={}, help='kwargs for the decD')
 
 parser.add_argument('--kwargs_dp', type=json.loads, default={}, help='kwargs for the data provider')
@@ -136,11 +136,11 @@ def setup_kwargs_model(opt):
     
     kwargs_model['model_name'] = opt.model_name
     kwargs_model['kwargs_enc'] = opt.kwargs_enc
+    kwargs_model['kwargs_enc_optim'] = opt.kwargs_enc_optim
     kwargs_model['kwargs_dec'] = opt.kwargs_dec
-    kwargs_model['kwargs_encD'] = opt.kwargs_encD
+    kwargs_model['kwargs_dec_optim'] = opt.kwargs_dec_optim    
     kwargs_model['kwargs_decD'] = opt.kwargs_decD
-    
-    kwargs_model['kwargs_optim'] = opt.kwargs_optim
+    kwargs_model['kwargs_decD_optim'] = opt.kwargs_decD_optim    
     
     kwargs_model['critRecon'] = opt.critRecon
     kwargs_model['critAdv'] = opt.critAdv
@@ -148,7 +148,6 @@ def setup_kwargs_model(opt):
     
     kwargs_model['lrEnc'] = opt.lrEnc
     kwargs_model['lrDec'] = opt.lrDec
-    kwargs_model['lrEncD'] = opt.lrEncD
     kwargs_model['lrDecD'] = opt.lrDecD
     
     kwargs_model['latent_distribution'] = opt.latentDistribution
