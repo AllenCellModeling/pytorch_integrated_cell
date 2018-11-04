@@ -30,7 +30,7 @@ def history(logger, save_path):
     
     plt.ylabel('reconLoss')
     
-    ax_max = np.percentile(logger.log['reconLoss'], 99.5)
+    ax_max = np.percentile(logger.log['reconLoss'], 99)
     ax_min = np.percentile(logger.log['reconLoss'], 0)
                           
     ax.set_ylim([ax_min,ax_max])
@@ -40,12 +40,21 @@ def history(logger, save_path):
     
     #Print off the reconLoss on it's own scale
     ax2 = plt.gca().twinx()
+    
+    y_vals = list()
+    
     i = 1
     for field in logger.fields:
         if field not in do_not_print:
             plts += ax2.plot(logger.log['iter'], logger.log[field], label=field, color=colors[i])
+            y_vals += logger.log[field]
             i += 1
-
+            
+    ax_max = np.percentile(np.hstack(y_vals), 99.5)
+    ax_min = np.percentile(np.hstack(y_vals), 0)
+    
+    ax2.set_ylim([ax_min,ax_max])
+    
     #Get all the labels for the legend from both axes
     labs = [l.get_label() for l in plts]
 
