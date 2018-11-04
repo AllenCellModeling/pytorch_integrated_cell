@@ -5,3 +5,7 @@
 **.pyt
 .ipynb_checkpoints
 train_modules/__pycache__/*
+
+results/
+
+*.egg-info/
