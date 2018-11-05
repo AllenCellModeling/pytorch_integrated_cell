@@ -99,7 +99,6 @@ class Model(object):
 
             self.classes = Variable(torch.LongTensor(batch_size).cuda(gpu_id))
 
-
     def get_current_iter(self):
         return len(self.logger)
 
@@ -175,16 +174,16 @@ class Model(object):
             xHat = dec(enc(x))
 
         z = list()
-        if self.n_classes > 0:
+        if enc.n_classes > 0:
             class_var = torch.Tensor(data_provider.get_classes(test_inds, 'test', 'one_hot').float()).cuda(gpu_id)
             class_var = (class_var-1) * 25
             z.append(class_var)
 
-        if self.n_ref > 0:
-            ref_var = torch.Tensor(data_provider.get_n_classes(), self.n_ref).normal_(0,1).cuda(gpu_id)
+        if enc.n_ref > 0:
+            ref_var = torch.Tensor(data_provider.get_n_classes(), enc.n_ref).normal_(0,1).cuda(gpu_id)
             z.append(ref_var)
 
-        loc_var = torch.Tensor(data_provider.get_n_classes(), self.n_latent_dim).normal_(0,1).cuda(gpu_id)
+        loc_var = torch.Tensor(data_provider.get_n_classes(), enc.n_latent_dim).normal_(0,1).cuda(gpu_id)
         z.append(loc_var)
 
         with torch.no_grad():
