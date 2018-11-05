@@ -84,19 +84,19 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
 
-def load_embeddings(embeddings_path, enc=None, dp=None, opt=None):
+def load_embeddings(embeddings_path, enc=None, dp=None):
 
     if os.path.exists(embeddings_path):
         embeddings = torch.load(embeddings_path)
     else:
-        embeddings = get_latent_embeddings(enc, dp, opt)
+        embeddings = get_latent_embeddings(enc, dp)
         torch.save(embeddings, embeddings_path)
 
     return embeddings
 
-def get_latent_embeddings(enc, dp, opt):
+def get_latent_embeddings(enc, dp):
     enc.eval()
-    gpu_id = opt.gpu_ids[0]
+    gpu_id = enc.gpu_ids[0]
 
     modes = ('test', 'train')
 
@@ -104,10 +104,10 @@ def get_latent_embeddings(enc, dp, opt):
 
     for mode in modes:
         ndat = dp.get_n_dat(mode)
-        embeddings = torch.zeros(ndat, opt.nlatentdim)
+        embeddings = torch.zeros(ndat, enc.n_latent_dim)
 
         inds = list(range(0,ndat))
-        data_iter = [inds[i:i+opt.batch_size] for i in range(0, len(inds), opt.batch_size)]
+        data_iter = [inds[i:i+dp.batch_size] for i in range(0, len(inds), dp.batch_size)]
 
         for i in range(0, len(data_iter)):
             print(str(i) + '/' + str(len(data_iter)))
@@ -122,23 +122,31 @@ def get_latent_embeddings(enc, dp, opt):
 
     return embedding
 
-def load_data_provider(data_path, batch_size, im_dir, dp_module, n_dat = -1, **kwargs_dp):
-    DP = importlib.import_module("integrated_cell.data_providers." + dp_module)
+def load_data_provider(module_name, save_path, batch_size, im_dir, channelInds = None, n_dat = -1, **kwargs_dp):
+    DP = importlib.import_module("integrated_cell.data_providers." + module_name)
 
-    if os.path.exists(data_path):
-        dp = torch.load(data_path)
+    if os.path.exists(save_path):
+        dp = torch.load(save_path)
         dp.image_parent = im_dir
     else:
         dp = DP.DataProvider(im_dir, batch_size = batch_size, n_dat = n_dat, **kwargs_dp)
-        torch.save(dp, data_path)
+        torch.save(dp, save_path)
 
     dp.batch_size = batch_size
     
     if n_dat > 0:
         dp.n_dat['train'] = n_dat
+        
+    if channelInds is not None:
+        dp.channelInds = channelInds
     
     return dp
 
+def load_loss(loss_name, loss_kwargs):
+    loss_module, loss_name = loss_name.rsplit('.', 1)
+    loss_module = importlib.import_module(loss_module)
+    
+    return getattr(loss_module, loss_name)(**loss_kwargs)
 
 def fix_data_paths(parent_dir, new_im_dir = None, data_save_path = None):
     #this will only work with the h5 dataprovider
@@ -206,7 +214,8 @@ def save_state(model, optimizer, path, gpu_id):
     optimizer.state = set_gpu_recursive(optimizer.state, gpu_id)
 
 def load_network_from_path(net, net_optim, save_path, gpu_id):
-
+    raise NotImplementedError 
+    
     if os.path.exists(save_path):
         print('Loading from ' + save_path)
 

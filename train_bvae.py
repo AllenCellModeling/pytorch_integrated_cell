@@ -24,6 +24,7 @@ import integrated_cell as ic
 from integrated_cell import model_utils
 from integrated_cell.utils import str2bool
 from integrated_cell import utils
+import integrated_cell.models
 
 import shutil
 import socket
@@ -72,10 +73,10 @@ def setup(args):
 def setup_kwargs_data_provider(args):
     data_provider_kwargs = args['kwargs_dp']
     
-    data_provider_kwargs['data_path'] = args['data_save_path']
+    data_provider_kwargs['save_path'] = args['data_save_path']
     data_provider_kwargs['batch_size'] = args['batch_size']
-    data_provider_kwargs['im_dir'] = args['im_dir']
-    data_provider_kwargs['n_dat'] = args['n_dat']
+    data_provider_kwargs['im_dir'] = args['imdir']
+    data_provider_kwargs['n_dat'] = args['ndat']
     data_provider_kwargs['channelInds'] = args['channel_inds']
     
     return args['dataProvider'], data_provider_kwargs
@@ -83,16 +84,16 @@ def setup_kwargs_data_provider(args):
 def setup_kwargs_network(args):
 
     kwargs_enc = args['kwargs_enc']
-    kwargs_enc['n_channels'] = len(args['channels_pt1'])
+    kwargs_enc['n_channels'] = len(args['channels'])
     kwargs_enc['n_classes'] = args['n_classes']
-    kwargs_enc['n_ref'] = args['n_classes']
-    kwargs_enc['n_latent_dim'] = args['nlatentdim']
-
+    kwargs_enc['n_ref'] = args['n_ref']
+    kwargs_enc['n_latent_dim'] = args['n_latent_dim']
+    
     kwargs_dec = args['kwargs_dec']
-    kwargs_dec['n_channels'] = len(args['channels_pt1'])
+    kwargs_dec['n_channels'] = len(args['channels'])
     kwargs_dec['n_classes'] = args['n_classes']
-    kwargs_dec['n_ref'] = args['n_classes']
-    kwargs_dec['n_latent_dim'] = args['nlatentdim']
+    kwargs_dec['n_ref'] = args['n_ref']
+    kwargs_dec['n_latent_dim'] = args['n_latent_dim']
 
     kwargs_enc_optim = args['kwargs_enc_optim']
     kwargs_enc_optim['lr'] = args['lrEnc']
@@ -103,29 +104,55 @@ def setup_kwargs_network(args):
     save_enc_path = '{}/{}.pth'.format(args['save_dir'], 'enc')
     save_dec_path = '{}/{}.pth'.format(args['save_dir'], 'dec')
     
-    return args['network_name'], kwargs_enc, kwargs_dec, args['optimizer'], kwargs_enc_optim, kwargs_dec_optim, save_enc_path, save_dec_path
+    network_kwargs = {}
+    # network_kwargs['gpu_ids'] = args['gpu_ids']
+    network_kwargs['save_dir'] = args['save_dir']
+    network_kwargs['gpu_ids'] = args['gpu_ids']
+    network_kwargs['network_name'] = args['network_name']
+    network_kwargs['kwargs_enc'] = kwargs_enc
+    network_kwargs['kwargs_dec'] = kwargs_dec
+    network_kwargs['optim_name'] = args['optimizer']
+    network_kwargs['kwargs_enc_optim'] = kwargs_enc_optim
+    network_kwargs['kwargs_dec_optim'] = kwargs_dec_optim
 
-def setup_kwargs_trainer_model(args):
-    kwargs_model = {}
-    kwargs_model['model_name'] = args['model_name']
-    kwargs_model['kwargs'] = pt['kwargs_model']
-    kwargs_model['kwargs']['n_epochs'] = args['nepochs']
-    kwargs_model['kwargs']['save_dir'] = args['save_dir']
-    kwargs_model['kwargs']['save_state_iter'] = args['saveStateIter']
-    kwargs_model['kwargs']['save_progress_iter'] = args['saveProgressIter']
-    kwargs_model['critRecon'] = args['critRecon']
-    kwargs_model['critAdv'] = args['critAdv']
-    
-    return kwargs_model
-    
+    return network_kwargs
 
+def setup_kwargs_trainer(args):
+    kwargs_trainer = args['kwargs_model']
+    kwargs_trainer['n_epochs'] = args['nepochs']
+    kwargs_trainer['save_dir'] = args['save_dir']
+    kwargs_trainer['save_state_iter'] = args['saveStateIter']
+    kwargs_trainer['save_progress_iter'] = args['saveProgressIter']
+    kwargs_trainer['gpu_ids'] = args['gpu_ids']
+
+    return args['train_module'], kwargs_trainer
     
+def setup_kwargs_loss(args, pt2):
+    
+    if 'size_average' in args['kwargs_crit']:
+        args['kwargs_crit']['size_average'] = bool(args['kwargs_crit']['size_average'])
+    
+    kwargs_losses = {}
+    kwargs_losses['crit_recon'] = {}
+    kwargs_losses['crit_recon']['name'] = args['crit_recon']
+    kwargs_losses['crit_recon']['kwargs'] = args['kwargs_crit']
+    
+    if pt2:
+        kwargs_losses['crit_z_class'] = {}
+        kwargs_losses['crit_z_class']['name'] = args['crit_z_class']
+        kwargs_losses['crit_z_class']['kwargs'] = args['kwargs_crit']
+
+        kwargs_losses['crit_z_ref'] = {}
+        kwargs_losses['crit_z_ref']['name'] = args['crit_z_ref']
+        kwargs_losses['crit_z_ref']['kwargs'] = args['kwargs_crit']
+
+    return kwargs_losses
 
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--gpu_ids', nargs='+', type=int, default=0, help='gpu id')
 parser.add_argument('--myseed', type=int, default=0, help='random seed')
-parser.add_argument('--nlatentdim', type=int, default=16, help='number of latent dimensions')
+parser.add_argument('--n_latent_dim', type=int, default=16, help='number of latent dimensions')
 parser.add_argument('--lrEnc', type=float, default=0.0005, help='learning rate for encoder')
 parser.add_argument('--lrDec', type=float, default=0.0005, help='learning rate for decoder')
 
@@ -140,18 +167,21 @@ parser.add_argument('--kwargs_dec', type=json.loads, default={}, help='kwargs fo
 parser.add_argument('--dataProvider', default='DataProvider', help='Dataprovider object')
 parser.add_argument('--kwargs_dp', type=json.loads, default={}, help='kwargs for the data provider')
 
-parser.add_argument('--critRecon', default='BCELoss', help='Loss function for image reconstruction')
-parser.add_argument('--critAdv', default='nn.BCEWithLogitsLoss', help='Loss function for advarsaries')
+parser.add_argument('--crit_recon', default='torch.nn.BCELoss', help='Loss function for image reconstruction')
+parser.add_argument('--crit_z_class', default='torch.nn.NLLLoss', help='Loss function for class loss')
+parser.add_argument('--crit_z_ref', default='torch.nn.MSELoss', help='Loss function for reference loss')
+parser.add_argument('--kwargs_crit', type=json.loads, default={}, help='kwargs for loss functions')
 
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--nepochs', type=int, default=250, help='total number of epochs')
 parser.add_argument('--nepochs_pt2', type=int, default=-1, help='total number of epochs')
 
-parser.add_argument('--model_name', default='waaegan', help='name of the model module')
+parser.add_argument('--network_name', default='waaegan', help='name of the model module')
 parser.add_argument('--save_dir', type=str, default=None, help='save dir')
 parser.add_argument('--save_parent', type=str, default=None, help='parent save directory to save with autogenerated working directory (mutually exclusive to "--save_dir")')
 parser.add_argument('--saveProgressIter', type=int, default=1, help='number of iterations between saving progress')
 parser.add_argument('--saveStateIter', type=int, default=1, help='number of iterations between saving progress')
+
 parser.add_argument('--data_save_path', default=None, help='save path of data file')
 parser.add_argument('--imdir', default='/root/data/release_4_1_17/results_v2/aligned/2D', help='location of images')
 
@@ -161,8 +191,6 @@ parser.add_argument('--optimizer', default='Adam', help='type of optimizer, can 
 parser.add_argument('--train_module', default=None, help='training module')
 parser.add_argument('--train_module_pt1', default=None, help='training module')
 parser.add_argument('--train_module_pt2', default=None, help='training module')
-
-
 
 parser.add_argument('--channels_pt1', nargs='+', type=int, default=[0,2], help='channels to use for part 1')
 parser.add_argument('--channels_pt2', nargs='+', type=int, default=[0,1,2], help='channels to use for part 2')
@@ -182,39 +210,45 @@ args = setup(args)
 save_dir = args['save_dir']
 
 ###load the all of the parameters    
-args = utils.save_load_dict('{}/{}'.format(save_dir, 'args.json'), 
+args = utils.save_load_dict('{}/args.json'.format(save_dir), 
                             args, 
                             args['overwrite_opts']
                            )
-
-args['save_dir'] = '{}/{}'.format(save_dir, 'ref_model')
-
+args['save_dir'] = '{}/{}'.format(save_dir, args['ref_dir'])
+if not os.path.exists(args['save_dir']):
+    os.makedirs(args['save_dir'])
 
 ###load the dataprovider
 args['channel_inds'] = args['channels_pt1']
-dp_name, dp_kwargs = utils.save_load_dict('{}/{}'.format(save_dir,'args_dp.json'), 
+dp_name, dp_kwargs = utils.save_load_dict('{}/args_dp.json'.format(args['save_dir']), 
                                  setup_kwargs_data_provider(args), 
                                  args['overwrite_opts']
                                 )
-dp = model_utils.load_data_provider(**dp_name)
+dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
 
 ###load the trainer model
-kwargs_trainer_model = utils.save_load_dict('{}/{}'.format(save_dir, 'args_trainer.json'), 
-                                            setup_kwargs_trainer_model(args), 
+trainer_name, trainer_kwargs = utils.save_load_dict('{}/args_trainer.json'.format(args['save_dir']), 
+                                            setup_kwargs_trainer(args), 
                                             args['overwrite_opts']
                                            )
 
-trainer_module = importlib.import_module("integrated_cell.models." + kwargs_trainer_model['name'])
-trainer = trainer_module(**kwargs_trainer_model['kwargs'])
+trainer_module = importlib.import_module("integrated_cell.models.{}".format(trainer_name))
 
 ###load the networks
-args['n_classes'] = dp.get_n_classes()
-args['n_ref'] = dp.get_n_ref()
+args['n_classes'] = 0
+args['n_ref'] = 0 
+args['channels'] = args['channels_pt1']
 
-net_settings = utils.save_load_dict(save_dir + 'args_network.json', setup_kwargs_network(args), args['overwrite_opts'])
+net_kwargs = utils.save_load_dict('{}/args_network.json'.format(save_dir), setup_kwargs_network(args), args['overwrite_opts'])
 
-network_stuff = trainer_module.load_network(**net_settings)
+networks = trainer_module.load_f(**net_kwargs)
 
+###load the loss functions
+loss_info = setup_kwargs_loss(args, pt2=False)
+
+losses = {}
+for k in loss_info:
+    losses[k] = model_utils.load_loss(loss_info[k]['name'], loss_info[k]['kwargs'])
 
 #######
 ### TRAIN REFERENCE MODEL
@@ -222,10 +256,9 @@ network_stuff = trainer_module.load_network(**net_settings)
 if not os.path.exists(args["save_dir"]):
     os.makedirs(args["save_dir"])
 
-print(trainer)
-model = trainer.Model(data_provider = dp, **network_stuff, **kwargs_model)
+print(args)
+model = trainer_module.Model(data_provider = dp, **networks, **losses, **trainer_kwargs)
 
-model.load(args.save_dir)
 model.train()
     
 #######
@@ -236,48 +269,61 @@ model.train()
 ### TRAIN STRUCTURE MODEL
 #######
 
-embeddings_path = args.save_dir + os.sep + 'embeddings.pkl'
-
-if args.skip_pt1:
-    embeddings = model_utils.load_embeddings(embeddings_path, None, dp, opt)
-else:
-    embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp, opt)
+embeddings_path = '{}/embeddings.pkl'.format(args['save_dir'])
+embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp)
 
 models = None
 optimizers = None
 
 dp.embeddings = embeddings
-dp.channelInds = args.channels_pt2
+dp.channelInds = args['channels_pt2']
 
-args.save_dir = os.path.join(args.save_dir, args.struct_dir)
-if not os.path.exists(args.save_dir):
-    os.makedirs(args.save_dir)
+###load the networks
+args['n_classes'] = dp.get_n_classes()
+args['n_ref'] = dp.get_n_ref()
+args['channels'] = args['channels_pt2']
 
-kwargs_model = setup_kwargs_model(opt)    
+args['save_dir'] = '{}/{}'.format(save_dir, args['struct_dir'])
+if not os.path.exists(args['save_dir']):
+    os.makedirs(args['save_dir'])
 
-kwargs_model['n_channels'] = len(args.channels_pt2)
-kwargs_model['n_classes'] = dp.get_n_classes()
-kwargs_model['n_ref'] = args.nlatentdim
-kwargs_model['n_epochs'] = args.nepochs_pt2
+###load the trainer model
+trainer_name, trainer_kwargs = utils.save_load_dict('{}/args_trainer.json'.format(args['save_dir']), 
+                                            setup_kwargs_trainer(args), 
+                                            args['overwrite_opts']
+                                           )
+
+trainer_module = importlib.import_module("integrated_cell.models.{}".format(trainer_name))
 
 
 
-kwargs_model = utils.load_opts(save_path = '{0}/args.pkl'.format(args.save_dir), 
-                         kwargs_model = kwargs_model, 
-                         overwrite_opts = args.overwrite_opts)
 
-model_module = importlib.import_module("integrated_cell.models." + args.train_module_pt2)
+net_kwargs = utils.save_load_dict('{}/args_network.json'.format(args['save_dir']), setup_kwargs_network(args), args['overwrite_opts'])
 
-print(kwargs_model)
-model = model_module.Model(data_provider = dp, **kwargs_model)
+networks = trainer_module.load_f(**net_kwargs)
 
-model.load(args.save_dir)
+###load the loss functions
+loss_info = setup_kwargs_loss(args, pt2=True)
+
+losses = {}
+for k in loss_info:
+    losses[k] = model_utils.load_loss(loss_info[k]['name'], loss_info[k]['kwargs'])
+
+#######
+### TRAIN REFERENCE MODEL
+#######
+if not os.path.exists(args["save_dir"]):
+    os.makedirs(args["save_dir"])
+
+print(args)
+model = trainer_module.Model(data_provider = dp, **networks, **losses, **trainer_kwargs)
+
 model.train()
 
 print('Finished Training')
 
-embeddings_path = args.save_dir + os.sep + 'embeddings.pkl'
-embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp, opt)
+embeddings_path = '{}/embeddings.pkl'.format(args['save_dir'])
+embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp)
 
 #######
 ### DONE TRAINING STRUCTURE MODEL

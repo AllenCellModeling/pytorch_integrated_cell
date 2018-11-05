@@ -252,6 +252,9 @@ class DataProvider(DataProviderABC):
         inds = torch.LongTensor(inds)
         return self.embeddings[train_or_test][inds]
     
+    def get_n_ref(self):
+        return self.get_ref([0], 'train').shape[1]
+    
     def get_sample(self, train_or_test = 'train'):
         
         rand_inds_encD = np.random.permutation(self.get_n_dat(train_or_test))
