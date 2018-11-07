@@ -174,6 +174,23 @@ def setup_kwargs_loss(args, pt2):
     kwargs_losses["crit_recon"]["name"] = args["crit_recon"]
     kwargs_losses["crit_recon"]["kwargs"] = args["kwargs_crit"]
 
+    if args["model_type"] == "ae":
+        pass  # already setup!
+
+    elif args["model_type"] == "aegan":
+        kwargs_losses["crit_decD"] = {}
+        kwargs_losses["crit_decD"]["name"] = args["crit_decD"]
+        kwargs_losses["crit_decD"]["kwargs"] = args["kwargs_crit"]
+
+    elif args["model_type"] == "aaegan":
+        kwargs_losses["crit_decD"] = {}
+        kwargs_losses["crit_decD"]["name"] = args["crit_decD"]
+        kwargs_losses["crit_decD"]["kwargs"] = args["kwargs_crit"]
+
+        kwargs_losses["crit_encD"] = {}
+        kwargs_losses["crit_encD"]["name"] = args["crit_encD"]
+        kwargs_losses["crit_encD"]["kwargs"] = args["kwargs_crit"]
+
     if pt2:
         kwargs_losses["crit_z_class"] = {}
         kwargs_losses["crit_z_class"]["name"] = args["crit_z_class"]
@@ -280,6 +297,19 @@ parser.add_argument(
     default="torch.nn.BCELoss",
     help="Loss function for image reconstruction",
 )
+
+parser.add_argument(
+    "--crit_decD",
+    default="nn.BCEWithLogitsLoss",
+    help="Loss function for decoder descriminator",
+)
+
+parser.add_argument(
+    "--crit_encD",
+    default="nn.BCEWithLogitsLoss",
+    help="Loss function for decoder descriminator",
+)
+
 parser.add_argument(
     "--crit_z_class", default="torch.nn.NLLLoss", help="Loss function for class loss"
 )
