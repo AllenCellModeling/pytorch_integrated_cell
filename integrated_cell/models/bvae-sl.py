@@ -43,6 +43,7 @@ class Model(base_model.Model):
             save_dir=save_dir,
             save_state_iter=save_state_iter,
             save_progress_iter=save_progress_iter,
+            provide_decoder_vars=provide_decoder_vars,
         )
 
         self.enc = enc
@@ -53,8 +54,6 @@ class Model(base_model.Model):
         self.crit_recon = crit_recon
         self.crit_z_class = crit_z_class
         self.crit_z_ref = crit_z_ref
-
-        self.gpu_ids = gpu_ids
 
         self.objective = objective
         if objective == "H":
@@ -77,11 +76,11 @@ class Model(base_model.Model):
             columns = ("epoch", "iter", "reconLoss")
             print_str = "[%d][%d] reconLoss: %.6f"
 
-            if enc.n_classes > 0:
-                columns += ("classLoss",)
-                print_str += " classLoss: %.6f"
+            if crit_z_class is not None:
+                columns += ("class_loss",)
+                print_str += " class_loss: %.6f"
 
-            if enc.n_ref > 0:
+            if crit_z_ref is not None:
                 columns += ("refLoss",)
                 print_str += " refLoss: %.6f"
 
