@@ -6,6 +6,7 @@ import time
 
 from integrated_cell.model_utils import tensor2img
 from integrated_cell.utils import plots as plots
+from .. import utils
 
 
 # This is the base class for trainers
@@ -20,10 +21,10 @@ class Model(object):
         save_dir,
         save_state_iter=1,
         save_progress_iter=1,
-        **kwargs
+        provide_decoder_vars=0,
     ):
 
-        self.__dict__.update(kwargs)
+        # self.__dict__.update(kwargs)
 
         self.data_provider = data_provider
         self.n_epochs = n_epochs
@@ -34,6 +35,8 @@ class Model(object):
 
         self.save_state_iter = save_state_iter
         self.save_progress_iter = save_progress_iter
+
+        self.provide_decoder_vars = provide_decoder_vars
 
         self.iters_per_epoch = np.ceil(len(data_provider) / data_provider.batch_size)
 
@@ -96,10 +99,26 @@ class Model(object):
         )
         _, train_inds = np.unique(train_classes.numpy(), return_index=True)
 
-        x = data_provider.get_images(train_inds, "train").cuda(gpu_id)
+        x, classes, ref = data_provider.get_sample("train", train_inds)
+        x = x.cuda(gpu_id)
+        classes = classes.type_as(x).long()
+        ref = ref.type_as(x)
 
         with torch.no_grad():
-            xHat = dec(enc(x))
+            z = enc(x)
+
+            if self.provide_decoder_vars:
+                c = 0
+                if self.crit_z_class is not None:
+                    z[c] = torch.log(
+                        utils.index_to_onehot(classes, data_provider.get_n_classes())
+                        + 1e-8
+                    )
+                    c += 1
+                if self.crit_z_ref is not None:
+                    z[c] = ref
+
+            xHat = dec(z)
 
         imgX = tensor2img(x.data.cpu())
         imgXHat = tensor2img(xHat.data.cpu())
@@ -113,19 +132,36 @@ class Model(object):
         )
         _, test_inds = np.unique(test_classes.numpy(), return_index=True)
 
+        x, classes, ref = data_provider.get_sample("test", test_inds)
+        x = x.cuda(gpu_id)
+        classes = classes.type_as(x).long()
+        ref = ref.type_as(x)
+
         x = data_provider.get_images(test_inds, "test").cuda(gpu_id)
         with torch.no_grad():
-            xHat = dec(enc(x))
+            z = enc(x)
+
+            if self.provide_decoder_vars:
+                c = 0
+                if self.crit_z_class is not None:
+                    z[c] = torch.log(
+                        utils.index_to_onehot(classes, data_provider.get_n_classes())
+                        + 1e-8
+                    )
+                    c += 1
+                if self.crit_z_ref is not None:
+                    z[c] = ref
+
+            xHat = dec(z)
 
         z = list()
-        if enc.n_classes > 0:
-            class_var = torch.Tensor(
-                data_provider.get_classes(test_inds, "test", "one_hot").float()
-            ).cuda(gpu_id)
-            class_var = (class_var - 1) * 25
+        if self.crit_z_class is not None:
+            class_var = torch.log(
+                utils.index_to_onehot(classes, data_provider.get_n_classes()) + 1e-8
+            )
             z.append(class_var)
 
-        if enc.n_ref > 0:
+        if self.crit_z_ref is not None:
             ref_var = (
                 torch.Tensor(data_provider.get_n_classes(), enc.n_ref)
                 .normal_(0, 1)
