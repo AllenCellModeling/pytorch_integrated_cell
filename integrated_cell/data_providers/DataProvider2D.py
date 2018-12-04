@@ -262,8 +262,8 @@ class DataProvider(DataProviderABC):
     def get_sample(self, train_or_test="train", inds=None):
 
         if inds is None:
-            rand_inds_encD = np.random.permutation(self.get_n_dat(train_or_test))
-            inds = rand_inds_encD[0 : self.batch_size]  # noqa
+            rand_inds = np.random.permutation(self.get_n_dat(train_or_test))
+            inds = rand_inds[0 : self.batch_size]  # noqa
 
         x = self.get_images(inds, train_or_test)
 
