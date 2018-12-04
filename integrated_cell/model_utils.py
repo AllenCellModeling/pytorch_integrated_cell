@@ -30,7 +30,7 @@ def set_gpu_recursive(var, gpu_id):
                     var[key] = var[key].cuda(gpu_id)
                 else:
                     var[key] = var[key].cpu()
-            except AttributeError as error:
+            except AttributeError:
                 pass
     return var
 
@@ -74,8 +74,11 @@ def weights_init(m):
         except:  # noqa
             pass
     elif classname.find("BatchNorm") != -1:
-        m.weight.data.normal_(1.0, 0.02)
-        m.bias.data.fill_(0)
+        try:
+            m.weight.data.normal_(1.0, 0.02)
+            m.bias.data.fill_(0)
+        except:  # noqa
+            pass
 
 
 def load_embeddings(embeddings_path, enc=None, dp=None):
@@ -195,23 +198,25 @@ def fix_data_paths(parent_dir, new_im_dir=None, data_save_path=None):
 
 
 def load_state(model, optimizer, path, gpu_id):
+    # device = torch.device('cpu')
+
     checkpoint = torch.load(path)
 
     model.load_state_dict(checkpoint["model"])
-    model.cuda(gpu_id)
-
     optimizer.load_state_dict(checkpoint["optimizer"])
-    optimizer.state = set_gpu_recursive(optimizer.state, gpu_id)
+
+    # model.cuda(gpu_id)
+
+    # optimizer.state = set_gpu_recursive(optimizer.state, gpu_id)
 
 
 def save_state(model, optimizer, path, gpu_id):
 
-    model = model.cpu()
-    optimizer.state = set_gpu_recursive(optimizer.state, -1)
+    # model = model.cpu()
+    # optimizer.state = set_gpu_recursive(optimizer.state, -1)
 
     checkpoint = {"model": model.state_dict(), "optimizer": optimizer.state_dict()}
-
     torch.save(checkpoint, path)
 
-    model = model.cuda(gpu_id)
-    optimizer.state = set_gpu_recursive(optimizer.state, gpu_id)
+    # model = model.cuda(gpu_id)
+    # optimizer.state = set_gpu_recursive(optimizer.state, gpu_id)
