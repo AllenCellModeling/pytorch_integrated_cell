@@ -66,7 +66,7 @@ def save_load_dict(save_path, args=None, overwrite=False, verbose=True):
             shutil.copyfile(save_path, "{0}_{1}".format(save_path, the_time))
 
         with open(save_path, "w") as f:
-            json.dump(args, f)
+            json.dump(args, f, indent=4, sort_keys=True)
 
     return args
 
@@ -83,7 +83,11 @@ def load_network(
 ):
 
     model_provider = importlib.import_module("integrated_cell.networks." + network_name)
-    network = getattr(model_provider, component_name)(gpu_ids=gpu_ids, **kwargs_network)
+
+    if "gpu_ids" not in kwargs_network:
+        kwargs_network["gpu_ids"] = gpu_ids
+
+    network = getattr(model_provider, component_name)(**kwargs_network)
 
     network.apply(model_utils.weights_init)
     network.cuda(gpu_ids[0])
@@ -101,8 +105,30 @@ def load_network(
     return network, optimizer
 
 
+# def load_results_from_dir(results_dir):
+
+#     return dp, models
+
+
 def load_network_from_args_path(args_path):
     network_args = save_load_dict(args_path, None, False)
     network, optimizer = load_network(**network_args)
 
     return network, optimizer, network_args
+
+
+def get_activation(activation):
+    if activation is None or activation.lower() == "none":
+        return torch.nn.Sequential()
+
+    elif activation.lower() == "relu":
+        return torch.nn.ReLU(inplace=True)
+
+    elif activation.lower() == "prelu":
+        return torch.nn.PReLU()
+
+    elif activation.lower() == "sigmoid":
+        return torch.nn.Sigmoid()
+
+    elif activation.lower() == "leakyrelu":
+        return torch.nn.LeakyReLU(0.2, inplace=True)

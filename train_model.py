@@ -12,10 +12,6 @@ from integrated_cell.utils import str2bool
 from integrated_cell import utils
 
 
-# import torch.backends.cudnn as cudnn
-# cudnn.benchmark = True
-
-
 def setup(args):
     if (args["save_parent"] is not None) and (args["save_dir"] is not None):
         raise ValueError(
@@ -50,6 +46,10 @@ def setup(args):
 
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(ID) for ID in args["gpu_ids"]])
     args["gpu_ids"] = list(range(0, len(args["gpu_ids"])))
+
+    # if len(args["gpu_ids"]) == 1:
+    #     torch.backends.cudnn.enabled = True
+    #     torch.backends.cudnn.benchmark = True
 
     torch.manual_seed(args["myseed"])
     torch.cuda.manual_seed(args["myseed"])
@@ -86,11 +86,13 @@ def setup_kwargs_network(args):
     # kwargs_enc['save_args_path'] = '{}/args_{}.json'.format(args['save_dir'], 'enc')
     kwargs_enc["component_name"] = "Enc"
     kwargs_enc["network_name"] = args["network_name"]
-    kwargs_enc["kwargs_network"] = args["kwargs_enc"]
+    kwargs_enc["kwargs_network"] = {}
     kwargs_enc["kwargs_network"]["n_channels"] = len(args["channels"])
     kwargs_enc["kwargs_network"]["n_classes"] = args["n_classes"]
     kwargs_enc["kwargs_network"]["n_ref"] = args["n_ref"]
     kwargs_enc["kwargs_network"]["n_latent_dim"] = args["n_latent_dim"]
+    for k in args["kwargs_enc"]:
+        kwargs_enc["kwargs_network"][k] = args["kwargs_enc"][k]
 
     kwargs_enc["kwargs_optim"] = args["kwargs_enc_optim"]
     kwargs_enc["kwargs_optim"]["lr"] = args["lr_enc"]
@@ -101,11 +103,13 @@ def setup_kwargs_network(args):
     # kwargs_enc['save_args_path'] = '{}/args_{}.json'.format(args['save_dir'], 'dec')
     kwargs_dec["component_name"] = "Dec"
     kwargs_dec["network_name"] = args["network_name"]
-    kwargs_dec["kwargs_network"] = args["kwargs_dec"]
+    kwargs_dec["kwargs_network"] = {}
     kwargs_dec["kwargs_network"]["n_channels"] = len(args["channels"])
     kwargs_dec["kwargs_network"]["n_classes"] = args["n_classes"]
     kwargs_dec["kwargs_network"]["n_ref"] = args["n_ref"]
     kwargs_dec["kwargs_network"]["n_latent_dim"] = args["n_latent_dim"]
+    for k in args["kwargs_dec"]:
+        kwargs_dec["kwargs_network"][k] = args["kwargs_dec"][k]
 
     kwargs_dec["kwargs_optim"] = args["kwargs_dec_optim"]
     kwargs_dec["kwargs_optim"]["lr"] = args["lr_dec"]
@@ -116,9 +120,11 @@ def setup_kwargs_network(args):
     # kwargs_enc['save_args_path'] = '{}/args_{}.json'.format(args['save_dir'], 'encD')
     kwargs_encD["component_name"] = "EncD"
     kwargs_encD["network_name"] = args["network_name"]
-    kwargs_encD["kwargs_network"] = args["kwargs_encD"]
+    kwargs_encD["kwargs_network"] = {}
     kwargs_encD["kwargs_network"]["n_classes"] = args["n_classes"] + 1
     kwargs_encD["kwargs_network"]["n_latent_dim"] = args["n_latent_dim"]
+    for k in args["kwargs_encD"]:
+        kwargs_encD["kwargs_network"][k] = args["kwargs_encD"][k]
 
     kwargs_encD["kwargs_optim"] = args["kwargs_encD_optim"]
     kwargs_encD["kwargs_optim"]["lr"] = args["lr_encD"]
@@ -129,9 +135,12 @@ def setup_kwargs_network(args):
     # kwargs_enc['save_args_path'] = '{}/args_{}.json'.format(args['save_dir'], 'decD')
     kwargs_decD["component_name"] = "DecD"
     kwargs_decD["network_name"] = args["network_name"]
-    kwargs_decD["kwargs_network"] = args["kwargs_decD"]
+    kwargs_decD["kwargs_network"] = {}
     kwargs_decD["kwargs_network"]["n_channels"] = len(args["channels"])
     kwargs_decD["kwargs_network"]["n_classes"] = args["n_classes"] + 1
+
+    for k in args["kwargs_decD"]:
+        kwargs_decD["kwargs_network"][k] = args["kwargs_decD"][k]
 
     kwargs_decD["kwargs_optim"] = args["kwargs_decD_optim"]
     kwargs_decD["kwargs_optim"]["lr"] = args["lr_decD"]
@@ -150,16 +159,25 @@ def setup_kwargs_network(args):
         network_kwargs["decD"] = kwargs_decD
         network_kwargs["encD"] = kwargs_encD
 
+    for network_name in network_kwargs:
+        if "gpu_ids" in network_kwargs[network_name]["kwargs_network"]:
+            network_kwargs[network_name]["gpu_ids"] = network_kwargs[network_name][
+                "kwargs_network"
+            ]["gpu_ids"]
+
     return network_kwargs
 
 
 def setup_kwargs_trainer(args):
-    kwargs_trainer = args["kwargs_model"]
+    kwargs_trainer = {}
     kwargs_trainer["n_epochs"] = args["nepochs"]
     kwargs_trainer["save_dir"] = args["save_dir"]
     kwargs_trainer["save_state_iter"] = args["saveStateIter"]
     kwargs_trainer["save_progress_iter"] = args["saveProgressIter"]
     kwargs_trainer["gpu_ids"] = args["gpu_ids"]
+
+    for k in args["kwargs_model"]:
+        kwargs_trainer[k] = args["kwargs_model"][k]
 
     return args["train_module"], kwargs_trainer
 
@@ -438,81 +456,92 @@ dp_name, dp_kwargs = utils.save_load_dict(
 )
 dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
 
-# load the trainer model
-trainer_name, trainer_kwargs = utils.save_load_dict(
-    "{}/args_trainer.json".format(args["save_dir"]),
-    setup_kwargs_trainer(args),
-    args["overwrite_opts"],
-)
-
-trainer_module = importlib.import_module(
-    "integrated_cell.models.{}".format(trainer_name)
-)
-
-# load the networks
-args["n_classes"] = 0
-args["n_ref"] = 0
-args["channels"] = args["channels_pt1"]
-
-net_kwargs = setup_kwargs_network(args)
-
-networks, optimizers = {}, {}
-for net_name in net_kwargs:
-    args_save_path = "{}/args_{}.json".format(args["save_dir"], net_name)
-    net_kwargs[net_name] = utils.save_load_dict(
-        args_save_path, net_kwargs[net_name], args["overwrite_opts"]
-    )
-
-    networks[net_name], optimizers["opt_{}".format(net_name)] = utils.load_network(
-        **net_kwargs[net_name]
-    )
-
-
-# load the loss functions
-loss_info = setup_kwargs_loss(args, pt2=False)
-
-losses = {}
-for k in loss_info:
-    losses[k] = model_utils.load_loss(loss_info[k]["name"], loss_info[k]["kwargs"])
 
 #######
 # TRAIN REFERENCE MODEL
 #######
-if not os.path.exists(args["save_dir"]):
-    os.makedirs(args["save_dir"])
 
-print(args)
-model = trainer_module.Model(
-    data_provider=dp, **networks, **optimizers, **losses, **trainer_kwargs
-)
+if not args["skip_pt1"]:
 
-model.train()
+    # load the trainer model
+    trainer_name, trainer_kwargs = utils.save_load_dict(
+        "{}/args_trainer.json".format(args["save_dir"]),
+        setup_kwargs_trainer(args),
+        args["overwrite_opts"],
+    )
+
+    trainer_module = importlib.import_module(
+        "integrated_cell.models.{}".format(trainer_name)
+    )
+
+    # load the networks
+    args["n_classes"] = 0
+    args["n_ref"] = 0
+    args["channels"] = args["channels_pt1"]
+
+    net_kwargs = setup_kwargs_network(args)
+
+    networks, optimizers = {}, {}
+    for net_name in net_kwargs:
+        args_save_path = "{}/args_{}.json".format(args["save_dir"], net_name)
+        net_kwargs[net_name] = utils.save_load_dict(
+            args_save_path, net_kwargs[net_name], args["overwrite_opts"]
+        )
+
+        networks[net_name], optimizers["opt_{}".format(net_name)] = utils.load_network(
+            **net_kwargs[net_name]
+        )
+
+    # load the loss functions
+    loss_info = setup_kwargs_loss(args, pt2=False)
+
+    losses = {}
+    for k in loss_info:
+        losses[k] = model_utils.load_loss(loss_info[k]["name"], loss_info[k]["kwargs"])
+
+    if not os.path.exists(args["save_dir"]):
+        os.makedirs(args["save_dir"])
+
+    print(args)
+    model = trainer_module.Model(
+        data_provider=dp, **networks, **optimizers, **losses, **trainer_kwargs
+    )
+
+    model.train()
+
 
 #######
 # DONE TRAINING REFERENCE MODEL
 #######
+embeddings_path = "{}/embeddings.pkl".format(args["save_dir"])
+embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp)
 
 #######
 # TRAIN STRUCTURE MODEL
 #######
 
-embeddings_path = "{}/embeddings.pkl".format(args["save_dir"])
-embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp)
-
-models = None
-optimizers = None
-
-dp.embeddings = embeddings
-dp.channelInds = args["channels_pt2"]
-
-# load the networks
-args["n_classes"] = dp.get_n_classes()
-args["n_ref"] = dp.get_n_ref()
-args["channels"] = args["channels_pt2"]
-
 args["save_dir"] = "{}/{}".format(save_dir, args["struct_dir"])
 if not os.path.exists(args["save_dir"]):
     os.makedirs(args["save_dir"])
+
+args["channels"] = args["channels_pt2"]
+args["channel_inds"] = args["channels_pt2"]
+
+# load the dataprovider
+dp_name, dp_kwargs = utils.save_load_dict(
+    "{}/args_dp.json".format(args["save_dir"]),
+    setup_kwargs_data_provider(args),
+    args["overwrite_opts"],
+)
+
+dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
+dp.embeddings = embeddings
+
+
+# set the args for pt2
+args["n_classes"] = dp.get_n_classes()
+args["n_ref"] = dp.get_n_ref()
+
 
 # load the trainer model
 trainer_name, trainer_kwargs = utils.save_load_dict(
