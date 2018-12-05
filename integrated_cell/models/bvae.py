@@ -61,6 +61,7 @@ class Model(base_model.Model):
         lambda_ref_loss=1,
         lambda_class_loss=1,
         provide_decoder_vars=False,
+        kld_avg=False,
     ):
 
         super(Model, self).__init__(
@@ -81,6 +82,8 @@ class Model(base_model.Model):
         self.crit_recon = crit_recon
         self.crit_z_class = crit_z_class
         self.crit_z_ref = crit_z_ref
+
+        self.kld_avg = kld_avg
 
         if objective == "H":
             self.beta = beta
@@ -185,6 +188,11 @@ class Model(base_model.Model):
 
         total_kld, dimension_wise_kld, mean_kld = kl_divergence(zAll[c][0], zAll[c][1])
 
+        if self.kld_avg:
+            kld = mean_kld
+        else:
+            kld = total_kld
+
         zLatent = zAll[c][0].data.cpu()
 
         zAll[c] = reparameterize(zAll[c][0], zAll[c][1])
@@ -195,7 +203,7 @@ class Model(base_model.Model):
         recon_loss = crit_recon(xHat, x)
 
         if self.objective == "H":
-            beta_vae_loss = recon_loss + self.beta * total_kld
+            beta_vae_loss = recon_loss + self.beta * kld
         elif self.objective == "B":
             C = torch.clamp(
                 torch.Tensor(
@@ -204,7 +212,7 @@ class Model(base_model.Model):
                 0,
                 self.c_max,
             )
-            beta_vae_loss = recon_loss + self.gamma * (total_kld - C).abs()
+            beta_vae_loss = recon_loss + self.gamma * (kld - C).abs()
 
         beta_vae_loss.backward()
 

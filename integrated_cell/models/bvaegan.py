@@ -120,13 +120,18 @@ class Model(base_model.Model):
         x = x.cuda(gpu_id)
 
         if crit_z_class is None:
-            y_xReal = torch.ones(x.shape[0], 1).type_as(x).float()
-            y_xFake = torch.zeros(x.shape[0], 1).type_as(x).float()
+            y_xReal = torch.ones(x.shape[0], 1).type_as(x).long()
+            y_xFake = torch.zeros(x.shape[0], 1).type_as(x).long()
         else:
             classes = classes.type_as(x).long()
 
             y_xReal = classes
-            y_xFake = torch.zeros(x.shape[0]).type_as(x).long()
+            y_xFake = (
+                torch.zeros(classes.shape)
+                .fill_(self.data_provider.get_n_classes())
+                .type_as(x)
+                .long()
+            )
 
         if crit_z_ref is not None:
             ref = ref.type_as(x)
@@ -210,10 +215,13 @@ class Model(base_model.Model):
 
         c = 0
         # Update the class discriminator
+        loss = torch.zeros(1).type_as(x).float()
+
+        classLoss = torch.zeros(1)
         if crit_z_class is not None:
-            classLoss = crit_z_class(zAll[c], classes) * self.lambda_class_loss
-            classLoss.backward(retain_graph=True)
-            classLoss = classLoss.item()
+            classLoss = crit_z_class(zAll[c], classes)
+            loss += classLoss.mul(self.lambda_class_loss)
+            classLoss_tmp = classLoss.item()
 
             if self.provide_decoder_vars:
                 zAll[c] = torch.log(
@@ -225,9 +233,9 @@ class Model(base_model.Model):
 
         # Update the reference shape discriminator
         if crit_z_ref is not None:
-            refLoss = crit_z_ref(zAll[c], ref) * self.lambda_ref_loss
-            refLoss.backward(retain_graph=True)
-            refLoss = refLoss.item()
+            refLoss = crit_z_ref(zAll[c], ref)
+            loss += refLoss.mul(self.lambda_ref_loss)
+            refLoss_tmp = refLoss.item()
 
             if self.provide_decoder_vars:
                 zAll[c] = ref
@@ -259,9 +267,11 @@ class Model(base_model.Model):
             )
             beta_vae_loss = recon_loss + self.gamma * (total_kld - C).abs()
 
-        beta_vae_loss.backward(retain_graph=True)
-        kld_loss = total_kld.item()
+        loss += beta_vae_loss
 
+        loss.backward(retain_graph=True)
+
+        kld_loss = total_kld.item()
         recon_loss = recon_loss.item()
 
         opt_enc.step()
@@ -272,8 +282,6 @@ class Model(base_model.Model):
         # update wrt decD(dec(enc(X)))
         yHat_xFake = decD(xHat)
         minimaxDecDLoss = crit_decD(yHat_xFake, y_xReal)
-        (minimaxDecDLoss.mul(self.lambda_decD_loss).div(2)).backward(retain_graph=True)
-        minimaxDecDLoss = minimaxDecDLoss.item()
         yHat_xFake = None
 
         # update wrt decD(dec(Z))
@@ -308,20 +316,19 @@ class Model(base_model.Model):
 
         yHat_xFake2 = decD(xHat)
         minimaxDecDLoss2 = crit_decD(yHat_xFake2, y_xReal)
-        (minimaxDecDLoss2.mul(self.lambda_decD_loss).div(2)).backward(retain_graph=True)
-        minimaxDecDLoss2 = minimaxDecDLoss2.item()
         yHat_xFake2 = None
 
         minimaxDecLoss = (minimaxDecDLoss + minimaxDecDLoss2) / 2
-
+        minimaxDecLoss.mul(self.lambda_decD_loss).backward()
+        minimaxDecLoss = minimaxDecLoss.item()
         opt_dec.step()
 
         errors = [recon_loss]
         if crit_z_class is not None:
-            errors += [classLoss]
+            errors += [classLoss_tmp]
 
         if crit_z_ref is not None:
-            errors += [refLoss]
+            errors += [refLoss_tmp]
 
         errors += [kld_loss, minimaxDecLoss, decDLoss]
 
@@ -342,13 +349,19 @@ class Model(base_model.Model):
         enc_save_path_tmp = "{0}/enc.pth".format(save_dir)
         enc_save_path_final = "{0}/enc_{1}.pth".format(save_dir, n_iters)
         dec_save_path_tmp = "{0}/dec.pth".format(save_dir)
-        dec_save_path_final = "{0}/enc_{1}.pth".format(save_dir, n_iters)
+        dec_save_path_final = "{0}/dec_{1}.pth".format(save_dir, n_iters)
+
+        decD_save_path_tmp = "{0}/decD.pth".format(save_dir)
+        decD_save_path_final = "{0}/decD_{1}.pth".format(save_dir, n_iters)
 
         model_utils.save_state(self.enc, self.opt_enc, enc_save_path_tmp, gpu_id)
         shutil.copyfile(enc_save_path_tmp, enc_save_path_final)
 
         model_utils.save_state(self.dec, self.opt_dec, dec_save_path_tmp, gpu_id)
         shutil.copyfile(dec_save_path_tmp, dec_save_path_final)
+
+        model_utils.save_state(self.decD, self.opt_decD, decD_save_path_tmp, gpu_id)
+        shutil.copyfile(decD_save_path_tmp, decD_save_path_final)
 
         pickle.dump(embeddings, open("{0}/embedding.pth".format(save_dir), "wb"))
         pickle.dump(
