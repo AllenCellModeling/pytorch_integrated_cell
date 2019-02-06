@@ -5,8 +5,8 @@ channels:
     - pytorch
 dependencies:
     - python=3.6
-    - pytorch=0.4.1
-    - torchvision=0.1.9
+    - pytorch=1.0.0
+    - torchvision=0.2.1
     - cuda91=1.0
     - matplotlib=2.2.2
     - numpy=1.15.0
@@ -18,5 +18,6 @@ dependencies:
     - h5py=2.7.1
     - tqdm=4.24.0
     - natsort=5.3.3
+    - ipykernel
     - pip:
         - git+https://github.com/AllenCellModeling/aicsimage.git
