@@ -342,9 +342,13 @@ class Model(base_model.Model):
 
         gpu_id = self.gpu_ids[0]
 
-        n_iters = int(len(self.logger))
+        n_iters = self.get_current_iter()
 
-        embeddings = torch.cat(self.zAll, 0).cpu().numpy()
+        embeddings = np.concatenate(self.zAll, 0)
+        pickle.dump(embeddings, open("{0}/embedding.pth".format(save_dir), "wb"))
+        pickle.dump(
+            embeddings, open("{0}/embedding_{1}.pth".format(save_dir, n_iters), "wb")
+        )
 
         enc_save_path_tmp = "{0}/enc.pth".format(save_dir)
         enc_save_path_final = "{0}/enc_{1}.pth".format(save_dir, n_iters)
@@ -362,10 +366,5 @@ class Model(base_model.Model):
 
         model_utils.save_state(self.decD, self.opt_decD, decD_save_path_tmp, gpu_id)
         shutil.copyfile(decD_save_path_tmp, decD_save_path_final)
-
-        pickle.dump(embeddings, open("{0}/embedding.pth".format(save_dir), "wb"))
-        pickle.dump(
-            embeddings, open("{0}/embedding_{1}.pth".format(save_dir, n_iters), "wb")
-        )
 
         pickle.dump(self.logger, open("{0}/logger.pkl".format(save_dir), "wb"))
