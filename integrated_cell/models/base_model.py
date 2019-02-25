@@ -193,9 +193,6 @@ class Model(object):
         enc.train(True)
         dec.train(True)
 
-        # pdb.set_trace()
-        # zAll = torch.cat(zAll,0).cpu().numpy()
-
         embedding = torch.cat(self.zAll, 0).cpu().numpy()
 
         pickle.dump(
@@ -232,21 +229,7 @@ class Model(object):
             self.logger.add(
                 [self.get_current_epoch(), self.get_current_iter()] + errors + [deltaT]
             )
-            self.zAll.append(zLatent.data.cpu())
+            self.zAll.append(zLatent.data.cpu().detach().numpy())
 
             if self.maybe_save():
                 self.zAll = list()
-
-
-#     def setup_decoder_vars(self, z, classes, ref):
-#         if self.provide_decoder_vars:
-#             c = 0
-#             if self.n_classes > 0:
-#                 z[c] = torch.log(utils.index_to_onehot(classes, self.data_provider.get_n_classes()) + 1E-8)
-#                 c += 1
-
-#             if self.n_ref > 0:
-#                 z[c] = ref
-#                 c += 1
-
-#         return z
