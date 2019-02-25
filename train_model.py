@@ -47,9 +47,9 @@ def setup(args):
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(ID) for ID in args["gpu_ids"]])
     args["gpu_ids"] = list(range(0, len(args["gpu_ids"])))
 
-    # if len(args["gpu_ids"]) == 1:
-    #     torch.backends.cudnn.enabled = True
-    #     torch.backends.cudnn.benchmark = True
+    if len(args["gpu_ids"]) == 1:
+        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.benchmark = True
 
     torch.manual_seed(args["myseed"])
     torch.cuda.manual_seed(args["myseed"])
