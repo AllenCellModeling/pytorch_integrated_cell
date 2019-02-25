@@ -1,10 +1,11 @@
 import numpy as np
 import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib import cm
-import pickle
 
-mpl.use("Agg")
+mpl.use("Agg")  # noqa
+import matplotlib.pyplot as plt
+
+# import pickle
+
 
 dpi = 100
 figx = 6
@@ -51,10 +52,11 @@ def history(logger, save_path):
             y_vals += logger.log[field]
             i += 1
 
-    ax_max = np.percentile(np.hstack(y_vals), 99.5)
-    ax_min = np.percentile(np.hstack(y_vals), 0)
+    if len(y_vals) > 0:
+        ax_max = np.percentile(np.hstack(y_vals), 99.5)
+        ax_min = np.percentile(np.hstack(y_vals), 0)
 
-    ax2.set_ylim([ax_min, ax_max])
+        ax2.set_ylim([ax_min, ax_max])
 
     # Get all the labels for the legend from both axes
     labs = [l.get_label() for l in plts]
@@ -135,26 +137,26 @@ def embeddings(embedding, save_path):
     plt.close()
 
 
-def embedding_variation(embedding_paths, figsize=(8, 4), save_path=None):
+# def embedding_variation(embedding_paths, figsize=(8, 4), save_path=None):
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-    colors = cm.viridis(np.linspace(0, 1, len(embedding_paths)))
+#     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+#     # colors = cm.viridis(np.linspace(0, 1, len(embedding_paths)))
 
-    for path, color in zip(embedding_paths, colors):
-        embeddings = pickle.load(open(path, "rb"))
+#     for path, color in zip(embedding_paths, colors):
+#         embeddings = pickle.load(open(path, "rb"))
 
-        var_dims = np.sort(np.var(embeddings, axis=0))[::-1]
-        ax1.plot(var_dims, color=color)
-        ax1.set_xlabel("dimension #")
-        ax1.set_ylabel("dimension variation")
-        ax1.set_ylim(0, 1.05)
+#         var_dims = np.sort(np.var(embeddings, axis=0))[::-1]
+#         ax1.plot(var_dims, color=color)
+#         ax1.set_xlabel("dimension #")
+#         ax1.set_ylabel("dimension variation")
+#         ax1.set_ylim(0, 1.05)
 
-        ax2.plot(np.cumsum(var_dims) / np.sum(var_dims), color=color)
-        ax2.set_xlabel("dimension #")
-        ax2.set_ylabel("cumulative variation")
+#         ax2.plot(np.cumsum(var_dims) / np.sum(var_dims), color=color)
+#         ax2.set_xlabel("dimension #")
+#         ax2.set_ylabel("cumulative variation")
 
-    fig.tight_layout()
+#     fig.tight_layout()
 
-    if save_path is not None:
-        plt.savefig(save_path, bbox_inches="tight", dpi=dpi)
-        plt.close()
+#     if save_path is not None:
+#         plt.savefig(save_path, bbox_inches="tight", dpi=dpi)
+#         plt.close()
