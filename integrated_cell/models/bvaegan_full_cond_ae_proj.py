@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-from .. import model_utils
 from .. import utils
 from . import bvae
 from . import bvaegan
@@ -117,12 +116,7 @@ class Model(bvaegan.Model):
 
         enc, dec, decD = self.enc, self.dec, self.decD
         opt_enc, opt_dec, opt_decD = self.opt_enc, self.opt_dec, self.opt_decD
-        crit_recon, crit_z_class, crit_z_ref, crit_decD = (
-            self.crit_recon,
-            self.crit_z_class,
-            self.crit_z_ref,
-            self.crit_decD,
-        )
+        crit_recon, crit_decD = (self.crit_recon, self.crit_decD)
 
         # do this just incase anything upstream changes these values
         enc.train(True)
@@ -431,14 +425,17 @@ class Model(bvaegan.Model):
         enc.train(True)
         dec.train(True)
 
-        # pdb.set_trace()
-        # zAll = torch.cat(zAll,0).cpu().numpy()
+        embeddings = np.concatenate(self.zAll, 0)
 
-        embedding = torch.cat(self.zAll, 0).cpu().numpy()
-
+        pickle.dump(embeddings, open("{0}/embedding.pth".format(self.save_dir), "wb"))
         pickle.dump(
-            embedding, open("{0}/embedding_tmp.pkl".format(self.save_dir), "wb")
+            embeddings,
+            open(
+                "{0}/embedding_{1}.pth".format(self.save_dir, self.get_current_iter()),
+                "wb",
+            ),
         )
+
         pickle.dump(self.logger, open("{0}/logger_tmp.pkl".format(self.save_dir), "wb"))
 
         # History
@@ -448,7 +445,7 @@ class Model(bvaegan.Model):
         plots.short_history(self.logger, "{0}/history_short.png".format(self.save_dir))
 
         # Embedding figure
-        plots.embeddings(embedding, "{0}/embedding.png".format(self.save_dir))
+        plots.embeddings(embeddings, "{0}/embedding.png".format(self.save_dir))
 
         xHat = None
         x = None
