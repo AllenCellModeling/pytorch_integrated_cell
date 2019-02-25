@@ -6,10 +6,11 @@ import pickle
 
 from integrated_cell import imgtoprojection
 
-import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-mpl.use("Agg")
+mpl.use("Agg")  # noqa
+
+import matplotlib.pyplot as plt
 
 
 def init_opts(opt, opt_default):
@@ -84,6 +85,7 @@ def weights_init(m):
 def load_embeddings(embeddings_path, enc=None, dp=None):
 
     if os.path.exists(embeddings_path):
+
         embeddings = torch.load(embeddings_path)
     else:
         embeddings = get_latent_embeddings(enc, dp)
@@ -132,11 +134,16 @@ def load_data_provider(
     DP = importlib.import_module("integrated_cell.data_providers." + module_name)
 
     if os.path.exists(save_path):
-        dp = torch.load(save_path)
+        if save_path[-4:] == ".pyt":
+            dp = torch.load(save_path)
+        else:
+            dp = pickle.load(open(save_path, "rb"))
+
         dp.image_parent = im_dir
     else:
         dp = DP.DataProvider(im_dir, batch_size=batch_size, n_dat=n_dat, **kwargs_dp)
-        torch.save(dp, save_path)
+        #         torch.save(dp, save_path)
+        pickle.dump(dp, open(save_path, "wb"))
 
     dp.batch_size = batch_size
 
