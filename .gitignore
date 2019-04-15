@@ -1,11 +1,10 @@
 .DS_Store
 ._.DS_Store
-
 **.pyc
 **.pyt
 .ipynb_checkpoints
+.vscode
 train_modules/__pycache__/*
-
-results/
-
 *.egg-info/
+examples/
+results/
