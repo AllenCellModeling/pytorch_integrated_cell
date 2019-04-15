@@ -7,12 +7,11 @@ dependencies:
     - python=3.6
     - pytorch=1.0.0
     - torchvision=0.2.1
-    - cuda91=1.0
     - matplotlib=2.2.2
     - numpy=1.15.0
     - pandas=0.23.4
     - pillow=5.2.0
-    - scikit-image=0.14.0
+    - scikit-image=0.15.0
     - scipy=1.1.0
     - tifffile=0.15.0
     - h5py=2.7.1
