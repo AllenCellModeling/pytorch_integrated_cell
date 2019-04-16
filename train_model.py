@@ -165,6 +165,8 @@ def setup_kwargs_network(args):
                 "kwargs_network"
             ]["gpu_ids"]
 
+        network_kwargs[network_name]["init_meth"] = args["init_meth"]
+
     return network_kwargs
 
 
@@ -427,6 +429,10 @@ parser.add_argument(
     default=False,
     type=str2bool,
     help="User part 1 models to start part 2",
+)
+
+parser.add_argument(
+    "--init_meth", default="normal", type=str, help="Network initialization method."
 )
 
 args = vars(parser.parse_args())
