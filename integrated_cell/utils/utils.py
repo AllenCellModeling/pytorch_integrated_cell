@@ -79,6 +79,7 @@ def load_network(
     kwargs_optim,
     save_path,
     gpu_ids,
+    init_meth="normal",
     verbose=True,
 ):
 
@@ -89,7 +90,10 @@ def load_network(
 
     network = getattr(model_provider, component_name)(**kwargs_network)
 
-    network.apply(model_utils.weights_init)
+    def w_init(x):
+        weights_init(x, init_meth)
+
+    network.apply(w_init)
     network.cuda(gpu_ids[0])
 
     optimizer_provider = importlib.import_module("torch.optim")
@@ -108,6 +112,36 @@ def load_network(
 # def load_results_from_dir(results_dir):
 
 #     return dp, models
+
+
+def weights_init(m, init_meth="normal"):
+    classname = m.__class__.__name__
+
+    if init_meth == "normal":
+        if classname.find("Conv") != -1:
+            try:
+                m.weight.data.normal_(0.0, 0.02)
+            except:  # noqa
+                pass
+        elif classname.find("BatchNorm") != -1:
+            try:
+                m.weight.data.normal_(1.0, 0.02)
+                m.bias.data.fill_(0)
+            except:  # noqa
+                pass
+
+    elif init_meth == "ortho":
+        if classname.find("Conv") != -1:
+            try:
+                torch.nn.init.orthogonal_(m.weight.data)
+            except:  # noqa
+                pass
+        elif classname.find("BatchNorm") != -1:
+            try:
+                torch.nn.init.orthogonal_(m.weight.data)
+                m.bias.data.fill_(0)
+            except:  # noqa
+                pass
 
 
 def load_network_from_args_path(args_path):

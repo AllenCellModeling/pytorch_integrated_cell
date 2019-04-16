@@ -67,21 +67,6 @@ def tensor2img(img):
     return img
 
 
-def weights_init(m):
-    classname = m.__class__.__name__
-    if classname.find("Conv") != -1:
-        try:
-            m.weight.data.normal_(0.0, 0.02)
-        except:  # noqa
-            pass
-    elif classname.find("BatchNorm") != -1:
-        try:
-            m.weight.data.normal_(1.0, 0.02)
-            m.bias.data.fill_(0)
-        except:  # noqa
-            pass
-
-
 def load_embeddings(embeddings_path, enc=None, dp=None):
 
     if os.path.exists(embeddings_path):
@@ -134,15 +119,16 @@ def load_data_provider(
     DP = importlib.import_module("integrated_cell.data_providers." + module_name)
 
     if os.path.exists(save_path):
-        if save_path[-4:] == ".pyt":
-            dp = torch.load(save_path)
-        else:
-            dp = pickle.load(open(save_path, "rb"))
+
+        # if save_path[-4:] == ".pyt":
+        #     dp = torch.load(save_path)
+        # else:
+        dp = pickle.load(open(save_path, "rb"))
 
         dp.image_parent = im_dir
     else:
         dp = DP.DataProvider(im_dir, batch_size=batch_size, n_dat=n_dat, **kwargs_dp)
-        #         torch.save(dp, save_path)
+        # torch.save(dp, save_path)
         pickle.dump(dp, open(save_path, "wb"))
 
     dp.batch_size = batch_size

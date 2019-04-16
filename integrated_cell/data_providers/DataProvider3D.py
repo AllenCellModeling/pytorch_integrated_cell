@@ -24,6 +24,7 @@ class DataProvider(DataProviderABC):
         check_files=True,
         split_seed=1,
         crop_to=None,
+        rescale_to=None,
     ):
 
         self.data = {}
@@ -36,7 +37,7 @@ class DataProvider(DataProviderABC):
         self.check_files = check_files
         self.split_seed = split_seed
         self.crop_to = crop_to
-
+        self.rescale_to = rescale_to
         self.image_parent = image_parent
         self.csv_name = csv_name
 
@@ -241,6 +242,11 @@ class DataProvider(DataProviderABC):
             image = self.load_image(image_path)
 
             images[i] = torch.from_numpy(image)
+
+        if self.rescale_to is not None:
+            images = torch.nn.functional.interpolate(
+                images, scale_factor=self.rescale_to
+            )
 
         if self.crop_to is not None:
             crop = (np.array(images.shape[2:]) - np.array(self.crop_to)) / 2
