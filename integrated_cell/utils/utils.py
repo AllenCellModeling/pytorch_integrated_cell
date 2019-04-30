@@ -144,6 +144,35 @@ def weights_init(m, init_meth="normal"):
                 pass
 
 
+def load_network_from_dir(model_save_dir, parent_dir="./", net_names=["enc", "dec"]):
+
+    args_file = "{}/args.json".format(model_save_dir)
+
+    with open(args_file, "r") as f:
+        args = json.load(f)
+
+    args["save_dir"] = "{}/{}".format(model_save_dir, args["ref_dir"])
+
+    dp_name, dp_kwargs = save_load_dict("{}/args_dp.json".format(args["save_dir"]))
+    dp_kwargs["save_path"] = dp_kwargs["save_path"].replace("./", parent_dir)
+    dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
+
+    net_names = ["enc", "dec"]
+    net_kwargs = {}
+    networks = {}
+
+    for net_name in net_names:
+        args_save_path = "{}/args_{}.json".format(args["save_dir"], net_name)
+        net_kwargs[net_name] = save_load_dict(args_save_path)
+        net_kwargs[net_name]["save_path"] = net_kwargs[net_name]["save_path"].replace(
+            "./", parent_dir
+        )
+
+        networks[net_name], _ = load_network(**net_kwargs[net_name])
+
+    return networks, dp, args
+
+
 def load_network_from_args_path(args_path):
     network_args = save_load_dict(args_path, None, False)
     network, optimizer = load_network(**network_args)
