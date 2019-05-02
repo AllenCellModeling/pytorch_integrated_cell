@@ -1,27 +1,27 @@
-#stolen from pytorch 0.5
-#https://pytorch.org/docs/master/_modules/torch/nn/utils/spectral_norm.html#spectral_norm
+# stolen from pytorch 0.5
+# https://pytorch.org/docs/master/_modules/torch/nn/utils/spectral_norm.html#spectral_norm
 
 """
 Spectral Normalization from https://arxiv.org/abs/1802.05957
 """
 import torch
 from torch.nn.functional import normalize
-from torch.nn.parameter import Parameter
 
 
 class SpectralNorm(object):
-
-    def __init__(self, name='weight', n_power_iterations=1, eps=1e-12):
+    def __init__(self, name="weight", n_power_iterations=1, eps=1e-12):
         self.name = name
         if n_power_iterations <= 0:
-            raise ValueError('Expected n_power_iterations to be positive, but '
-                             'got n_power_iterations={}'.format(n_power_iterations))
+            raise ValueError(
+                "Expected n_power_iterations to be positive, but "
+                "got n_power_iterations={}".format(n_power_iterations)
+            )
         self.n_power_iterations = n_power_iterations
         self.eps = eps
 
     def compute_weight(self, module):
-        weight = getattr(module, self.name + '_org')
-        u = getattr(module, self.name + '_u')
+        weight = getattr(module, self.name + "_org")
+        u = getattr(module, self.name + "_u")
         height = weight.size(0)
         weight_mat = weight.view(height, -1)
         with torch.no_grad():
@@ -32,21 +32,26 @@ class SpectralNorm(object):
                 v = normalize(torch.matmul(weight_mat.t(), u), dim=0, eps=self.eps)
                 u = normalize(torch.matmul(weight_mat, v), dim=0, eps=self.eps)
 
-        sigma = torch.dot(u, torch.matmul(weight_mat, v))
+        #         import pdb
+        #         pdb.set_trace()
+
+        sigma = torch.dot(
+            u.float(), torch.matmul(weight_mat.float(), v.float()).float()
+        )
         weight = weight / sigma
         return weight, u
 
     def remove(self, module):
-        weight = module._parameters[self.name + '_org']
+        weight = module._parameters[self.name + "_org"]
         delattr(module, self.name)
-        delattr(module, self.name + '_u')
-        delattr(module, self.name + '_org')
+        delattr(module, self.name + "_u")
+        delattr(module, self.name + "_org")
         module.register_parameter(self.name, weight)
 
     def __call__(self, module, inputs):
         weight, u = self.compute_weight(module)
         setattr(module, self.name, weight)
-        setattr(module, self.name + '_u', u)
+        setattr(module, self.name + "_u", u)
 
     @staticmethod
     def apply(module, name, n_power_iterations, eps):
@@ -64,7 +69,7 @@ class SpectralNorm(object):
         return fn
 
 
-def spectral_norm(module, name='weight', n_power_iterations=1, eps=1e-12):
+def spectral_norm(module, name="weight", n_power_iterations=1, eps=1e-12):
     r"""Applies spectral normalization to a parameter in the given module.
 
     .. math::
@@ -106,8 +111,7 @@ def spectral_norm(module, name='weight', n_power_iterations=1, eps=1e-12):
     return module
 
 
-
-def remove_spectral_norm(module, name='weight'):
+def remove_spectral_norm(module, name="weight"):
     r"""Removes the spectral normalization reparameterization from a module.
 
     Args:
@@ -124,5 +128,4 @@ def remove_spectral_norm(module, name='weight'):
             del module._forward_pre_hooks[k]
             return module
 
-    raise ValueError("spectral_norm of '{}' not found in {}".format(
-        name, module))
+    raise ValueError("spectral_norm of '{}' not found in {}".format(name, module))

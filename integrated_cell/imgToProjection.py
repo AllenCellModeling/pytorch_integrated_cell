@@ -1,24 +1,34 @@
 # Author: Evan Wiederspan
 
 import numpy as np
+import matplotlib as mpl
+
+mpl.use("Agg")  # noqa
 import matplotlib.pyplot as pplot
 
 
-def matproj(im, dim, method='max', slice_index=0):
-    if method == 'max':
+def matproj(im, dim, method="max", slice_index=0):
+    if method == "max":
         im = np.max(im, dim)
-    elif method == 'mean':
+    elif method == "mean":
         im = np.mean(im, dim)
-    elif method == 'sum':
+    elif method == "sum":
         im = np.sum(im, dim)
-    elif method == 'slice':
+    elif method == "slice":
         im = im[slice_index]
     else:
         raise ValueError("Invalid projection method")
     return im
 
 
-def imgtoprojection(im1, proj_all=False, proj_method='max', colors=lambda i: [1, 1, 1], global_adjust=False, local_adjust=False):
+def imgtoprojection(
+    im1,
+    proj_all=False,
+    proj_method="max",
+    colors=lambda i: [1, 1, 1],
+    global_adjust=False,
+    local_adjust=False,
+):
     """
     Outputs projections of a 4d CZYX numpy array into a CYX numpy array, allowing for color masks for each input channel
     as well as adjustment options
@@ -50,7 +60,9 @@ def imgtoprojection(im1, proj_all=False, proj_method='max', colors=lambda i: [1,
 
     except (AttributeError, IndexError):
         # its not a list of np arrays
-        raise ValueError("im1 must be either a 4d numpy array or a list of numpy arrays")
+        raise ValueError(
+            "im1 must be either a 4d numpy array or a list of numpy arrays"
+        )
 
     # color processing code
     if isinstance(colors, str):
@@ -64,7 +76,7 @@ def imgtoprojection(im1, proj_all=False, proj_method='max', colors=lambda i: [1,
         # if its a function
         try:
             colors = [colors(i) for i in range(im.shape[0])]
-        except:
+        except:  # noqa
             raise ValueError("Invalid color function")
 
     # else, were assuming it's a list
@@ -84,15 +96,17 @@ def imgtoprojection(im1, proj_all=False, proj_method='max', colors=lambda i: [1,
         try:
             proj_z = matproj(img_c, 0, proj_method, img_c.shape[0] // 2)
             if proj_all:
-                proj_y, proj_x = (matproj(img_c, axis, proj_method, img_c.shape[axis] // 2) for axis in range(1, 3))
+                proj_y, proj_x = (
+                    matproj(img_c, axis, proj_method, img_c.shape[axis] // 2)
+                    for axis in range(1, 3)
+                )
                 # flipping to get them facing the right way
                 # proj_x = np.fliplr(np.transpose(proj_x, (1, 0)))
                 # proj_y = np.flipud(proj_y)
                 proj_x = np.transpose(proj_x, (1, 0))
                 proj_y = np.flipud(proj_y)
-                
-                
-                sx, sy, sz = proj_z.shape[1], proj_z.shape[0], proj_y.shape[0]
+
+                _, sy, sz = proj_z.shape[1], proj_z.shape[0], proj_y.shape[0]  # noqa
                 img_piece[:, :sy, :sz] = proj_x
                 img_piece[:, :sy, sz:] = proj_z
                 img_piece[:, sy:, sz:] = proj_y
