@@ -40,6 +40,7 @@ class Model(object):
 
         self.iters_per_epoch = np.ceil(len(data_provider) / data_provider.batch_size)
 
+
         self.zAll = list()
 
     def get_current_iter(self):
@@ -155,6 +156,7 @@ class Model(object):
             xHat = dec(z)
 
         z = list()
+
         if self.crit_z_class is not None:
             class_var = torch.log(
                 utils.index_to_onehot(classes, data_provider.get_n_classes()) + 1e-8
@@ -174,6 +176,7 @@ class Model(object):
             .normal_(0, 1)
             .cuda(gpu_id)
         )
+
         z.append(loc_var)
 
         with torch.no_grad():
