@@ -4,6 +4,9 @@ from ..utils import spectral_norm
 from ..models import bvae
 from .. import utils
 
+
+import numpy as np
+
 ksize = 4
 dstep = 2
 
@@ -40,52 +43,53 @@ class Enc(nn.Module):
             self.main = pretrained_net.main
 
             if self.main[0].in_channels != n_channels:
-                self.main[0] = nn.Conv3d(n_channels, 64, ksize, dstep, 1)
+                self.main[0] = nn.Conv2d(n_channels, 64, ksize, dstep, 1)
 
         else:
             self.main = nn.Sequential(
-                nn.Conv3d(n_channels, 64, ksize, dstep, 1),
-                nn.BatchNorm3d(64),
+                nn.Conv2d(n_channels, 64, ksize, dstep, 1, bias=False),
+                nn.BatchNorm2d(64),
                 get_activation(activation),
-                nn.Conv3d(64, 128, ksize, dstep, 1),
-                nn.BatchNorm3d(128),
+                nn.Conv2d(64, 128, ksize, dstep, 1, bias=False),
+                nn.BatchNorm2d(128),
                 get_activation(activation),
-                nn.Conv3d(128, 256, ksize, dstep, 1),
-                nn.BatchNorm3d(256),
+                nn.Conv2d(128, 256, ksize, dstep, 1, bias=False),
+                nn.BatchNorm2d(256),
                 get_activation(activation),
-                nn.Conv3d(256, 512, ksize, dstep, 1),
-                nn.BatchNorm3d(512),
+                nn.Conv2d(256, 512, ksize, dstep, 1, bias=False),
+                nn.BatchNorm2d(512),
                 get_activation(activation),
-                nn.Conv3d(512, 1024, ksize, dstep, 1),
-                nn.BatchNorm3d(1024),
+                nn.Conv2d(512, 1024, ksize, dstep, 1, bias=False),
+                nn.BatchNorm2d(1024),
                 get_activation(activation),
-                nn.Conv3d(1024, 1024, ksize, dstep, 1),
-                nn.BatchNorm3d(1024),
+                nn.Conv2d(1024, 1024, ksize, dstep, 1, bias=False),
+                nn.BatchNorm2d(1024),
                 get_activation(activation),
             )
 
         if self.n_classes > 0:
             self.classOut = nn.Sequential(
-                nn.Linear(1024 * int(self.fcsize * 1 * 1), self.n_classes),
+                nn.Linear(1024 * int(self.fcsize * 1 * 1), self.n_classes, bias=False),
                 # nn.BatchNorm1d(self.n_classes),
                 nn.LogSoftmax(),
             )
 
         if self.n_ref > 0:
             self.refOutMu = nn.Sequential(
-                nn.Linear(1024 * int(self.fcsize * 1 * 1), self.n_ref)
+                nn.Linear(1024 * int(self.fcsize * 1 * 1), self.n_ref, bias=False)
             )
-
-            # self.refOutSigma = nn.Sequential(
-            #     nn.Linear(1024*int(self.fcsize*1*1), self.n_ref))
 
         if self.n_latent_dim > 0:
             self.latentOutMu = nn.Sequential(
-                nn.Linear(1024 * int(self.fcsize * 1 * 1), self.n_latent_dim)
+                nn.Linear(
+                    1024 * int(self.fcsize * 1 * 1), self.n_latent_dim, bias=False
+                )
             )
 
             self.latentOutLogSigma = nn.Sequential(
-                nn.Linear(1024 * int(self.fcsize * 1 * 1), self.n_latent_dim)
+                nn.Linear(
+                    1024 * int(self.fcsize * 1 * 1), self.n_latent_dim, bias=False
+                )
             )
 
     def forward(self, x, reparameterize=False):
@@ -130,21 +134,17 @@ class Dec(nn.Module):
         n_ref,
         n_channels,
         gpu_ids,
-        activation="ReLU",
-        fcsize=2,
-        output_padding=(0, 1, 0),
+        output_padding=(0, 1),
         pretrained_path=None,
     ):
         super(Dec, self).__init__()
 
         self.gpu_ids = gpu_ids
-        self.fcsize = fcsize
+        self.fcsize = 2
 
         self.n_latent_dim = n_latent_dim
         self.n_classes = n_classes
         self.n_ref = n_ref
-
-        self.output_padding = output_padding
 
         if pretrained_path is not None:
             pretrained_net, _, _ = utils.load_network_from_args_path(pretrained_path)
@@ -161,40 +161,50 @@ class Dec(nn.Module):
                 self.fc = nn.Linear(
                     self.n_latent_dim + self.n_classes + self.n_ref,
                     1024 * int(self.fcsize * 1 * 1),
+                    bias=False,
                 )
 
             if self.main[-2].in_channels != n_channels:
-                self.main[-2] = nn.ConvTranspose3d(64, n_channels, ksize, dstep, 1)
+                self.main[-2] = nn.ConvTranspose2d(
+                    64, n_channels, ksize, dstep, 1, bias=False
+                )
 
         else:
 
             self.fc = nn.Linear(
                 self.n_latent_dim + self.n_classes + self.n_ref,
                 1024 * int(self.fcsize * 1 * 1),
+                bias=False,
             )
 
             self.main = nn.Sequential(
-                nn.BatchNorm3d(1024),
-                get_activation(activation),
-                nn.ConvTranspose3d(
-                    1024, 1024, ksize, dstep, 1, output_padding=output_padding
+                nn.BatchNorm2d(1024),
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(
+                    1024,
+                    1024,
+                    ksize,
+                    dstep,
+                    1,
+                    output_padding=output_padding,
+                    bias=False,
                 ),
-                nn.BatchNorm3d(1024),
-                get_activation(activation),
-                nn.ConvTranspose3d(1024, 512, ksize, dstep, 1),
-                nn.BatchNorm3d(512),
-                get_activation(activation),
-                nn.ConvTranspose3d(512, 256, ksize, dstep, 1),
-                nn.BatchNorm3d(256),
-                get_activation(activation),
-                nn.ConvTranspose3d(256, 128, ksize, dstep, 1),
-                nn.BatchNorm3d(128),
-                get_activation(activation),
-                nn.ConvTranspose3d(128, 64, ksize, dstep, 1),
-                nn.BatchNorm3d(64),
-                get_activation(activation),
-                nn.ConvTranspose3d(64, n_channels, ksize, dstep, 1),
-                # nn.BatchNorm3d(n_channels),
+                nn.BatchNorm2d(1024),
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(1024, 512, ksize, dstep, 1, bias=False),
+                nn.BatchNorm2d(512),
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(512, 256, ksize, dstep, 1, bias=False),
+                nn.BatchNorm2d(256),
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(256, 128, ksize, dstep, 1, bias=False),
+                nn.BatchNorm2d(128),
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(128, 64, ksize, dstep, 1, bias=False),
+                nn.BatchNorm2d(64),
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(64, n_channels, ksize, dstep, 1, bias=False),
+                # nn.BatchNorm2d(n_channels),
                 nn.Sigmoid(),
             )
 
@@ -203,10 +213,13 @@ class Dec(nn.Module):
         # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
         gpu_ids = self.gpu_ids
 
+        if self.n_classes > 0:
+            xIn[0] = torch.exp(xIn[0])
+
         x = torch.cat(xIn, 1)
 
         x = self.fc(x)
-        x = x.view(x.size()[0], 1024, self.fcsize, 1, 1)
+        x = x.view(x.size()[0], 1024, self.fcsize, 1)
 
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
 
@@ -230,52 +243,53 @@ class DecD(nn.Module):
         self.noise = torch.zeros(0)
 
         self.main = nn.Sequential(
-            spectral_norm(nn.Conv3d(n_channels, 64, ksize, dstep, 1)),
-            # nn.BatchNorm3d(64),
+            spectral_norm(nn.Conv2d(n_channels, 64, ksize, dstep, 1, bias=False)),
+            # nn.BatchNorm2d(64),
             nn.LeakyReLU(0.2, inplace=True),
-            spectral_norm(nn.Conv3d(64, 128, ksize, dstep, 1)),
-            nn.BatchNorm3d(128),
+            spectral_norm(nn.Conv2d(64, 128, ksize, dstep, 1, bias=False)),
+            nn.BatchNorm2d(128),
             nn.LeakyReLU(0.2, inplace=True),
-            spectral_norm(nn.Conv3d(128, 256, ksize, dstep, 1)),
-            nn.BatchNorm3d(256),
+            spectral_norm(nn.Conv2d(128, 256, ksize, dstep, 1, bias=False)),
+            nn.BatchNorm2d(256),
             nn.LeakyReLU(0.2, inplace=True),
-            spectral_norm(nn.Conv3d(256, 512, ksize, dstep, 1)),
-            nn.BatchNorm3d(512),
+            spectral_norm(nn.Conv2d(256, 512, ksize, dstep, 1, bias=False)),
+            nn.BatchNorm2d(512),
             nn.LeakyReLU(0.2, inplace=True),
-            spectral_norm(nn.Conv3d(512, 1024, ksize, dstep, 1)),
-            nn.BatchNorm3d(1024),
+            spectral_norm(nn.Conv2d(512, 1024, ksize, dstep, 1, bias=False)),
+            nn.BatchNorm2d(1024),
             nn.LeakyReLU(0.2, inplace=True),
-            spectral_norm(nn.Conv3d(1024, 1024, ksize, dstep, 1)),
-            nn.BatchNorm3d(1024),
+            spectral_norm(nn.Conv2d(1024, 1024, ksize, dstep, 1, bias=False)),
+            nn.BatchNorm2d(1024),
             nn.LeakyReLU(0.2, inplace=True),
         )
+        self.fc = spectral_norm(
+            nn.Linear(1024 * int(self.fcsize), n_classes, bias=False)
+        )
 
-        self.fc = spectral_norm(nn.Linear(1024 * int(self.fcsize), n_classes))
-
-        # if n_classes == 1:
-        #     self.nlEnd = nn.Sigmoid()
-        # else:
-        #     self.nlEnd = nn.LogSoftmax()
-
-    def forward(self, x):
+    def forward(self, x_in):
         # gpu_ids = None
         # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
         gpu_ids = self.gpu_ids
 
+        out = list()
+
         if self.noise_std > 0:
             # allocate an appropriately sized variable if it does not exist
-            if self.noise.size() != x.size():
-                self.noise = torch.zeros(x.size()).type_as(x)
+            if self.noise.size() != x_in.size():
+                self.noise = torch.zeros(x_in.size()).cuda(gpu_ids[0])
 
             # sample random noise
             self.noise.normal_(mean=0, std=self.noise_std)
             noise = torch.autograd.Variable(self.noise)
 
             # add to input
-            x = x + noise
+            x = x_in + noise
+        else:
+            x = x_in
 
         x = nn.parallel.data_parallel(self.main, x, gpu_ids)
-        x = x.view(x.size()[0], 1024 * int(self.fcsize))
-        x = self.fc(x)
 
-        return x
+        x = x.view(x.size()[0], x.shape[1] * int(self.fcsize))
+        out = self.fc(x)
+
+        return out

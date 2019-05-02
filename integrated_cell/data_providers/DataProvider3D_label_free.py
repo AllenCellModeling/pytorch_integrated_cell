@@ -20,11 +20,12 @@ class DataProvider(DataProviderABC):
         verbose=True,
         target_col="StructureId/Name",
         image_col="save_reg_path",
-        channelInds=[0, 1, 2],
+        channelInds=np.arange(3, 15),
         check_files=True,
         split_seed=1,
         crop_to=None,
-        rescale_to=None,
+        return2D=False,
+        channel_lookup=np.arange(0, 15),
     ):
 
         self.data = {}
@@ -37,28 +38,15 @@ class DataProvider(DataProviderABC):
         self.check_files = check_files
         self.split_seed = split_seed
         self.crop_to = crop_to
-        self.rescale_to = rescale_to
+
         self.image_parent = image_parent
         self.csv_name = csv_name
 
-        # translate short channel name spassed in into longer csv column names
-        self.channel_index_dict = {
-            0: "save_nuc_reg_path",
-            1: "save_cell_reg_path",
-            2: "save_dna_reg_path",
-            3: "save_memb_reg_path",
-            4: "save_struct_reg_path",
-            5: "save_trans_reg_path",
-        }
+        self.return2D = return2D
 
-        self.channel_lookup = [
-            3,  # 0 means memb
-            4,  # 1 means struct
-            2,  # 2 means dna
-            1,  # 3 means seg cell
-            0,  # 4 means seg nuc
-            5,
-        ]  # 5 means transmitted
+        # translate short channel name spassed in into longer csv column names
+
+        self.channel_lookup = channel_lookup
 
         # channel_column_list = [col for col in self.channel_index_to_column_dict.values()]
 
@@ -156,10 +144,6 @@ class DataProvider(DataProviderABC):
         self.data["train"] = {}
         self.data["train"]["inds"] = np.where(np.array(img_nums) > self.hold_out)[0]
 
-        self.imsize = self.load_image(
-            image_parent + os.sep + csv_df.iloc[0][self.image_col]
-        ).shape
-
         self.batch_size = batch_size
 
         self.embeddings = {}
@@ -183,20 +167,49 @@ class DataProvider(DataProviderABC):
 
         im_inds = ch_lookup[ch_inds]
 
-        im = im_tmp[im_inds]
+        im_mask = im_tmp[1] > 0
+
+        image = im_tmp[im_inds]
 
         for i, ch_ind in enumerate(ch_inds):
 
-            if ch_ind == 2:  # if dna, crop with dna seg
-                im[i] = im[i] * (im_tmp[ch_lookup[4]] > 0)
-            elif ch_ind == 5:  # if transmitted, crop dont crop
-                pass  # its transmitted, dont crop
+            if ch_ind == 0 or ch_ind == 1 or ch_ind == 2:
+                pass  # skip cropping the segs and the transmitted light
             else:  # otherwise crop with cell
-                im[i] = im[i] * (im_tmp[ch_lookup[3]] > 0)
+                image[i] = image[i] * im_mask
 
-        im = im.transpose([0, 2, 3, 1])
-        im = im / 255
-        return im
+        image = image.transpose([0, 2, 3, 1])
+
+        if np.any(image >= 255):
+            image = image / 255
+
+        if self.crop_to is not None:
+            delta = (np.array(image.shape[1:]) - np.array(self.crop_to)) / 2
+
+            crop = np.zeros(delta.shape)
+            crop[delta > 0] = delta[delta > 0]
+            crop_pre = np.floor(crop).astype(int)
+            crop_post = np.ceil(crop).astype(int)
+
+            crop_post[crop_post == 0] = -np.array(image.shape[1:])[crop_post == 0]
+
+            image = image[
+                :,
+                crop_pre[0] : -crop_post[0],  # noqa
+                crop_pre[1] : -crop_post[1],  # noqa
+                crop_pre[2] : -crop_post[2],  # noqa
+            ]
+
+            pad = np.zeros(delta.shape)
+            pad[delta < 0] = -delta[delta < 0]
+            pad_pre = np.concatenate([[0], np.floor(pad)]).astype(int)
+            pad_post = np.concatenate([[0], np.ceil(pad)]).astype(int)
+
+            pad = [[pre, post] for pre, post in zip(pad_pre, pad_post)]
+
+            image = np.pad(image, pad, mode="constant", constant_values=0)
+
+        return image
 
     def set_n_dat(self, n_dat, train_or_test="train"):
         if n_dat == -1:
@@ -229,39 +242,21 @@ class DataProvider(DataProviderABC):
         return image_paths
 
     def get_images(self, inds_tt, train_or_test):
-        dims = list(self.imsize)
-        dims[0] = len(self.channelInds)
-        dims.insert(0, len(inds_tt))
 
         inds_master = self.data[train_or_test]["inds"][inds_tt]
 
-        images = torch.zeros(tuple(dims))
-
+        images = []
         for i, (rownum, row) in enumerate(self.csv_data.iloc[inds_master].iterrows()):
             image_path = self.image_parent + os.sep + row[self.image_col]
             image = self.load_image(image_path)
 
-            images[i] = torch.from_numpy(image)
+            images.append(image)
 
-        if self.rescale_to is not None:
-            images = torch.nn.functional.interpolate(
-                images, scale_factor=self.rescale_to
-            )
+        images = np.stack(images, 0)
+        images = torch.from_numpy(images).float()
 
-        if self.crop_to is not None:
-            crop = (np.array(images.shape[2:]) - np.array(self.crop_to)) / 2
-            crop_pre = np.floor(crop).astype(int)
-            crop_post = np.ceil(crop).astype(int)
-
-            crop_post[crop_post == 0] = -np.array(images.shape[2:])[crop_post == 0]
-
-            images = images[
-                :,
-                :,
-                crop_pre[0] : -crop_post[0],  # noqa
-                crop_pre[1] : -crop_post[1],  # noqa
-                crop_pre[2] : -crop_post[2],  # noqa
-            ]
+        if self.return2D:
+            images = torch.max(images, dim=4)[0]
 
         return images
 
@@ -305,3 +300,14 @@ class DataProvider(DataProviderABC):
         ref = self.get_ref(inds, train_or_test)
 
         return x, classes, ref
+
+    def __getitem__(self, ind, train_or_test="train"):
+        inds_master = self.data[train_or_test]["inds"][ind]
+
+        row = self.csv_data.iloc[inds_master]
+        image_path = self.image_parent + os.sep + row[self.image_col]
+        image = self.load_image(image_path)
+
+        label = self.labels[inds_master]
+
+        return image, label
