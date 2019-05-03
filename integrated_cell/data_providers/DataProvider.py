@@ -9,8 +9,6 @@ import hashlib
 
 from integrated_cell.data_providers.DataProviderABC import DataProviderABC
 
-# Dataprovider for 2D and 3D data that duplicates membrane and nuclear channels as "structures"
-
 
 def str2rand(strings, seed):
     # prepend the 'seed' to the unique file path, then hash with SHA512
