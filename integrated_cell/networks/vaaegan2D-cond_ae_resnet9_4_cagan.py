@@ -429,7 +429,15 @@ class Dec(nn.Module):
 
 
 class DecD(nn.Module):
-    def __init__(self, n_classes, n_channels, gpu_ids, noise_std, **kwargs):
+    def __init__(
+        self,
+        n_classes,
+        n_channels,
+        gpu_ids,
+        noise_std,
+        activation="leakyrelu",
+        **kwargs
+    ):
         super(DecD, self).__init__()
 
         self.noise_std = noise_std
