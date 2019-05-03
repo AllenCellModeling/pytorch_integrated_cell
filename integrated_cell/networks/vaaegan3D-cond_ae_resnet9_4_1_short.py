@@ -369,9 +369,6 @@ class Enc(nn.Module):
             )
 
     def forward(self, x, x_class):
-        # gpu_ids = None
-        # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
-
         x_ref = x[:, self.ch_ref]
         x_target = x[:, self.ch_target]
 
@@ -408,8 +405,7 @@ class Dec(nn.Module):
         n_channels,
         n_channels_target,
         gpu_ids,
-        output_padding=(1, 1, 0),
-        pretrained_path=None,
+        padding_latent=(0, 0, 0),  # (1,1,0)
         ch_ref=[0, 2],
         ch_target=[1],
         l_sizes=[512, 512, 256, 128, 64],
@@ -453,10 +449,10 @@ class Dec(nn.Module):
         self.target_path = nn.ModuleList([])
 
         for i in range(len(l_sizes) - 1):
-            #             if i == 0:
-            #                 padding = output_padding
-            #             else:
-            padding = 0
+            if i == 0:
+                padding = padding_latent
+            else:
+                padding = 0
 
             self.ref_path.append(
                 UpLayerResidual(l_sizes[i], l_sizes[i + 1], output_padding=padding)
