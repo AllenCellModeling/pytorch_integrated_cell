@@ -1,4 +1,4 @@
-Pyorch 3D Integrated Cell
+Pytorch 3D Integrated Cell
 ===============================
 
 ![Model Architecture](doc/images/model_arch.png?raw=true "Model Architecture")
