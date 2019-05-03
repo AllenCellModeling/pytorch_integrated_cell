@@ -8,3 +8,4 @@ train_modules/__pycache__/*
 *.egg-info/
 examples/
 results/
+integrated_cell/networks/old
