@@ -1,10 +1,12 @@
 import numpy as np
 import matplotlib as mpl
+from matplotlib.ticker import NullFormatter
+from matplotlib import cm
+import matplotlib.pyplot as plt
+import scipy.stats as stats
+import pickle
 
 mpl.use("Agg")  # noqa
-import matplotlib.pyplot as plt
-
-# import pickle
 
 
 dpi = 100
@@ -137,26 +139,109 @@ def embeddings(embedding, save_path):
     plt.close()
 
 
-# def embedding_variation(embedding_paths, figsize=(8, 4), save_path=None):
+def embedding_variation(embedding_paths, figsize=(8, 4), save_path=None):
 
-#     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-#     # colors = cm.viridis(np.linspace(0, 1, len(embedding_paths)))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    colors = cm.viridis(np.linspace(0, 1, len(embedding_paths)))
 
-#     for path, color in zip(embedding_paths, colors):
-#         embeddings = pickle.load(open(path, "rb"))
+    for path, color in zip(embedding_paths, colors):
+        embeddings = pickle.load(open(path, "rb"))
 
-#         var_dims = np.sort(np.var(embeddings, axis=0))[::-1]
-#         ax1.plot(var_dims, color=color)
-#         ax1.set_xlabel("dimension #")
-#         ax1.set_ylabel("dimension variation")
-#         ax1.set_ylim(0, 1.05)
+        var_dims = np.sort(np.var(embeddings, axis=0))[::-1]
+        ax1.plot(var_dims, color=color)
+        ax1.set_xlabel("dimension #")
+        ax1.set_ylabel("dimension variation")
+        ax1.set_ylim(0, 1.05)
 
-#         ax2.plot(np.cumsum(var_dims) / np.sum(var_dims), color=color)
-#         ax2.set_xlabel("dimension #")
-#         ax2.set_ylabel("cumulative variation")
+        ax2.plot(np.cumsum(var_dims) / np.sum(var_dims), color=color)
+        ax2.set_xlabel("dimension #")
+        ax2.set_ylabel("cumulative variation")
 
-#     fig.tight_layout()
+    fig.tight_layout()
 
-#     if save_path is not None:
-#         plt.savefig(save_path, bbox_inches="tight", dpi=dpi)
-#         plt.close()
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches="tight", dpi=dpi)
+        plt.close()
+
+
+def qq_plot(stats_x, stats_y):
+    u_vals = np.unique(np.hstack([stats_x, stats_y]))
+
+    x_vals = list()
+    y_vals = list()
+    for x in u_vals:
+        x_vals.append(stats.percentileofscore(stats_x, x))
+        y_vals.append(stats.percentileofscore(stats_y, x))
+
+    plt.plot(x_vals, y_vals, color="r")
+    plt.plot([0, 100], [0, 100], "--", color="k")
+
+
+def scatter_hist(
+    stats_list_x, stats_list_y, labels=None, nbins=200, s=5, prct_bounds=[0.1, 99.9]
+):
+
+    if labels is None:
+        labels = [None] * len(stats_list_x)
+
+    x_lb = np.percentile(np.hstack(stats_list_x), prct_bounds[0])
+    x_hb = np.percentile(np.hstack(stats_list_x), prct_bounds[1])
+    x_bins = np.linspace(x_lb, x_hb, nbins)
+
+    y_lb = np.percentile(np.hstack(stats_list_y), prct_bounds[0])
+    y_hb = np.percentile(np.hstack(stats_list_y), prct_bounds[1])
+    y_bins = np.linspace(y_lb, y_hb, nbins)
+
+    ###
+    # Parts C&P'd from https://matplotlib.org/examples/pylab_examples/scatter_hist.html
+    ###
+    nullfmt = NullFormatter()  # no labels
+
+    # definitions for the axes
+    left, width = 0.1, 0.65
+    bottom, height = 0.1, 0.65
+    bottom_h = left_h = left + width + 0.02
+
+    rect_scatter = [left, bottom, width, height]
+    rect_histx = [left, bottom_h, width, 0.2]
+    rect_histy = [left_h, bottom, 0.2, height]
+
+    # start with a rectangular Figure
+    plt.figure(1, figsize=(8, 8))
+
+    axHistx = plt.axes(rect_histx)
+    axHisty = plt.axes(rect_histy)
+
+    # no labels
+    axHistx.xaxis.set_major_formatter(nullfmt)
+    axHisty.yaxis.set_major_formatter(nullfmt)
+
+    axScatter = plt.axes(rect_scatter)
+
+    # the scatter plot:
+    alpha = 1 / len(stats_list_x)
+    colors = ["c", "m", "c", "y"]
+    for x, y, color, label in zip(stats_list_x, stats_list_y, colors, labels):
+
+        axHistx.hist(x, bins=x_bins, color=color, alpha=alpha)
+        axHisty.hist(y, bins=y_bins, color=color, alpha=alpha, orientation="horizontal")
+
+        axHistx.set_xlim(axScatter.get_xlim())
+        axHisty.set_ylim(axScatter.get_ylim())
+
+        axScatter.scatter(x, y, s=s, c=color, alpha=alpha, label=label)
+
+        axScatter.set_xlim((x_lb, x_hb))
+        axScatter.set_ylim((y_lb, y_hb))
+
+    if not np.all(np.array([label is None for label in labels])):
+        plt.legend(loc="upper right")
+
+
+def plot_dim_variation(X):
+    stds = np.std(X, axis=0)
+    sorted_inds = np.argsort(stds)[::-1]
+
+    plt.plot(stds[sorted_inds])
+
+    return stds, sorted_inds
