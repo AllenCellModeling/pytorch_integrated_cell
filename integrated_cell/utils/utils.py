@@ -195,3 +195,69 @@ def get_activation(activation):
 
     elif activation.lower() == "leakyrelu":
         return torch.nn.LeakyReLU(0.2, inplace=True)
+
+
+def sample_image(dec, n_imgs=1):
+    n_classes = dec.n_classes
+    n_ref_dim = dec.n_ref
+    n_latent_dim = dec.n_latent_dim
+
+    vec_ref = torch.zeros(1, n_ref_dim).float().cuda()
+    vec_ref.normal_()
+
+    vec_ref.repeat([n_classes, 1])
+
+    vec_struct = torch.zeros(n_classes, n_latent_dim).float().cuda()
+    vec_struct.normal_()
+
+    vec_class = torch.zeros(n_classes, n_classes).float().cuda()
+    for i in range(n_classes):
+        vec_class[i, i] = 1
+
+    with torch.no_grad():
+        img_out = dec([vec_class, vec_ref, vec_struct]).detach().cpu()
+
+    return (
+        img_out,
+        [vec_class.detach().cpu(), vec_ref.detach().cpu(), vec_struct.detach().cpu()],
+    )
+
+
+def autoencode_image(enc, dec, im_in, im_class):
+    n_classes = dec.n_classes
+
+    im_in = im_in.cuda()
+
+    vec_class = torch.zeros(1, n_classes).float().cuda()
+    vec_class[0, im_class] = 1
+
+    with torch.no_grad():
+        zAll = enc(im_in, vec_class)
+
+    for j in range(len(zAll)):
+        zAll[j] = zAll[j][0]
+
+    with torch.no_grad():
+        xHat = dec([vec_class] + zAll)
+
+    return xHat.detach().cpu()
+
+
+def predict_image(enc, dec, im_in, im_class):
+    n_classes = dec.n_classes
+
+    im_in = im_in.cuda()
+
+    vec_class = torch.zeros(1, n_classes).float().cuda()
+    vec_class[0, im_class] = 1
+
+    with torch.no_grad():
+        zAll = enc(im_in, vec_class)
+
+    zAll[0] = zAll[0][0]
+    zAll[0] = torch.zeros(zAll[1][0].shape).float().cuda()
+
+    with torch.no_grad():
+        xHat = dec([vec_class] + zAll)
+
+    return xHat.detach().cpu()
