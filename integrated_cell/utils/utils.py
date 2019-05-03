@@ -144,6 +144,35 @@ def weights_init(m, init_meth="normal"):
                 pass
 
 
+def load_network_from_dir(model_save_dir, parent_dir="./", net_names=["enc", "dec"]):
+
+    args_file = "{}/args.json".format(model_save_dir)
+
+    with open(args_file, "r") as f:
+        args = json.load(f)
+
+    args["save_dir"] = "{}/{}".format(model_save_dir, args["ref_dir"])
+
+    dp_name, dp_kwargs = save_load_dict("{}/args_dp.json".format(args["save_dir"]))
+    dp_kwargs["save_path"] = dp_kwargs["save_path"].replace("./", parent_dir)
+    dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
+
+    net_names = ["enc", "dec"]
+    net_kwargs = {}
+    networks = {}
+
+    for net_name in net_names:
+        args_save_path = "{}/args_{}.json".format(args["save_dir"], net_name)
+        net_kwargs[net_name] = save_load_dict(args_save_path)
+        net_kwargs[net_name]["save_path"] = net_kwargs[net_name]["save_path"].replace(
+            "./", parent_dir
+        )
+
+        networks[net_name], _ = load_network(**net_kwargs[net_name])
+
+    return networks, dp, args
+
+
 def load_network_from_args_path(args_path):
     network_args = save_load_dict(args_path, None, False)
     network, optimizer = load_network(**network_args)
@@ -166,3 +195,69 @@ def get_activation(activation):
 
     elif activation.lower() == "leakyrelu":
         return torch.nn.LeakyReLU(0.2, inplace=True)
+
+
+def sample_image(dec, n_imgs=1):
+    n_classes = dec.n_classes
+    n_ref_dim = dec.n_ref
+    n_latent_dim = dec.n_latent_dim
+
+    vec_ref = torch.zeros(1, n_ref_dim).float().cuda()
+    vec_ref.normal_()
+
+    vec_ref.repeat([n_classes, 1])
+
+    vec_struct = torch.zeros(n_classes, n_latent_dim).float().cuda()
+    vec_struct.normal_()
+
+    vec_class = torch.zeros(n_classes, n_classes).float().cuda()
+    for i in range(n_classes):
+        vec_class[i, i] = 1
+
+    with torch.no_grad():
+        img_out = dec([vec_class, vec_ref, vec_struct]).detach().cpu()
+
+    return (
+        img_out,
+        [vec_class.detach().cpu(), vec_ref.detach().cpu(), vec_struct.detach().cpu()],
+    )
+
+
+def autoencode_image(enc, dec, im_in, im_class):
+    n_classes = dec.n_classes
+
+    im_in = im_in.cuda()
+
+    vec_class = torch.zeros(1, n_classes).float().cuda()
+    vec_class[0, im_class] = 1
+
+    with torch.no_grad():
+        zAll = enc(im_in, vec_class)
+
+    for j in range(len(zAll)):
+        zAll[j] = zAll[j][0]
+
+    with torch.no_grad():
+        xHat = dec([vec_class] + zAll)
+
+    return xHat.detach().cpu()
+
+
+def predict_image(enc, dec, im_in, im_class):
+    n_classes = dec.n_classes
+
+    im_in = im_in.cuda()
+
+    vec_class = torch.zeros(1, n_classes).float().cuda()
+    vec_class[0, im_class] = 1
+
+    with torch.no_grad():
+        zAll = enc(im_in, vec_class)
+
+    zAll[0] = zAll[0][0]
+    zAll[0] = torch.zeros(zAll[1][0].shape).float().cuda()
+
+    with torch.no_grad():
+        xHat = dec([vec_class] + zAll)
+
+    return xHat.detach().cpu()
