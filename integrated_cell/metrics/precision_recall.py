@@ -13,8 +13,8 @@ def manifold_estimate(phi_a, phi_b, k=3):
     """
     r_a = torch.kthvalue(torch.cdist(phi_a, phi_a), k + 1, dim=0)
     d_ab = torch.cdist(phi_a, phi_b)
-    out = torch.max(d_ab < r_a.values.view(-1, 1), dim=0)
-    return out.values.float().mean().item()
+    out = torch.any(d_ab < r_a.values.view(-1, 1), dim=0)
+    return out.float().mean().item()
 
 
 def precision_recall(phi_r, phi_g, k=3):
