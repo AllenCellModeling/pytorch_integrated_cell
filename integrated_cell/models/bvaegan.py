@@ -368,3 +368,6 @@ class Model(base_model.Model):
         shutil.copyfile(decD_save_path_tmp, decD_save_path_final)
 
         pickle.dump(self.logger, open("{0}/logger.pkl".format(save_dir), "wb"))
+        pickle.dump(
+            self.logger, open("{0}/logger_{1}.pkl".format(save_dir, n_iters), "wb")
+        )

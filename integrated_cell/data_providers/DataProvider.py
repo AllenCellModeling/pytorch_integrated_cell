@@ -166,7 +166,7 @@ class DataProvider(DataProviderABC):
         df_dna["ch_struct"] = df_memb["ch_dna"]
         df_dna[self.target_col] = "Hoechst"
 
-        csv_df = pd.concat([csv_df, df_memb, df_dna])
+        csv_df = pd.concat([csv_df, df_memb, df_dna]).reset_index()
 
         image_classes = list(csv_df[self.target_col])
         self.csv_data = csv_df
