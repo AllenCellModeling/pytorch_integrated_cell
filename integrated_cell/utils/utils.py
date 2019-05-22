@@ -144,7 +144,9 @@ def weights_init(m, init_meth="normal"):
                 pass
 
 
-def load_network_from_dir(model_save_dir, parent_dir="./", net_names=["enc", "dec"]):
+def load_network_from_dir(
+    model_save_dir, parent_dir="./", net_names=["enc", "dec"], suffix=""
+):
 
     args_file = "{}/args.json".format(model_save_dir)
 
@@ -166,6 +168,12 @@ def load_network_from_dir(model_save_dir, parent_dir="./", net_names=["enc", "de
         net_kwargs[net_name] = save_load_dict(args_save_path)
         net_kwargs[net_name]["save_path"] = net_kwargs[net_name]["save_path"].replace(
             "./", parent_dir
+        )
+
+        net_kwargs[net_name]["save_path"] = (
+            net_kwargs[net_name]["save_path"][:-4]
+            + suffix
+            + net_kwargs[net_name]["save_path"][-4:]
         )
 
         networks[net_name], _ = load_network(**net_kwargs[net_name])
@@ -255,7 +263,7 @@ def predict_image(enc, dec, im_in, im_class):
         zAll = enc(im_in, vec_class)
 
     zAll[0] = zAll[0][0]
-    zAll[0] = torch.zeros(zAll[1][0].shape).float().cuda()
+    zAll[1] = torch.zeros(zAll[1][0].shape).float().cuda()
 
     with torch.no_grad():
         xHat = dec([vec_class] + zAll)
