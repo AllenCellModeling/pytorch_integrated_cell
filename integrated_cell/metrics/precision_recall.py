@@ -23,21 +23,28 @@ def manifold_estimate(phi_a, phi_b, k=[3], batch_size=None):
     batch_size is the number of pairwise distance computations done at once (None = do them all at once)
     """
     if batch_size is None:
-        r_phi = {kappa:torch.kthvalue(my_cdist(phi_a, phi_a), kappa + 1, dim=1)[0] for kappa in k}
+        r_phi = {
+            kappa: torch.kthvalue(my_cdist(phi_a, phi_a), kappa + 1, dim=1)[0]
+            for kappa in k
+        }
         d_ba = my_cdist(phi_b, phi_a)
-        b_in_a = {kappa:torch.any(d_ba <= rp, dim=1).float() for kappa,rp in r_phi.items()}
+        b_in_a = {
+            kappa: torch.any(d_ba <= rp, dim=1).float() for kappa, rp in r_phi.items()
+        }
     else:
-        r_phi = {kappa:torch.empty_like(phi_a[:, 0]) for kappa in k}
+        r_phi = {kappa: torch.empty_like(phi_a[:, 0]) for kappa in k}
         for batch_inds in torch.split(torch.arange(len(phi_a)), batch_size):
             d_aa = my_cdist(phi_a[batch_inds], phi_a)
             for kappa in k:
                 r_phi[kappa][batch_inds] = torch.kthvalue(d_aa, kappa + 1, dim=1)[0]
-        b_in_a = {kappa:torch.empty_like(phi_b[:, 0]) for kappa in k}
+        b_in_a = {kappa: torch.empty_like(phi_b[:, 0]) for kappa in k}
         for batch_inds in torch.split(torch.arange(len(phi_b)), batch_size):
             d_ba = my_cdist(phi_b[batch_inds], phi_a)
             for kappa in k:
-                b_in_a[kappa][batch_inds] = torch.any(d_ba <= r_phi[kappa], dim=1).float()
-    return {key:value.mean().item() for key, value in b_in_a.items()}
+                b_in_a[kappa][batch_inds] = torch.any(
+                    d_ba <= r_phi[kappa], dim=1
+                ).float()
+    return {key: value.mean().item() for key, value in b_in_a.items()}
 
 
 def precision_recall(phi_r, phi_g, k=[3], batch_size=None):
