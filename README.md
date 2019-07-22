@@ -29,7 +29,7 @@ Installing on linux is recommended.
 - Clone and install the repo:
 
 ```shell
-git https://github.com/AllenCellModeling/pytorch_integrated_cell
+git clone https://github.com/AllenCellModeling/pytorch_integrated_cell
 cd pytorch_integrated_cell
 conda env create -f environment.yml
 conda activate pytorch_integrated_cell
