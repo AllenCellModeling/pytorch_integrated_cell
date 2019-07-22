@@ -5,47 +5,35 @@ Pytorch 3D Integrated Cell
 
 Building a 3D Integrated Cell: https://www.biorxiv.org/content/early/2017/12/21/238378
 
-### For the original 2D manuscript and software:  
+### For the 2D manuscript and software:  
 
 **Generative Modeling with Conditional Autoencoders: Building an Integrated Cell**  
 Manuscript: https://arxiv.org/abs/1705.00092  
 GitHub: https://github.com/AllenCellModeling/torch_integrated_cell 
 
+## Support
+
+This code is in active development and is used within our organization. We are currently not supporting this code for external use and are simply releasing the code to the community AS IS. The community is welcome to submit issues, but you should not expect an active response.
+
+## System requirements
+
+We recommend installation on Linux and an NVIDIA graphics card with 10+ GB of RAM (e.g., NVIDIA Titan X Pascal) with the latest drivers installed.
+
 ## Installation
+
 Installing on linux is recommended.
 
-### prerequisites
-Running on docker is recommended, though not required.
- - install pytorch on docker / nvidia-docker as in e.g. this guide: https://github.com/AllenCellModeling/docker_pytorch_extended  
- 	**Note**: The model will not converge with pytorch versions later that 0.20 due to changes **cuDNN**. Make sure your version has **cuDNN 7.0.2** or earlier.
- - download the training images: http://downloads.allencell.org/publication-data/building-a-3d-integrated-cell/  
- 	**Note**: This tarball will decompress to about 150gb
- 
-## Running the Code
-After you clone this repository, you will need to edit the mount points for the images in `start_pytorch_docker.sh` to point to where you saved them.
+- Install the conda environment manager: [Conda](https://docs.conda.io/en/latest/miniconda.html).
+- Install Python 3.6+ if necessary.
+- All commands listed below assume the bash shell.
+- Clone and install the repo:
 
-Example of changed mount points in dockerfile:
-
+```shell
+git https://github.com/AllenCellModeling/pytorch_integrated_cell
+cd pytorch_integrated_cell
+conda env create -f environment.yml
+conda activate pytorch_integrated_cell
 ```
-nvidia-docker run -it \
-	-v /allen/aics/modeling/jacksonb/projects:/root/projects \
-  	-v /allen/aics/modeling/jacksonb/results:/root/results \
-	-v /allen/aics/modeling/jacksonb/data/ipp_17_10_25:/root/data/ipp/ipp_17_10_25 \
-	rorydm/pytorch_extras:jupyter \
-	bash
-```
-
-Replace any 'jacksonb' or 'gregj' paths with your paths and replace the 'rorydm' or 'gregj' docker image with your docker image tag.
-
-Once those locations are properly set, you can start the docker image with
-
-`bash start_pytorch_docker.sh`
-
-Once you're in the docker container, you can train the model with 
-
-`bash start_training.sh`
-
-This will take a while, probably about 2 weeks.
 
 ## Project website
 Example outputs of this model can be viewed at http://www.allencell.org
