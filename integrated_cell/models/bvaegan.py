@@ -9,6 +9,8 @@ from .. import SimpleLogger
 import os
 import pickle
 
+import shutil
+
 
 class Model(base_model.Model):
     def __init__(
@@ -337,8 +339,6 @@ class Model(base_model.Model):
     def save(self, save_dir):
         #         for saving and loading see:
         #         https://discuss.pytorch.org/t/how-to-save-load-torch-models/718
-
-        import shutil
 
         gpu_id = self.gpu_ids[0]
 

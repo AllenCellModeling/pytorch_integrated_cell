@@ -1,13 +1,15 @@
 import numpy as np
-import matplotlib as mpl
+
+# import matplotlib as mpl
 from matplotlib.ticker import NullFormatter
 from matplotlib import cm
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 import pickle
 
-mpl.use("Agg")  # noqa
-
+# mpl.use("Agg")  # noqa
 
 dpi = 100
 figx = 6
@@ -223,8 +225,15 @@ def scatter_hist(
     colors = ["c", "m", "c", "y"]
     for x, y, color, label in zip(stats_list_x, stats_list_y, colors, labels):
 
-        axHistx.hist(x, bins=x_bins, color=color, alpha=alpha)
-        axHisty.hist(y, bins=y_bins, color=color, alpha=alpha, orientation="horizontal")
+        axHistx.hist(x, bins=x_bins, color=color, alpha=alpha, density=True)
+        axHisty.hist(
+            y,
+            bins=y_bins,
+            color=color,
+            alpha=alpha,
+            density=True,
+            orientation="horizontal",
+        )
 
         axHistx.set_xlim(axScatter.get_xlim())
         axHisty.set_ylim(axScatter.get_ylim())
@@ -245,3 +254,90 @@ def plot_dim_variation(X):
     plt.plot(stds[sorted_inds])
 
     return stds, sorted_inds
+
+
+def scatter_im(
+    X,
+    imfunc,
+    zoom=1,
+    dims_to_plot=[0, 1],
+    ax=None,
+    inset=False,
+    inset_offset=0.15,
+    inset_width_and_height=0.1,
+    plot_range=[0.05, 99.95],
+    inset_colors=None,
+    inset_scatter_size=25,
+):
+    # Adapted from https://stackoverflow.com/questions/22566284/matplotlib-how-to-plot-images-instead-of-points/53851017
+
+    if ax is None:
+        ax = plt.gca()
+
+    artists = []
+
+    for i in range(X.shape[0]):
+        im = OffsetImage(imfunc(i), zoom=zoom)
+        ab = AnnotationBbox(
+            im,
+            (X[i, dims_to_plot[0]], X[i, dims_to_plot[1]]),
+            xycoords="data",
+            frameon=False,
+        )
+        artists.append(ax.add_artist(ab))
+
+    ax.update_datalim(X[:, dims_to_plot])
+    ax.autoscale()
+
+    ax.xaxis.set_ticks_position("none")
+    ax.yaxis.set_ticks_position("none")
+
+    x_lb, x_hb = np.percentile(X[:, dims_to_plot[0]], plot_range)
+    y_lb, y_hb = np.percentile(X[:, dims_to_plot[1]], plot_range)
+
+    x_pad = (x_hb - x_lb) * 0.1
+    y_pad = (y_hb - y_lb) * 0.1
+
+    ax.set_xlim(x_lb - x_pad, x_hb + x_pad)
+    ax.set_ylim(y_lb - y_pad, y_hb + y_pad)
+
+    ax.set_facecolor((0, 0, 0))
+    nullfmt = NullFormatter()
+    ax.xaxis.set_major_formatter(nullfmt)
+    ax.yaxis.set_major_formatter(nullfmt)
+
+    ax.axis("off")
+
+    ax_inset = None
+    if inset:
+
+        offset = 0.15
+
+        inset = [
+            offset,
+            1 - inset_offset - inset_width_and_height,
+            inset_width_and_height,
+            inset_width_and_height,
+        ]
+        ax_inset = plt.axes(inset)
+
+        ax_inset.scatter(
+            X[:, dims_to_plot[0]],
+            X[:, dims_to_plot[1]],
+            s=inset_scatter_size,
+            c=inset_colors,
+        )
+
+        for k in ax_inset.spines:
+            ax_inset.spines[k].set_color("w")
+
+        #         ax_inset.set_facecolor('w')
+        ax_inset.xaxis.label.set_color("w")
+        ax_inset.yaxis.label.set_color("w")
+
+        ax_inset.tick_params(axis="x", colors="w")
+        ax_inset.tick_params(axis="y", colors="w")
+
+        return ax, ax_inset
+
+    return ax

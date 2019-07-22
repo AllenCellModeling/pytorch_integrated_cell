@@ -90,7 +90,6 @@ def setup_kwargs_network(args):
     kwargs_enc["kwargs_network"]["n_channels"] = len(args["channels"])
     kwargs_enc["kwargs_network"]["n_classes"] = args["n_classes"]
     kwargs_enc["kwargs_network"]["n_ref"] = args["n_ref"]
-    kwargs_enc["kwargs_network"]["n_latent_dim"] = args["n_latent_dim"]
     for k in args["kwargs_enc"]:
         kwargs_enc["kwargs_network"][k] = args["kwargs_enc"][k]
 
@@ -107,7 +106,6 @@ def setup_kwargs_network(args):
     kwargs_dec["kwargs_network"]["n_channels"] = len(args["channels"])
     kwargs_dec["kwargs_network"]["n_classes"] = args["n_classes"]
     kwargs_dec["kwargs_network"]["n_ref"] = args["n_ref"]
-    kwargs_dec["kwargs_network"]["n_latent_dim"] = args["n_latent_dim"]
     for k in args["kwargs_dec"]:
         kwargs_dec["kwargs_network"][k] = args["kwargs_dec"][k]
 
@@ -122,7 +120,6 @@ def setup_kwargs_network(args):
     kwargs_encD["network_name"] = args["network_name"]
     kwargs_encD["kwargs_network"] = {}
     kwargs_encD["kwargs_network"]["n_classes"] = args["n_classes"] + 1
-    kwargs_encD["kwargs_network"]["n_latent_dim"] = args["n_latent_dim"]
     for k in args["kwargs_encD"]:
         kwargs_encD["kwargs_network"][k] = args["kwargs_encD"][k]
 
@@ -186,13 +183,10 @@ def setup_kwargs_trainer(args):
 
 def setup_kwargs_loss(args, pt2):
 
-    if "size_average" in args["kwargs_crit"]:
-        args["kwargs_crit"]["size_average"] = bool(args["kwargs_crit"]["size_average"])
-
     kwargs_losses = {}
     kwargs_losses["crit_recon"] = {}
     kwargs_losses["crit_recon"]["name"] = args["crit_recon"]
-    kwargs_losses["crit_recon"]["kwargs"] = args["kwargs_crit"]
+    kwargs_losses["crit_recon"]["kwargs"] = args["kwargs_crit_recon"]
 
     if args["model_type"] == "ae":
         pass  # already setup!
@@ -200,25 +194,25 @@ def setup_kwargs_loss(args, pt2):
     elif args["model_type"] == "aegan":
         kwargs_losses["crit_decD"] = {}
         kwargs_losses["crit_decD"]["name"] = args["crit_decD"]
-        kwargs_losses["crit_decD"]["kwargs"] = args["kwargs_crit"]
+        kwargs_losses["crit_decD"]["kwargs"] = args["kwargs_crit_decD"]
 
     elif args["model_type"] == "aaegan":
         kwargs_losses["crit_decD"] = {}
         kwargs_losses["crit_decD"]["name"] = args["crit_decD"]
-        kwargs_losses["crit_decD"]["kwargs"] = args["kwargs_crit"]
+        kwargs_losses["crit_decD"]["kwargs"] = args["kwargs_crit_decD"]
 
         kwargs_losses["crit_encD"] = {}
         kwargs_losses["crit_encD"]["name"] = args["crit_encD"]
-        kwargs_losses["crit_encD"]["kwargs"] = args["kwargs_crit"]
+        kwargs_losses["crit_encD"]["kwargs"] = args["kwargs_crit_encD"]
 
     if pt2:
         kwargs_losses["crit_z_class"] = {}
         kwargs_losses["crit_z_class"]["name"] = args["crit_z_class"]
-        kwargs_losses["crit_z_class"]["kwargs"] = args["kwargs_crit"]
+        kwargs_losses["crit_z_class"]["kwargs"] = args["kwargs_crit_z_class"]
 
         kwargs_losses["crit_z_ref"] = {}
         kwargs_losses["crit_z_ref"]["name"] = args["crit_z_ref"]
-        kwargs_losses["crit_z_ref"]["kwargs"] = args["kwargs_crit"]
+        kwargs_losses["crit_z_ref"]["kwargs"] = args["kwargs_crit_z_ref"]
 
     return kwargs_losses
 
@@ -227,9 +221,6 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--gpu_ids", nargs="+", type=int, default=0, help="gpu id")
 parser.add_argument("--myseed", type=int, default=0, help="random seed")
-parser.add_argument(
-    "--n_latent_dim", type=int, default=16, help="number of latent dimensions"
-)
 
 parser.add_argument(
     "--model_type",
@@ -317,11 +308,24 @@ parser.add_argument(
     default="torch.nn.BCELoss",
     help="Loss function for image reconstruction",
 )
+parser.add_argument(
+    "--kwargs_crit_recon",
+    default=None,
+    type=json.loads,
+    help="Kwargs for image reconstruction loss",
+)
+
 
 parser.add_argument(
     "--crit_decD",
     default="nn.BCEWithLogitsLoss",
     help="Loss function for decoder descriminator",
+)
+parser.add_argument(
+    "--kwargs_crit_decD",
+    default=None,
+    type=json.loads,
+    help="Kwargs for decoder descriminator loss",
 )
 
 parser.add_argument(
@@ -329,16 +333,30 @@ parser.add_argument(
     default="nn.BCEWithLogitsLoss",
     help="Loss function for decoder descriminator",
 )
+parser.add_argument(
+    "--kwargs_crit_encD",
+    default=None,
+    type=json.loads,
+    help="Kwargs for decoder descriminator loss",
+)
 
 parser.add_argument(
     "--crit_z_class", default="torch.nn.NLLLoss", help="Loss function for class loss"
 )
 parser.add_argument(
+    "--kwargs_crit_z_class", default=None, type=json.loads, help="Kwargs for class loss"
+)
+
+parser.add_argument(
     "--crit_z_ref", default="torch.nn.MSELoss", help="Loss function for reference loss"
 )
 parser.add_argument(
-    "--kwargs_crit", type=json.loads, default={}, help="kwargs for loss functions"
+    "--kwargs_z_ref",
+    default=None,
+    type=json.loads,
+    help="Loss function for reference loss",
 )
+
 
 parser.add_argument("--batch_size", type=int, default=64, help="batch size")
 parser.add_argument("--nepochs", type=int, default=250, help="total number of epochs")

@@ -7,6 +7,8 @@ from .. import model_utils
 import warnings
 import argparse
 import shutil
+import hashlib
+import numpy as np
 
 
 def index_to_onehot(index, n_classes):
@@ -144,6 +146,19 @@ def weights_init(m, init_meth="normal"):
                 pass
 
 
+def load_data_provider_from_dir(model_save_dir, parent_dir):
+    args_file = "{}/args.json".format(model_save_dir)
+
+    with open(args_file, "r") as f:
+        args = json.load(f)
+
+    dp_name, dp_kwargs = save_load_dict("{}/args_dp.json".format(args["save_dir"]))
+    dp_kwargs["save_path"] = dp_kwargs["save_path"].replace("./", parent_dir)
+    dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
+
+    return dp
+
+
 def load_network_from_dir(
     model_save_dir, parent_dir="./", net_names=["enc", "dec"], suffix=""
 ):
@@ -205,22 +220,49 @@ def get_activation(activation):
         return torch.nn.LeakyReLU(0.2, inplace=True)
 
 
-def sample_image(dec, n_imgs=1):
+def str2rand(strings, seed=0):
+    # prepend the 'seed' to the unique file path, then hash with SHA512
+    salted_string = [str(seed) + str(string) for string in strings]
+    hash_strings = [
+        hashlib.sha512(string.encode("utf-8")).hexdigest() for string in salted_string
+    ]
+
+    rand_nums = list()
+    # Pull out the first 5 digits to get a value between 0-1 inclusive
+    for hash_string in hash_strings:
+        str_nums = [char for pos, char in enumerate(hash_string) if char.isdigit()]
+        str_num = "".join(str_nums[0:5])
+        num = float(str_num) / 100000
+        rand_nums.append(num)
+
+    rand_nums = np.array(rand_nums)
+
+    return rand_nums
+
+
+def sample_image(dec, n_imgs=1, classes_to_generate=None):
+    # classes_to_generate is a list of integers corresponding to classes to generate
+
     n_classes = dec.n_classes
     n_ref_dim = dec.n_ref
     n_latent_dim = dec.n_latent_dim
 
+    if classes_to_generate is None:
+        classes_to_generate = torch.tensor(np.arange(0, n_classes))
+
+    n_classes_to_generate = len(classes_to_generate)
+
     vec_ref = torch.zeros(1, n_ref_dim).float().cuda()
     vec_ref.normal_()
 
-    vec_ref.repeat([n_classes, 1])
+    vec_ref.repeat([n_classes_to_generate, 1])
 
-    vec_struct = torch.zeros(n_classes, n_latent_dim).float().cuda()
+    vec_struct = torch.zeros(n_classes_to_generate, n_latent_dim).float().cuda()
     vec_struct.normal_()
 
-    vec_class = torch.zeros(n_classes, n_classes).float().cuda()
-    for i in range(n_classes):
-        vec_class[i, i] = 1
+    vec_class = torch.zeros(n_classes_to_generate, n_classes).float().cuda()
+    for i in range(n_classes_to_generate):
+        vec_class[i, classes_to_generate[i]] = 1
 
     with torch.no_grad():
         img_out = dec([vec_class, vec_ref, vec_struct]).detach().cpu()
