@@ -60,8 +60,6 @@ class Model(base_model.Model):
         c_iters_max=1.2e5,
         gamma=1000,
         objective="H",
-        lambda_ref_loss=1,
-        lambda_class_loss=1,
         provide_decoder_vars=False,
         kld_avg=False,
     ):
@@ -95,9 +93,6 @@ class Model(base_model.Model):
             self.c_iters_max = c_iters_max
 
         self.objective = objective
-
-        self.lambda_ref_loss = lambda_ref_loss
-        self.lambda_class_loss = lambda_class_loss
 
         logger_path = "{}/logger.pkl".format(save_dir)
         if os.path.exists(logger_path):
