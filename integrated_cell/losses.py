@@ -18,6 +18,30 @@ class MSELoss(nn.Module):
         return self.mseloss(input, target)
 
 
+class NormalizedMSELoss(nn.MSELoss):
+    def __init__(self, **kwargs):
+        super(NormalizedMSELoss, self).__init__(**kwargs)
+
+    def forward(self, input, target):
+        target = target.float()
+
+        # dat = torch.cat([input, target], 0)
+
+        mu = torch.mean(target.view(target.shape[0], -1), 1)
+        sigma = torch.std(target.view(target.shape[0], -1), 1)
+
+        for i in range(len(target.shape) - 1):
+            mu = torch.unsqueeze(mu, -1)
+            sigma = torch.unsqueeze(sigma, -1)
+
+        # import pdb; pdb.set_trace()
+
+        input = (input - mu) / sigma
+        target = (target - mu) / sigma
+
+        return super().forward(input, target)
+
+
 class ClassMSELoss(nn.Module):
     r"""Creates a criterion that measures the mean squared error between
     `n` elements in the input `x` and target `y`.
@@ -107,11 +131,11 @@ def logC_taylor(x, eps=1e-7, taylor_center=0.5, taylor_radius=0.05):
     taylor_radius = torch.tensor(taylor_radius).type_as(x)
 
     # singular at zero and one, so regularize
-    mask = x == 0
-    x[mask] = x[mask] + eps
+    # mask = x == 0
+    # x.masked_scatter_(mask, x[mask] + eps)
 
-    mask = x == 1
-    x[mask] = x[mask] - eps
+    # mask = x == 1
+    # x.masked_scatter_(mask, x[mask] - eps)
 
     # logC = torch.log(2*torch.atanh(1-2*x)/(1-2*x))
     # but there's no torch.atanh so we use the alternate form
@@ -123,7 +147,16 @@ def logC_taylor(x, eps=1e-7, taylor_center=0.5, taylor_radius=0.05):
     #          = torch.log(torch.log((1-x)/x)/(1-2*x))
     #          = torch.log(torch.log(x/(1-x))/(2*x-1))
 
-    logC = torch.log((torch.log(x / (1.0 - x))) / (2.0 * x - 1.0))
+    # logC = torch.log((torch.log(x / (1.0 - x))) / (2.0 * x - 1.0))
+
+    x_2 = x.clone().detach()
+
+    logC = torch.log((torch.log((x + eps) / (1.0 - (x + eps)))) / (2.0 * x - 1.0))
+
+    if not torch.all(x == x_2):
+        import pdb
+
+        pdb.set_trace()
 
     # taylor expand around x = 0.5 because of the numerical instability
     # terms to fourth order are accurate to float precision on the interval [0.45,0.55]
@@ -137,13 +170,13 @@ def logC_taylor(x, eps=1e-7, taylor_center=0.5, taylor_radius=0.05):
         return c_0 + c_2 * diff2 + c_4 * diff2 ** 2
 
     mask = torch.abs(x - taylor_center) < taylor_radius
-    taylor_result = taylor(x[mask], taylor_center)
-    logC[mask] = taylor_result
+    # logC.masked_scatter_(mask, taylor(x[mask], taylor_center))
+    logC[mask] = taylor(x[mask], taylor_center)
 
     return logC
 
 
-class ContinuousBCELoss(nn.BCELoss):
+class ContinuousBCELoss(nn.Module):
     r"""Creates a criterion that is the Continuous BCELoss of
     The continuous Bernoulli: fixing a pervasive error in variational autoencoders
     https://arxiv.org/abs/1907.06845v1
@@ -151,50 +184,61 @@ class ContinuousBCELoss(nn.BCELoss):
     """
 
     def __init__(self, **kwargs):
-        super(ContinuousBCELoss, self).__init__(**kwargs)
+        super(ContinuousBCELoss, self).__init__()
+
+        self.BCELoss = nn.BCELoss(**kwargs)
 
     def forward(self, input, target):
 
-        BCE = super(ContinuousBCELoss, self).forward(input, target)
-
         C = logC_taylor(input)
 
-        if self.reduction == "mean":
+        BCE = self.BCELoss(input, target)
+
+        if self.BCELoss.reduction == "mean":
             C = torch.mean(C)
-        elif self.reduction == "sum":
+        elif self.BCELoss.reduction == "sum":
             C = torch.sum(C)
-        elif self.reduction == "none":
+        elif self.BCELoss.reduction == "none":
             pass
 
         return BCE - C
 
 
-class GaussianLikelihoodLoss(torch.nn.Module):
+class GaussianNLL(nn.Module):
     """Loss function to capture heteroscedastic aleatoric uncertainty."""
 
-    def __init__(self, reduction="mean"):
-        self.reduction = reduction
-        super(GaussianLikelihoodLoss, self).__init__()
+    def __init__(self, reduction="mean", eps=1e-8):
+        super(GaussianNLL, self).__init__()
 
-    def forward(self, y_hat_batch: torch.Tensor, y: torch.Tensor):
+        self.reduction = reduction
+        self.eps = eps
+
+        self.log2pi = torch.log(torch.tensor(2 * math.pi))
+
+    def forward(self, x_hat: torch.Tensor, x: torch.Tensor):
         """Calculates loss.
         Parameters
         ----------
-        y_hat_batch
-           Batched, 2-channel model output.
-        y_batch
-           Batched, 1-channel target output.
+        x_hat
+           Batched, n-channel model output (estimate variance from the loss over the batch).
+           or
+           Batched, n*2-channel model output (assume the 2nd channel is variance).
+
+        x
+           Batched, n-channel target output.
         """
-        mu = y_hat_batch[:, 0::2, :, :]
-        log_var = y_hat_batch[:, 1::2, :, :]
 
-        var = torch.exp(log_var)
-        log_scale = torch.log(torch.sqrt(var))
+        if x.shape[1] == x_hat.shape[1]:
+            mu = x_hat
+            var = torch.mean((x - mu).pow(2))
+        else:
+            mu = x_hat[:, 0::2, :, :]
+            var = x_hat[:, 1::2, :, :] + self.eps
 
-        loss = (
-            ((y - mu) ** 2) / (2 * var)
-            - log_scale
-            - torch.log(torch.sqrt(2 * torch.tensor(math.pi)))
+        self.log2pi = self.log2pi.type_as(x)
+
+        loss = -(
+            -0.5 * self.log2pi - 0.5 * torch.log(var) - 0.5 * ((x - mu).pow(2) / var)
         )
 
         if self.reduction == "mean":
@@ -207,17 +251,55 @@ class GaussianLikelihoodLoss(torch.nn.Module):
         return loss
 
 
-class HeteroscedasticLoss(torch.nn.Module):
+# class GaussianLikelihoodLoss(nn.Module):
+#     """Loss function to capture heteroscedastic aleatoric uncertainty."""
+
+#     def __init__(self, reduction="mean"):
+#         self.reduction = reduction
+#         super(GaussianLikelihoodLoss, self).__init__()
+
+#     def forward(self, y_hat_batch: torch.Tensor, y: torch.Tensor):
+#         """Calculates loss.
+#         Parameters
+#         ----------
+#         y_hat_batch
+#            Batched, 2-channel model output.
+#         y_batch
+#            Batched, 1-channel target output.
+#         """
+#         mu = y_hat_batch[:, 0::2]
+#         log_var = nn.functional.softplus(y_hat_batch[:, 1::2])
+
+#         var = torch.exp(log_var)
+#         log_scale = torch.log(torch.sqrt(var))
+
+#         loss = (
+#             ((y - mu) ** 2) / (2 * var)
+#             - log_scale
+#             - torch.log(torch.sqrt(2 * torch.tensor(math.pi)))
+#         )
+
+#         if self.reduction == "mean":
+#             loss = torch.mean(loss)
+#         elif self.reduction == "sum":
+#             loss = torch.sum(loss)
+#         elif self.reduction == "none":
+#             pass
+
+#         return loss
+
+
+class HeteroscedasticLoss(nn.Module):
     """Loss function to capture heteroscedastic aleatoric uncertainty.
     Like GaussianLikelihoodLoss but with all the constants removed
     https://arxiv.org/pdf/1703.04977.pdf
     """
 
-    def __init__(self, reduction="mean", eps=1e-5):
+    def __init__(self, reduction="mean"):
         self.reduction = reduction
         super(HeteroscedasticLoss, self).__init__()
 
-        self.eps = eps
+        # self.eps = eps
 
     def forward(self, y_hat_batch: torch.Tensor, y_batch: torch.Tensor):
         """Calculates loss.
@@ -229,9 +311,107 @@ class HeteroscedasticLoss(torch.nn.Module):
            Batched, 1-channel target output.
         """
         mu = y_hat_batch[:, 0::2, :, :]
-        log_var = y_hat_batch[:, 1::2, :, :] + self.eps
+        log_var = y_hat_batch[:, 1::2, :, :]
 
-        loss = (0.5 * (mu - y_batch).pow(2)) / torch.exp(log_var) + 0.5 * log_var
+        loss = (0.5 * torch.exp(-log_var) * (mu - y_batch).pow(2)) + 0.5 * log_var
+
+        if self.reduction == "mean":
+            loss = torch.mean(loss)
+        elif self.reduction == "sum":
+            loss = torch.sum(loss)
+        elif self.reduction == "none":
+            pass
+
+        return loss
+
+
+class CrossEntropyLoss(nn.Module):
+    """General cross entropy loss"""
+
+    def __init__(self, reduction="mean", eps=1e-8):
+        self.reduction = reduction
+        super(CrossEntropyLoss, self).__init__()
+
+        self.eps = eps
+
+    def forward(self, y_hat_batch: torch.Tensor, y: torch.Tensor):
+        """
+        y_hat_batch and y each sum to 1
+        """
+
+        # https://en.wikipedia.org/wiki/Cross_entropy#Relation_to_log-likelihood
+
+        loss = -((y + self.eps) * torch.log(y_hat_batch + self.eps))
+
+        if self.reduction == "mean":
+            loss = torch.mean(loss)
+        elif self.reduction == "sum":
+            loss = torch.sum(loss)
+        elif self.reduction == "none":
+            pass
+
+        return loss
+
+
+class ChannelMSELoss(nn.Module):
+    """MSE over channels, then reduce some specified way"""
+
+    def __init__(self, reduction="mean"):
+        self.reduction = reduction
+        super(ChannelMSELoss, self).__init__()
+
+    def forward(self, x_hat: torch.Tensor, x: torch.Tensor):
+
+        # https://en.wikipedia.org/wiki/Cross_entropy#Relation_to_log-likelihood
+
+        x = x.view(x.shape[0], x.shape[1], -1)
+
+        x_hat = x_hat.view(x_hat.shape[0], x_hat.shape[1], -1)
+
+        loss = torch.mean((x - x_hat) ** 2, 2)
+
+        if self.reduction == "mean":
+            loss = torch.mean(loss)
+        elif self.reduction == "sum":
+            loss = torch.sum(loss)
+        elif self.reduction == "none":
+            pass
+
+        return loss
+
+
+class ChannelDirichletNLL(nn.Module):
+    def __init__(self, reduction="mean"):
+        self.reduction = reduction
+        super(ChannelDirichletNLL, self).__init__()
+
+    def forward(self, x_hat: torch.Tensor, x: torch.Tensor):
+        """Calculates loss.
+        Parameters
+        ----------
+        x_hat
+           Batched, concentration parameters, must be postive real
+        x
+           Batched, multinomial, must sum to 1.
+        """
+
+        x = x.view(x.shape[0], x.shape[1], -1) + 1e-8
+        x_hat = x_hat.view(x_hat.shape[0], x_hat.shape[1], -1)
+
+        loss = []
+
+        for b, b_hat in zip(x, x_hat):
+
+            c_loss = torch.stack(
+                [
+                    torch.distributions.dirichlet.Dirichlet(c_hat).log_prob(c)
+                    for (c, c_hat) in zip(b, b_hat)
+                ]
+            )
+
+            loss.append(c_loss)
+
+        loss = -torch.stack(loss)
 
         if self.reduction == "mean":
             loss = torch.mean(loss)
