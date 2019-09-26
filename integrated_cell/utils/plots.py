@@ -268,6 +268,8 @@ def scatter_im(
     plot_range=[0.05, 99.95],
     inset_colors=None,
     inset_scatter_size=25,
+    inset_title=None,
+    inset_clims=None,
 ):
     # Adapted from https://stackoverflow.com/questions/22566284/matplotlib-how-to-plot-images-instead-of-points/53851017
 
@@ -321,11 +323,16 @@ def scatter_im(
         ]
         ax_inset = plt.axes(inset)
 
+        if inset_clims is None:
+            inset_clims = np.percentile(inset_colors, [0, 100])
+
         ax_inset.scatter(
             X[:, dims_to_plot[0]],
             X[:, dims_to_plot[1]],
             s=inset_scatter_size,
             c=inset_colors,
+            vmin=inset_clims[0],
+            vmax=inset_clims[1],
         )
 
         for k in ax_inset.spines:
@@ -338,6 +345,40 @@ def scatter_im(
         ax_inset.tick_params(axis="x", colors="w")
         ax_inset.tick_params(axis="y", colors="w")
 
+        if inset_title is not None:
+            ax_inset.set_title(inset_title)
+
         return ax, ax_inset
 
     return ax
+
+
+def tensor2im(im):
+    # assume CYX image
+    im = im.clone().cpu().detach().numpy().transpose([1, 2, 0])
+
+    for i in range(im.shape[2]):
+        im[:, :, i] = im[:, :, i] / (np.max(im[:, :, i]) + (1 / 255))
+
+    color_transform = np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]])
+
+    im_shape = im.shape
+
+    im_reshape = im.reshape([np.prod(im_shape[0:2]), im_shape[2]]).T
+
+    im_recolored = np.matmul(color_transform, im_reshape).T
+
+    im = im_recolored.reshape(im_shape)
+    im = im / np.max(im)
+
+    im[im > 1] = 1
+
+    return im
+
+
+def imshow(im):
+    # assume CYX image
+    im = tensor2im(im)
+    plt.imshow(im)
+    plt.axis("off")
+    plt.show()
