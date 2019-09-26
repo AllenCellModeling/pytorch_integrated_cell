@@ -119,33 +119,24 @@ def load_data_provider(
     DP = importlib.import_module("integrated_cell.data_providers." + module_name)
 
     if os.path.exists(save_path):
-
-        # if save_path[-4:] == ".pyt":
-        #     dp = torch.load(save_path)
-        # else:
         dp = pickle.load(open(save_path, "rb"))
-
         dp.image_parent = im_dir
     else:
-        dp = DP.DataProvider(im_dir, batch_size=batch_size, n_dat=n_dat, **kwargs_dp)
-        # torch.save(dp, save_path)
+        dp = DP.DataProvider(
+            image_parent=im_dir, batch_size=batch_size, n_dat=n_dat, **kwargs_dp
+        )
         pickle.dump(dp, open(save_path, "wb"))
 
-    dp.batch_size = batch_size
+    if not hasattr(dp, "normalize_intensity"):
+        dp.normalize_intensity = False
 
+    dp.batch_size = batch_size
     dp.set_n_dat(n_dat, "train")
 
     if channelInds is not None:
         dp.channelInds = channelInds
 
     return dp
-
-
-def load_loss(loss_name, loss_kwargs):
-    loss_module, loss_name = loss_name.rsplit(".", 1)
-    loss_module = importlib.import_module(loss_module)
-
-    return getattr(loss_module, loss_name)(**loss_kwargs)
 
 
 def fix_data_paths(parent_dir, new_im_dir=None, data_save_path=None):

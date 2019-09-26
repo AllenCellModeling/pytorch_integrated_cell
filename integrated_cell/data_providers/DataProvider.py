@@ -5,29 +5,9 @@ import pandas as pd
 from tqdm import tqdm
 import tifffile
 from PIL import Image
-import hashlib
+from ..utils.utils import str2rand
 
 from integrated_cell.data_providers.DataProviderABC import DataProviderABC
-
-
-def str2rand(strings, seed):
-    # prepend the 'seed' to the unique file path, then hash with SHA512
-    salted_string = [str(seed) + str(string) for string in strings]
-    hash_strings = [
-        hashlib.sha512(string.encode("utf-8")).hexdigest() for string in salted_string
-    ]
-
-    rand_nums = list()
-    # Pull out the first 5 digits to get a value between 0-1 inclusive
-    for hash_string in hash_strings:
-        str_nums = [char for pos, char in enumerate(hash_string) if char.isdigit()]
-        str_num = "".join(str_nums[0:5])
-        num = float(str_num) / 100000
-        rand_nums.append(num)
-
-    rand_nums = np.array(rand_nums)
-
-    return rand_nums
 
 
 class DataProvider(DataProviderABC):
@@ -46,6 +26,8 @@ class DataProvider(DataProviderABC):
         crop_to=None,
         return2D=False,
         rescale_to=None,
+        make_controls=True,
+        normalize_intensity=False,
     ):
 
         self.data = {}
@@ -60,6 +42,8 @@ class DataProvider(DataProviderABC):
         self.rescale_to = rescale_to
         self.image_parent = image_parent
         self.csv_name = csv_name
+
+        self.normalize_intensity = normalize_intensity
 
         self.return2D = return2D
 
@@ -88,13 +72,6 @@ class DataProvider(DataProviderABC):
             csv_df["ch_dna"] = 2
         else:
             self.image_col = "save_reg_path"
-
-            csv_df["ch_memb"] = 3
-            csv_df["ch_struct"] = 4
-            csv_df["ch_dna"] = 2
-            csv_df["ch_seg_cell"] = 1
-            csv_df["ch_seg_nuc"] = 0
-            csv_df["ch_trans"] = 5
 
         im_paths = list()
 
@@ -149,24 +126,27 @@ class DataProvider(DataProviderABC):
         csv_df["rand_split"] = rand_split
         csv_df["rand_dna_memb"] = rand_dna_memb
 
-        # munge the data so we have an additional DNA and Membrane classes that are randomly sampled from the data here
-        image_classes = list(csv_df[self.target_col])
-        [label_names, labels] = np.unique(image_classes, return_inverse=True)
+        if make_controls:
+            # munge the data so we have an additional DNA and Membrane classes that are randomly sampled from the data here
+            image_classes = list(csv_df[self.target_col])
+            [label_names, labels] = np.unique(image_classes, return_inverse=True)
 
-        n_classes = len(label_names)
-        fract_sample_labels = 1 / n_classes
+            n_classes = len(label_names)
+            fract_sample_labels = 1 / n_classes
 
-        duplicate_inds = csv_df["rand_dna_memb"] <= fract_sample_labels
+            duplicate_inds = csv_df["rand_dna_memb"] <= fract_sample_labels
 
-        df_memb = csv_df[duplicate_inds].copy()
-        df_memb["ch_struct"] = df_memb["ch_memb"]
-        df_memb[self.target_col] = "CellMask"
+            df_memb = csv_df[duplicate_inds].copy()
+            df_memb["ch_struct"] = df_memb["ch_memb"]
+            df_memb[self.target_col] = "CellMask"
 
-        df_dna = csv_df[duplicate_inds].copy()
-        df_dna["ch_struct"] = df_memb["ch_dna"]
-        df_dna[self.target_col] = "Hoechst"
+            df_dna = csv_df[duplicate_inds].copy()
+            df_dna["ch_struct"] = df_memb["ch_dna"]
+            df_dna[self.target_col] = "Hoechst"
 
-        csv_df = pd.concat([csv_df, df_memb, df_dna]).reset_index()
+            csv_df = pd.concat([csv_df, df_memb, df_dna])
+
+        csv_df = csv_df.reset_index()
 
         image_classes = list(csv_df[self.target_col])
         self.csv_data = csv_df
@@ -186,8 +166,16 @@ class DataProvider(DataProviderABC):
         self.data["test"] = {}
         self.data["test"]["inds"] = np.where(csv_df["rand_split"] <= self.hold_out)[0]
 
+        self.data["validate"] = {}
+        self.data["validate"]["inds"] = np.where(
+            (csv_df["rand_split"] > self.hold_out)
+            & (csv_df["rand_split"] <= self.hold_out * 2)
+        )[0]
+
         self.data["train"] = {}
-        self.data["train"]["inds"] = np.where(csv_df["rand_split"] > self.hold_out)[0]
+        self.data["train"]["inds"] = np.where(csv_df["rand_split"] > self.hold_out * 2)[
+            0
+        ]
 
         self.imsize = self.load_image(csv_df.iloc[0]).shape
 
@@ -195,7 +183,10 @@ class DataProvider(DataProviderABC):
 
         self.embeddings = {}
         self.embeddings["train"] = torch.zeros([len(self.data["train"]["inds"]), 0])
-        self.embeddings["test"] = torch.zeros([len(self.data["train"]["inds"]), 0])
+        self.embeddings["test"] = torch.zeros([len(self.data["test"]["inds"]), 0])
+        self.embeddings["validate"] = torch.zeros(
+            [len(self.data["validate"]["inds"]), 0]
+        )
 
         self.n_dat = {}
 
@@ -204,6 +195,7 @@ class DataProvider(DataProviderABC):
         else:
             self.n_dat["train"] = n_dat
 
+        self.n_dat["validate"] = len(self.data["validate"]["inds"])
         self.n_dat["test"] = len(self.data["test"]["inds"])
 
     def load_image(self, df_row):
@@ -237,7 +229,34 @@ class DataProvider(DataProviderABC):
 
                     im[i] = im[i] * seg_cell
 
-        im = im / 255
+        if self.normalize_intensity:
+            im = im.astype("float")
+
+            if str(self.normalize_intensity).lower() == "std":
+                for i, ch in enumerate(im):
+                    if np.sum(im[i]) > 0:
+                        im[i] = ch / np.std(ch)
+
+            if str(self.normalize_intensity).lower() == "avg_intensity":
+                # normalize each channel to the average intensity of each test set channel
+                for i, ch in enumerate(im):
+                    if np.sum(im[i]) > 0:
+                        ch = ch / np.sum(ch)
+                    else:
+                        ch = 1 / np.size(ch)
+
+                    im[i] = ch * 618.0294
+
+            elif self.normalize_intensity == 1:
+                for i, ch in enumerate(im):
+                    if np.sum(im[i]) > 0:
+                        im[i] = ch / np.sum(ch)
+                    else:
+                        im[i] = 1 / np.size(ch)
+
+        else:
+            im = im / 255
+
         return im
 
     def set_n_dat(self, n_dat, train_or_test="train"):
@@ -294,6 +313,15 @@ class DataProvider(DataProviderABC):
             crop_pre = np.floor(crop).astype(int)
             crop_post = np.ceil(crop).astype(int)
 
+            pad_pre = -crop_pre
+            pad_pre[pad_pre < 0] = 0
+
+            pad_post = -crop_post
+            pad_post[pad_post < 0] = 0
+
+            crop_pre[crop_pre < 0] = 0
+
+            crop_post[crop_post < 0] = 0
             crop_post[crop_post == 0] = -np.array(images.shape[2:])[crop_post == 0]
 
             if len(crop_pre) == 2:
@@ -303,6 +331,7 @@ class DataProvider(DataProviderABC):
                     crop_pre[0] : -crop_post[0],  # noqa
                     crop_pre[1] : -crop_post[1],  # noqa
                 ]
+
             elif len(crop_pre) == 3:
                 images = images[
                     :,
@@ -311,6 +340,15 @@ class DataProvider(DataProviderABC):
                     crop_pre[1] : -crop_post[1],  # noqa
                     crop_pre[2] : -crop_post[2],  # noqa
                 ]
+
+            pad_pre = np.hstack([np.zeros(2), pad_pre])
+            pad_post = np.hstack([np.zeros(2), pad_post])
+
+            padding = np.vstack([pad_pre, pad_post]).transpose().astype("int")
+
+            images = np.pad(images, padding, mode="constant", constant_values=0)
+
+            images = torch.tensor(images)
 
         return images
 
