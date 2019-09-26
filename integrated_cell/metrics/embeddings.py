@@ -6,8 +6,21 @@ from ..utils import utils
 
 
 def get_latent_embeddings(
-    enc, dec, dp, modes=["test"], batch_size=256, n_loss_samples=10, loss=None
+    enc,
+    dec,
+    dp,
+    recon_loss,
+    modes=["test"],
+    batch_size=256,
+    n_recon_samples=10,
+    sampler=None,
+    beta=1,
 ):
+
+    if sampler is None:
+
+        def sampler(mode, inds):
+            return dp.get_sample(mode, inds)
 
     enc.eval()
     dec.eval()
@@ -17,7 +30,7 @@ def get_latent_embeddings(
     for mode in modes:
         ndat = dp.get_n_dat(mode)
 
-        x, classes, ref = dp.get_sample(mode, [0])
+        x, classes, ref = sampler(mode, [0])
 
         x = x.cuda()
         classes_onehot = utils.index_to_onehot(classes, dp.get_n_classes()).cuda()
@@ -28,14 +41,14 @@ def get_latent_embeddings(
         embeddings_ref_mu = torch.zeros(ndat, zAll[0][0].shape[1])
         embeddings_ref_sigma = torch.zeros(ndat, zAll[0][1].shape[1])
 
-        embeddings_ref_losses = torch.zeros(ndat, n_loss_samples)
+        embeddings_ref_recons = torch.zeros(ndat, n_recon_samples)
         embeddings_ref_kld = torch.zeros(ndat)
 
-        embeddings_struct_mu = torch.zeros(ndat, zAll[1][0].shape[1])
-        embeddings_struct_sigma = torch.zeros(ndat, zAll[1][1].shape[1])
+        embeddings_target_mu = torch.zeros(ndat, zAll[1][0].shape[1])
+        embeddings_target_sigma = torch.zeros(ndat, zAll[1][1].shape[1])
 
-        embeddings_struct_losses = torch.zeros(ndat, n_loss_samples)
-        embeddings_struct_kld = torch.zeros(ndat)
+        embeddings_target_recons = torch.zeros(ndat, n_recon_samples)
+        embeddings_target_kld = torch.zeros(ndat)
 
         embeddings_classes = torch.zeros(ndat).long()
 
@@ -45,7 +58,7 @@ def get_latent_embeddings(
         ]
 
         for i in tqdm(range(0, len(data_iter))):
-            x, classes, ref = dp.get_sample(mode, data_iter[i])
+            x, classes, ref = sampler(mode, data_iter[i])
 
             x = x.cuda()
             classes_onehot = utils.index_to_onehot(classes, dp.get_n_classes()).cuda()
@@ -60,17 +73,17 @@ def get_latent_embeddings(
                 0, torch.LongTensor(data_iter[i]), zAll[0][1].data[:].cpu()
             )
 
-            embeddings_struct_mu.index_copy_(
+            embeddings_target_mu.index_copy_(
                 0, torch.LongTensor(data_iter[i]), zAll[1][0].data[:].cpu()
             )
-            embeddings_struct_sigma.index_copy_(
+            embeddings_target_sigma.index_copy_(
                 0, torch.LongTensor(data_iter[i]), zAll[1][1].data[:].cpu()
             )
 
             embeddings_classes.index_copy_(0, torch.LongTensor(data_iter[i]), classes)
 
-            losses_all, losses_ref, losses_struct = get_losses(
-                x, classes_onehot, dec, zAll, n_loss_samples, loss=loss
+            recons_ref, recons_target = get_recons(
+                x, classes_onehot, dec, zAll, n_recon_samples, recon_loss=recon_loss
             )
 
             embeddings_ref_kld.index_copy_(
@@ -78,15 +91,15 @@ def get_latent_embeddings(
                 torch.LongTensor(data_iter[i]),
                 get_klds(zAll[0][0], zAll[0][1]).data[:].cpu(),
             )
-            embeddings_ref_losses.index_copy_(
-                0, torch.LongTensor(data_iter[i]), losses_ref
+            embeddings_ref_recons.index_copy_(
+                0, torch.LongTensor(data_iter[i]), recons_ref
             )
 
-            embeddings_struct_kld.index_copy_(
+            embeddings_target_kld.index_copy_(
                 0, torch.LongTensor(data_iter[i]), get_klds(zAll[1][0], zAll[1][1])
             )
-            embeddings_struct_losses.index_copy_(
-                0, torch.LongTensor(data_iter[i]), losses_struct
+            embeddings_target_recons.index_copy_(
+                0, torch.LongTensor(data_iter[i]), recons_target
             )
 
         embedding[mode] = {}
@@ -95,15 +108,29 @@ def get_latent_embeddings(
         embedding[mode]["ref"]["sigma"] = embeddings_ref_sigma
 
         embedding[mode]["ref"]["kld"] = embeddings_ref_kld
-        embedding[mode]["ref"]["loss"] = embeddings_ref_losses
+        embedding[mode]["ref"]["recon"] = embeddings_ref_recons
+        embedding[mode]["ref"]["elbo"] = -(
+            torch.mean(embeddings_ref_recons, 1) + beta * embeddings_ref_kld
+        )
 
-        embedding[mode]["struct"] = {}
-        embedding[mode]["struct"]["mu"] = embeddings_struct_mu
-        embedding[mode]["struct"]["sigma"] = embeddings_struct_sigma
-        embedding[mode]["struct"]["class"] = embeddings_classes
+        embedding[mode]["target"] = {}
+        embedding[mode]["target"]["mu"] = embeddings_target_mu
+        embedding[mode]["target"]["sigma"] = embeddings_target_sigma
+        embedding[mode]["target"]["class"] = embeddings_classes
 
-        embedding[mode]["struct"]["kld"] = embeddings_struct_kld
-        embedding[mode]["struct"]["loss"] = embeddings_struct_losses
+        embedding[mode]["target"]["kld"] = embeddings_target_kld
+        embedding[mode]["target"]["recon"] = embeddings_target_recons
+
+        embedding[mode]["target"]["elbo"] = -(
+            torch.mean(embeddings_target_recons, 1) + beta * embeddings_target_kld
+        )
+
+        for mode in embedding:
+            for component in embedding[mode]:
+                for thing in embedding[mode][component]:
+                    embedding[mode][component][thing] = (
+                        embedding[mode][component][thing].cpu().detach()
+                    )
 
     return embedding
 
@@ -121,41 +148,43 @@ def get_klds(mus, sigmas):
     return klds
 
 
-def get_losses(x, classes_onehot, dec, zAll, n_loss_samples, loss):
+def get_recons(
+    x,
+    classes_onehot,
+    dec,
+    zAll,
+    n_recon_samples,
+    recon_loss,
+    channels_ref=[0, 2],
+    channels_target=[1],
+):
 
-    if loss is None:
-        loss = torch.nn.MSELoss(reduction="none")
+    channels_ref_out = dec.ch_ref
+    channels_target_out = dec.ch_target
 
-    reduction_tmp = loss.reduction
-    loss.reduction = "none"
+    recons_ref = torch.zeros(x.shape[0], n_recon_samples)
+    recons_target = torch.zeros(x.shape[0], n_recon_samples)
 
-    losses_all = torch.zeros(x.shape[0], n_loss_samples)
-    losses_ref = torch.zeros(x.shape[0], n_loss_samples)
-    losses_struct = torch.zeros(x.shape[0], n_loss_samples)
-
-    for j in range(n_loss_samples):
-        zOut = [bvae.reparameterize(zAll[i][0], zAll[i][1]) for i in range(len(zAll))]
+    for i in range(n_recon_samples):
+        zOut = [bvae.reparameterize(z[0], z[1]) for z in zAll]
 
         with torch.no_grad():
             xHat = dec([classes_onehot] + zOut)
 
-        squared_errors_per_px = loss(xHat, x)
+        recons_ref[:, i] = torch.stack(
+            [
+                recon_loss(xHat[[ind], [channels_ref_out]], x[[ind], [channels_ref]])
+                for ind in range(len(x))
+            ]
+        )
 
-        tot_errors_per_ch = squared_errors_per_px
+        recons_target[:, i] = torch.stack(
+            [
+                recon_loss(
+                    xHat[[ind], [channels_target_out]], x[[ind], [channels_target]]
+                )
+                for ind in range(len(x))
+            ]
+        )
 
-        while len(tot_errors_per_ch.shape) > 2:
-            tot_errors_per_ch = torch.sum(tot_errors_per_ch, -1)
-
-        mse_per_ch = tot_errors_per_ch / squared_errors_per_px[0, 0].numel()
-
-        mse_all = torch.mean(mse_per_ch, 1)
-        mse_ref = torch.mean(mse_per_ch[:, [0, 2]], 1)
-        mse_struct = torch.mean(mse_per_ch[:, [1]], 1)
-
-        losses_all[:, j] = mse_all
-        losses_ref[:, j] = mse_ref
-        losses_struct[:, j] = mse_struct
-
-    loss.reduction = reduction_tmp
-
-    return losses_all, losses_ref, losses_struct
+    return recons_ref, recons_target

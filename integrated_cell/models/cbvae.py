@@ -37,7 +37,9 @@ class Model(bvae.Model):
         save_progress_iter=1,
         beta=1,
         beta_start=1000,
-        beta_iters_max=12500,
+        beta_step=1e-5,
+        beta_min=0,
+        beta_max=1,
         c_max=500,
         c_iters_max=80000,
         gamma=500,
@@ -68,9 +70,13 @@ class Model(bvae.Model):
 
         self.beta = beta
         self.beta_start = beta_start
-        self.beta_iters_max = beta_iters_max
+        self.beta_step = beta_step
         self.kld_avg = kld_avg
         self.objective = objective
+
+        # for mode 'A'
+        self.beta_min = beta_min
+        self.beta_max = beta_max
 
         logger_path = "{}/logger.pkl".format(save_dir)
         if os.path.exists(logger_path):
@@ -178,13 +184,13 @@ class Model(bvae.Model):
             beta_vae_loss = recon_loss + self.gamma * (kld - C).abs()
 
         elif self.objective == "A":
-            beta_mult = (
-                self.beta_start
-                - ((self.beta_start - self.beta) / self.beta_iters_max)
-                * self.get_current_iter()
-            )
-            if beta_mult < self.beta:
-                beta_mult = self.beta
+            # warmup mode
+            beta_mult = self.beta_start + self.beta_step * self.get_current_iter()
+            if beta_mult > self.beta_max:
+                beta_mult = self.beta_max
+
+            if beta_mult < self.beta_min:
+                beta_mult = self.beta_min
 
             beta_vae_loss = recon_loss + beta_mult * kld
 
@@ -233,7 +239,8 @@ class Model(bvae.Model):
                 pass
             else:
                 mu = xHat[:, 0::2, :, :]
-                log_var = xHat[:, 1::2, :, :]
+                log_var = torch.log(xHat[:, 1::2, :, :])
+
                 xHat = bvae.reparameterize(mu, log_var, add_noise=True)
 
             return xHat
@@ -262,7 +269,6 @@ class Model(bvae.Model):
         classes = classes.type_as(x).long()
         ref = ref.type_as(x)
 
-        x = data_provider.get_images(test_inds, "test").cuda(gpu_id)
         with torch.no_grad():
             z = enc(x, classes_onehot)
             for i in range(len(z)):
@@ -292,10 +298,10 @@ class Model(bvae.Model):
         embeddings_validate = embeddings.get_latent_embeddings(
             enc,
             dec,
-            self.data_provider,
+            dp=self.data_provider,
+            recon_loss=self.crit_recon,
             modes=["validate"],
             batch_size=self.data_provider.batch_size,
-            loss=self.crit_recon,
         )
         embeddings_validate["iteration"] = self.get_current_iter()
         embeddings_validate["epoch"] = self.get_current_epoch()
@@ -306,6 +312,24 @@ class Model(bvae.Model):
                 self.save_dir, self.get_current_iter()
             ),
         )
+
+        # embeddings_test = embeddings.get_latent_embeddings(
+        #     enc,
+        #     dec,
+        #     dp=self.data_provider,
+        #     recon_loss=self.crit_recon,
+        #     modes=["test"],
+        #     batch_size=self.data_provider.batch_size,
+        # )
+        # embeddings_test["iteration"] = self.get_current_iter()
+        # embeddings_test["epoch"] = self.get_current_epoch()
+
+        # torch.save(
+        #     embeddings_test,
+        #     "{}/embeddings_test_{}.pth".format(
+        #         self.save_dir, self.get_current_iter()
+        #     ),
+        # )
 
         embeddings_train = np.concatenate(self.zAll, 0)
 

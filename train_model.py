@@ -18,14 +18,14 @@ def setup(args):
             "--save_dir and --save_parent are both set. Please choose one or the other."
         )
 
-    if (
-        (args["train_module"] is not None) and (args["train_module_pt1"] is not None)
-    ) or (
-        (args["train_module"] is not None) and (args["train_module_pt2"] is not None)
-    ):
-        raise ValueError(
-            "--train_module and --train_model_pt1 or --train_model_pt2 are both set. Please choose a global train module or specify partial models."
-        )
+    # if (
+    #     (args["train_module"] is not None) and (args["train_module_pt1"] is not None)
+    # ) or (
+    #     (args["train_module"] is not None) and (args["train_module_pt2"] is not None)
+    # ):
+    #     raise ValueError(
+    #         "--train_module and --train_model_pt1 or --train_model_pt2 are both set. Please choose a global train module or specify partial models."
+    #     )
 
     the_time = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     if args["save_parent"] is not None:
@@ -40,9 +40,9 @@ def setup(args):
     if not os.path.exists(args["save_dir"]):
         os.makedirs(args["save_dir"])
 
-    if args["train_module"] is not None:
-        args["train_module_pt1"] = args["train_module"]
-        args["train_module_pt2"] = args["train_module"]
+    # if args["train_module"] is not None:
+    #     args["train_module_pt1"] = args["train_module"]
+    #     args["train_module_pt2"] = args["train_module"]
 
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(ID) for ID in args["gpu_ids"]])
     args["gpu_ids"] = list(range(0, len(args["gpu_ids"])))
@@ -179,42 +179,6 @@ def setup_kwargs_trainer(args):
         kwargs_trainer[k] = args["kwargs_model"][k]
 
     return args["train_module"], kwargs_trainer
-
-
-def setup_kwargs_loss(args, pt2):
-
-    kwargs_losses = {}
-    kwargs_losses["crit_recon"] = {}
-    kwargs_losses["crit_recon"]["name"] = args["crit_recon"]
-    kwargs_losses["crit_recon"]["kwargs"] = args["kwargs_crit_recon"]
-
-    if args["model_type"] == "ae":
-        pass  # already setup!
-
-    elif args["model_type"] == "aegan":
-        kwargs_losses["crit_decD"] = {}
-        kwargs_losses["crit_decD"]["name"] = args["crit_decD"]
-        kwargs_losses["crit_decD"]["kwargs"] = args["kwargs_crit_decD"]
-
-    elif args["model_type"] == "aaegan":
-        kwargs_losses["crit_decD"] = {}
-        kwargs_losses["crit_decD"]["name"] = args["crit_decD"]
-        kwargs_losses["crit_decD"]["kwargs"] = args["kwargs_crit_decD"]
-
-        kwargs_losses["crit_encD"] = {}
-        kwargs_losses["crit_encD"]["name"] = args["crit_encD"]
-        kwargs_losses["crit_encD"]["kwargs"] = args["kwargs_crit_encD"]
-
-    if pt2:
-        kwargs_losses["crit_z_class"] = {}
-        kwargs_losses["crit_z_class"]["name"] = args["crit_z_class"]
-        kwargs_losses["crit_z_class"]["kwargs"] = args["kwargs_crit_z_class"]
-
-        kwargs_losses["crit_z_ref"] = {}
-        kwargs_losses["crit_z_ref"]["name"] = args["crit_z_ref"]
-        kwargs_losses["crit_z_ref"]["kwargs"] = args["kwargs_crit_z_ref"]
-
-    return kwargs_losses
 
 
 parser = argparse.ArgumentParser()
@@ -395,13 +359,11 @@ parser.add_argument(
 )
 
 parser.add_argument("--ndat", type=int, default=-1, help="Number of data points to use")
-parser.add_argument(
-    "--optimizer", default="Adam", help="type of optimizer, can be {Adam, RMSprop}"
-)
+parser.add_argument("--optimizer", default="torch.optim.Adam", help="type of optimizer")
 
 parser.add_argument("--train_module", default=None, help="training module")
-parser.add_argument("--train_module_pt1", default=None, help="training module")
-parser.add_argument("--train_module_pt2", default=None, help="training module")
+# parser.add_argument("--train_module_pt1", default=None, help="training module")
+# parser.add_argument("--train_module_pt2", default=None, help="training module")
 
 parser.add_argument(
     "--channels_pt1",
@@ -427,7 +389,6 @@ parser.add_argument(
 parser.add_argument(
     "--overwrite_opts", default=False, type=str2bool, help="Overwrite options file"
 )
-parser.add_argument("--skip_pt1", default=False, type=str2bool, help="Skip pt 1")
 
 parser.add_argument(
     "--ref_dir",
@@ -480,91 +441,9 @@ dp_name, dp_kwargs = utils.save_load_dict(
 )
 dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
 
-
 #######
 # TRAIN REFERENCE MODEL
 #######
-
-if not args["skip_pt1"]:
-
-    # load the trainer model
-    trainer_name, trainer_kwargs = utils.save_load_dict(
-        "{}/args_trainer.json".format(args["save_dir"]),
-        setup_kwargs_trainer(args),
-        args["overwrite_opts"],
-    )
-
-    trainer_module = importlib.import_module(
-        "integrated_cell.models.{}".format(trainer_name)
-    )
-
-    # load the networks
-    args["n_classes"] = 0
-    args["n_ref"] = 0
-    args["channels"] = args["channels_pt1"]
-
-    net_kwargs = setup_kwargs_network(args)
-
-    networks, optimizers = {}, {}
-    for net_name in net_kwargs:
-        args_save_path = "{}/args_{}.json".format(args["save_dir"], net_name)
-        net_kwargs[net_name] = utils.save_load_dict(
-            args_save_path, net_kwargs[net_name], args["overwrite_opts"]
-        )
-
-        networks[net_name], optimizers["opt_{}".format(net_name)] = utils.load_network(
-            **net_kwargs[net_name]
-        )
-
-    # load the loss functions
-    loss_info = setup_kwargs_loss(args, pt2=False)
-
-    losses = {}
-    for k in loss_info:
-        losses[k] = model_utils.load_loss(loss_info[k]["name"], loss_info[k]["kwargs"])
-
-    if not os.path.exists(args["save_dir"]):
-        os.makedirs(args["save_dir"])
-
-    print(args)
-    model = trainer_module.Model(
-        data_provider=dp, **networks, **optimizers, **losses, **trainer_kwargs
-    )
-
-    model.train()
-
-
-#######
-# DONE TRAINING REFERENCE MODEL
-#######
-embeddings_path = "{}/embeddings.pkl".format(args["save_dir"])
-embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp)
-
-#######
-# TRAIN STRUCTURE MODEL
-#######
-
-args["save_dir"] = "{}/{}".format(save_dir, args["struct_dir"])
-if not os.path.exists(args["save_dir"]):
-    os.makedirs(args["save_dir"])
-
-args["channels"] = args["channels_pt2"]
-args["channel_inds"] = args["channels_pt2"]
-
-# load the dataprovider
-dp_name, dp_kwargs = utils.save_load_dict(
-    "{}/args_dp.json".format(args["save_dir"]),
-    setup_kwargs_data_provider(args),
-    args["overwrite_opts"],
-)
-
-dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
-dp.embeddings = embeddings
-
-
-# set the args for pt2
-args["n_classes"] = dp.get_n_classes()
-args["n_ref"] = dp.get_n_ref()
 
 
 # load the trainer model
@@ -578,17 +457,15 @@ trainer_module = importlib.import_module(
     "integrated_cell.models.{}".format(trainer_name)
 )
 
+# load the networks
+args["n_classes"] = 0
+args["n_ref"] = 0
+args["channels"] = args["channels_pt1"]
 
 net_kwargs = setup_kwargs_network(args)
 
 networks, optimizers = {}, {}
 for net_name in net_kwargs:
-
-    if args["pt2_use_pretrained"]:
-        net_kwargs[net_name]["kwargs_network"][
-            "pretrained_path"
-        ] = "{}/args_{}.json".format(save_dir_pt1, net_name)
-
     args_save_path = "{}/args_{}.json".format(args["save_dir"], net_name)
     net_kwargs[net_name] = utils.save_load_dict(
         args_save_path, net_kwargs[net_name], args["overwrite_opts"]
@@ -598,16 +475,8 @@ for net_name in net_kwargs:
         **net_kwargs[net_name]
     )
 
-# load the loss functions
-loss_info = setup_kwargs_loss(args, pt2=True)
+losses = utils.load_losses(args)
 
-losses = {}
-for k in loss_info:
-    losses[k] = model_utils.load_loss(loss_info[k]["name"], loss_info[k]["kwargs"])
-
-#######
-# TRAIN REFERENCE MODEL
-#######
 if not os.path.exists(args["save_dir"]):
     os.makedirs(args["save_dir"])
 
@@ -618,11 +487,9 @@ model = trainer_module.Model(
 
 model.train()
 
-print("Finished Training")
 
+#######
+# DONE TRAINING REFERENCE MODEL
+#######
 embeddings_path = "{}/embeddings.pkl".format(args["save_dir"])
 embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp)
-
-#######
-# DONE TRAINING STRUCTURE MODEL
-#######

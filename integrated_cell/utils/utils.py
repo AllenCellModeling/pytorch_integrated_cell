@@ -4,6 +4,7 @@ import os
 import json
 import importlib
 from .. import model_utils
+from .. import layers
 import warnings
 import argparse
 import shutil
@@ -73,42 +74,42 @@ def save_load_dict(save_path, args=None, overwrite=False, verbose=True):
     return args
 
 
-def load_network(
-    network_name,
-    component_name,
-    kwargs_network,
-    optim_name,
-    kwargs_optim,
-    save_path,
-    gpu_ids,
-    init_meth="normal",
-    verbose=True,
-):
+def load_losses(args):
+    # load the loss functions
+    kwargs_losses = {}
+    kwargs_losses["crit_recon"] = {}
+    kwargs_losses["crit_recon"]["name"] = args["crit_recon"]
+    kwargs_losses["crit_recon"]["kwargs"] = args["kwargs_crit_recon"]
 
-    model_provider = importlib.import_module("integrated_cell.networks." + network_name)
+    if args["model_type"] == "ae":
+        pass  # already setup!
 
-    if "gpu_ids" not in kwargs_network:
-        kwargs_network["gpu_ids"] = gpu_ids
+    elif args["model_type"] == "aegan":
+        kwargs_losses["crit_decD"] = {}
+        kwargs_losses["crit_decD"]["name"] = args["crit_decD"]
+        kwargs_losses["crit_decD"]["kwargs"] = args["kwargs_crit_decD"]
 
-    network = getattr(model_provider, component_name)(**kwargs_network)
+    elif args["model_type"] == "aaegan":
+        kwargs_losses["crit_decD"] = {}
+        kwargs_losses["crit_decD"]["name"] = args["crit_decD"]
+        kwargs_losses["crit_decD"]["kwargs"] = args["kwargs_crit_decD"]
 
-    def w_init(x):
-        weights_init(x, init_meth)
+        kwargs_losses["crit_encD"] = {}
+        kwargs_losses["crit_encD"]["name"] = args["crit_encD"]
+        kwargs_losses["crit_encD"]["kwargs"] = args["kwargs_crit_encD"]
 
-    network.apply(w_init)
-    network.cuda(gpu_ids[0])
+    losses = {}
+    for k in kwargs_losses:
+        losses[k] = load_object(kwargs_losses[k]["name"], kwargs_losses[k]["kwargs"])
 
-    optimizer_provider = importlib.import_module("torch.optim")
-    optimizer = getattr(optimizer_provider, optim_name)(
-        params=network.parameters(), **kwargs_optim
-    )
+    return losses
 
-    if os.path.exists(save_path):
-        if verbose:
-            print("loading from {}".format(save_path))
-        model_utils.load_state(network, optimizer, save_path, gpu_ids[0])
 
-    return network, optimizer
+def load_object(object_name, object_kwargs):
+    object_module, object_name = object_name.rsplit(".", 1)
+    object_module = importlib.import_module(object_module)
+
+    return getattr(object_module, object_name)(**object_kwargs)
 
 
 # def load_results_from_dir(results_dir):
@@ -146,21 +147,62 @@ def weights_init(m, init_meth="normal"):
                 pass
 
 
-def load_data_provider_from_dir(model_save_dir, parent_dir):
-    args_file = "{}/args.json".format(model_save_dir)
+# def load_data_provider_from_dir(model_save_dir, parent_dir):
+#     args_file = "{}/args.json".format(model_save_dir)
 
-    with open(args_file, "r") as f:
-        args = json.load(f)
+#     with open(args_file, "r") as f:
+#         args = json.load(f)
 
-    dp_name, dp_kwargs = save_load_dict("{}/args_dp.json".format(args["save_dir"]))
-    dp_kwargs["save_path"] = dp_kwargs["save_path"].replace("./", parent_dir)
-    dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
+#     dp_name, dp_kwargs = save_load_dict("{}/args_dp.json".format(args["save_dir"]))
+#     dp_kwargs["save_path"] = dp_kwargs["save_path"].replace("./", parent_dir)
+#     dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
 
-    return dp
+#     return dp
+
+
+def load_network(
+    network_name,
+    component_name,
+    kwargs_network,
+    optim_name,
+    kwargs_optim,
+    save_path,
+    gpu_ids=None,
+    init_meth="normal",
+    verbose=True,
+):
+
+    model_provider = importlib.import_module("integrated_cell.networks." + network_name)
+
+    # overwrite existing gpu ids
+    if gpu_ids is not None:
+        kwargs_network["gpu_ids"] = gpu_ids
+
+    network = getattr(model_provider, component_name)(**kwargs_network)
+
+    def w_init(x):
+        weights_init(x, init_meth)
+
+    network.apply(w_init)
+    network.cuda(gpu_ids[0])
+
+    kwargs_optim["params"] = network.parameters()
+
+    if optim_name.lower() == "adam":
+        optim_name = "torch.optim.Adam"
+
+    optimizer = load_object(optim_name, kwargs_optim)
+
+    if os.path.exists(save_path):
+        if verbose:
+            print("loading from {}".format(save_path))
+        model_utils.load_state(network, optimizer, save_path, gpu_ids[0])
+
+    return network, optimizer
 
 
 def load_network_from_dir(
-    model_save_dir, parent_dir="./", net_names=["enc", "dec"], suffix=""
+    model_save_dir, parent_dir="./", net_names=["enc", "dec"], suffix="", gpu_ids=[0]
 ):
 
     args_file = "{}/args.json".format(model_save_dir)
@@ -218,6 +260,12 @@ def get_activation(activation):
 
     elif activation.lower() == "leakyrelu":
         return torch.nn.LeakyReLU(0.2, inplace=True)
+
+    elif activation.lower() == "channelsoftmax":
+        return layers.ChannelSoftmax()
+
+    elif activation.lower() == "softplus":
+        return torch.nn.Softplus()
 
 
 def str2rand(strings, seed=0):
