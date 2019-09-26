@@ -21,5 +21,5 @@ dependencies:
     - ipykernel
     - pip:
         - git+https://github.com/AllenCellModeling/aicsimage.git
-        - aicsfeature=0.2.1
+        - aicsfeature==0.2.1
 
