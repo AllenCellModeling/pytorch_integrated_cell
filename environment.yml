@@ -19,6 +19,7 @@ dependencies:
     - tqdm=4.24.0
     - natsort=5.3.3
     - ipykernel
+    - tifffile
     - pip:
         - git+https://github.com/AllenCellModeling/aicsimage.git
         - aicsfeature==0.2.1
