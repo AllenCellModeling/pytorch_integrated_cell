@@ -18,15 +18,6 @@ def setup(args):
             "--save_dir and --save_parent are both set. Please choose one or the other."
         )
 
-    # if (
-    #     (args["train_module"] is not None) and (args["train_module_pt1"] is not None)
-    # ) or (
-    #     (args["train_module"] is not None) and (args["train_module_pt2"] is not None)
-    # ):
-    #     raise ValueError(
-    #         "--train_module and --train_model_pt1 or --train_model_pt2 are both set. Please choose a global train module or specify partial models."
-    #     )
-
     the_time = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     if args["save_parent"] is not None:
         args["save_dir"] = os.path.join(args["save_parent"], the_time)
@@ -47,9 +38,9 @@ def setup(args):
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(ID) for ID in args["gpu_ids"]])
     args["gpu_ids"] = list(range(0, len(args["gpu_ids"])))
 
-    if len(args["gpu_ids"]) == 1:
-        torch.backends.cudnn.enabled = True
-        torch.backends.cudnn.benchmark = True
+    # if len(args["gpu_ids"]) == 1:
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = True
 
     torch.manual_seed(args["myseed"])
     torch.cuda.manual_seed(args["myseed"])
@@ -475,6 +466,10 @@ for net_name in net_kwargs:
         **net_kwargs[net_name]
     )
 
+if torch.cuda.device_count() > 1:
+    for net_name in networks:
+        networks[net_name] = torch.nn.DataParallel(networks[net_name])
+
 losses = utils.load_losses(args)
 
 if not os.path.exists(args["save_dir"]):
@@ -488,8 +483,8 @@ model = trainer_module.Model(
 model.train()
 
 
-#######
-# DONE TRAINING REFERENCE MODEL
-#######
-embeddings_path = "{}/embeddings.pkl".format(args["save_dir"])
-embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp)
+# #######
+# # DONE TRAINING REFERENCE MODEL
+# #######
+# embeddings_path = "{}/embeddings.pkl".format(args["save_dir"])
+# embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp)
