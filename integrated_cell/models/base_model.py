@@ -24,8 +24,6 @@ class Model(object):
         provide_decoder_vars=0,
     ):
 
-        # self.__dict__.update(kwargs)
-
         self.data_provider = data_provider
         self.n_epochs = n_epochs
 
@@ -39,7 +37,6 @@ class Model(object):
         self.provide_decoder_vars = provide_decoder_vars
 
         self.iters_per_epoch = np.ceil(len(data_provider) / data_provider.batch_size)
-
 
         self.zAll = list()
 
@@ -65,15 +62,17 @@ class Model(object):
         epoch_next = self.get_current_epoch(self.get_current_iter())
 
         saved = False
-        if epoch != epoch_next and (
-            (epoch_next % self.save_state_iter) == 0
-            or (epoch_next % self.save_state_iter) == 0
-        ):
+        if epoch != epoch_next:
+            # save the logger every epoch
+            pickle.dump(
+                self.logger, open("{0}/logger_tmp.pkl".format(self.save_dir), "wb")
+            )
+
             if (epoch_next % self.save_progress_iter) == 0:
                 print("saving progress")
                 self.save_progress()
 
-            if (epoch_next % self.save_progress_iter) == 0:
+            if (epoch_next % self.save_state_iter) == 0:
                 print("saving state")
                 self.save(self.save_dir)
 
