@@ -1,2 +1,2 @@
-from .imgToProjection import imgtoprojection
-from .SimpleLogger import SimpleLogger
+from .imgToProjection import imgtoprojection  # noqa
+from .simplelogger import SimpleLogger  # noqa
