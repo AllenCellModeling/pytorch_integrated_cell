@@ -23,24 +23,50 @@ We recommend installation on Linux and an NVIDIA graphics card with 10+ GB of RA
 
 Installing on linux is recommended.
 
-- Install the conda environment manager: [Conda](https://docs.conda.io/en/latest/miniconda.html).
-- Install Python 3.6+ if necessary.
+- Install Python 3.6+/Docker/etc if necessary.
 - All commands listed below assume the bash shell.
-- Clone and install the repo:
 
+### **Installation method (A) In Existing Workspace**
+(Optional) Make a fresh conda repo. (This will mess up some libraries if inside a some of Nvidia's Docker images)
+```shell
+conda create --name pytorch_integrated_cell python=3.7
+conda activate pytorch_integrated_cell
+```
+Clone and install the repo
 ```shell
 git clone https://github.com/AllenCellModeling/pytorch_integrated_cell
 cd pytorch_integrated_cell
-conda env create -f environment.yml
-conda activate pytorch_integrated_cell
+pip install -e .
+pre-commit install
 ```
+(Optional) Clone and install Nvidia Apex for half-precision computation
+```shell
+git clone https://github.com/NVIDIA/apex
+cd apex
+pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+```
+
+### **Installation method (B): Docker**
+We build on Nvidia Docker images. In our tests this runs about 20% faster (A) although your mileage may vary. This comes with Nvidia Apex.
+```shell
+git clone https://github.com/AllenCellModeling/pytorch_integrated_cell
+cd pytorch_integrated_cell/docker
+bash build_dockerfile.sh
+```
+
+## Data
+Data can be downloaded via Quilt T3. The following script will dump the complete 2D and 3D dataset into `./data/`. This may take a long time depending on your connection.
+```shell
+python download_data.py
+```
+
 
 ## Project website
 Example outputs of this model can be viewed at http://www.allencell.org
 
 ## Important files ##
 
-	train_model.py
+	bin/train_model.py
 		Main function
 
 	model_utils.py
@@ -49,31 +75,18 @@ Example outputs of this model can be viewed at http://www.allencell.org
 			Assignment of models to different GPUs
 			Saving and loading
 
-		In theory, model parallelization and data parallelization get set on lines 102-105
-
 	models/
-		Definitions for variations on the integrated cell model. Each model consists of four parts:
+		Definitions for training schemas
+
+	networks/
+		Definitions for variations on the integrated cell model. Each model consists of a subset of these four parts:
 			Encoder 
 			Decoder
 			Encoder Discriminator
 			Decoder Discriminator
 
-			Each model has a data-parallelization module which accepts a list of GPU IDs
-
-	train_modules/
-		Definitions for training schemas
-
-		aaegan_train2.py is we use now. It is low-memory version of aaegan_train.py
-
-		A general training step is
-			Take steps for the discriminators
-			Take steps for the encoder and decoder
-			Take advarsarial steps for the encoder and decoder WRT the discriminators
-
 	data_providers/
 		Definitions for DataProvider objects i.e. loading data into pytorch tensors
-
-		DataProvider3Dh5.py is what we use now. 
 
 ## Citation
 If you find this code useful in your research, please consider citing the following paper:
