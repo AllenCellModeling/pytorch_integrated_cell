@@ -27,7 +27,7 @@ Installing on linux is recommended.
 - All commands listed below assume the bash shell.
 
 ### **Installation method (A) In Existing Workspace**
-(OPTIONAL) Make a fresh conda repo. (This will mess up some libraries if inside a some of Nvidia's Docker images)
+(Optional) Make a fresh conda repo. (This will mess up some libraries if inside a some of Nvidia's Docker images)
 ```shell
 conda create --name pytorch_integrated_cell python=3.7
 conda activate pytorch_integrated_cell
@@ -39,7 +39,7 @@ cd pytorch_integrated_cell
 pip install -e .
 pre-commit install
 ```
-(Also optional) Clone and install Nvidia Apex for half-precision computation
+(Optional) Clone and install Nvidia Apex for half-precision computation
 ```shell
 git clone https://github.com/NVIDIA/apex
 cd apex
@@ -47,11 +47,17 @@ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cud
 ```
 
 ### **Installation method (B): Docker**
-This method is nice because we build on Nvidia Docker images. In our tests this runs about 20% faster (A) although your mileage may vary. 
+We build on Nvidia Docker images. In our tests this runs about 20% faster (A) although your mileage may vary. This comes with Nvidia Apex.
 ```shell
 git clone https://github.com/AllenCellModeling/pytorch_integrated_cell
 cd pytorch_integrated_cell/docker
 bash build_dockerfile.sh
+```
+
+## Data
+Data can be downloaded via Quilt T3. The following script will dump the complete 2D and 3D dataset into `./data/`. This may take a long time depending on your connection.
+```shell
+python download_data.py
 ```
 
 

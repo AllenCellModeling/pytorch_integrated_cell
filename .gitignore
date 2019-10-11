@@ -4,10 +4,12 @@
 **.pyt
 .ipynb_checkpoints
 .vscode
+.bash_history
 train_modules/__pycache__/*
 *.egg-info/
 examples/
 results/
+data/
 integrated_cell/networks/old
 integrated_cell/networks/proto
 integrated_cell/models/proto
