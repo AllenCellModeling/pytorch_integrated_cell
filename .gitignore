@@ -7,7 +7,7 @@
 .bash_history
 train_modules/__pycache__/*
 *.egg-info/
-examples/
+examples/3D_benchmark_test/results
 results/
 data/
 integrated_cell/networks/old
