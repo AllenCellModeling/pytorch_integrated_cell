@@ -51,7 +51,7 @@ We build on Nvidia Docker images. In our tests this runs about 20% faster (A) al
 ```shell
 git clone https://github.com/AllenCellModeling/pytorch_integrated_cell
 cd pytorch_integrated_cell/docker
-bash build_dockerfile.sh
+docker build -t aics/pytorch_integrated_cell -f Dockerfile .
 ```
 
 ## Data
@@ -59,7 +59,6 @@ Data can be downloaded via Quilt T3. The following script will dump the complete
 ```shell
 python download_data.py
 ```
-
 
 ## Project website
 Example outputs of this model can be viewed at http://www.allencell.org
