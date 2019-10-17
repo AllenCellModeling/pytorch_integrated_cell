@@ -30,10 +30,7 @@ setup(
         "imageio==2.6.0",
         "quilt3==3.1.1",
         "pytest",
-        "pytest-cov",
         "pytest-raises",
         "pytest-runner",
-        "coverage>=5.0a4",
-        "codecov",
     ],
 )
