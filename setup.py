@@ -33,5 +33,7 @@ setup(
         "pytest-cov",
         "pytest-raises",
         "pytest-runner",
+        "coverage>=5.0a4",
+        "codecov",
     ],
 )
