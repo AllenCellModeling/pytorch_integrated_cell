@@ -12,5 +12,5 @@ jobs:
         docker build -t aics/pytorch_integrated_cell -f Dockerfile .
     - name: Run tests
       run: |
-        docker run --rm aics/pytorch_integrated_cell bash ls /root/projects/
-        docker run --rm aics/pytorch_integrated_cell pytest /root/projects/pytorch_integrated_cell/integrated_cell/tests/
+        docker run --rm aics/pytorch_integrated_cell bash ls
+        docker run --rm aics/pytorch_integrated_cell pytest integrated_cell/tests/
