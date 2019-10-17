@@ -1,4 +1,4 @@
-name: Build Docker
+name: Build
 
 on: [push, pull_request]
 
@@ -12,5 +12,4 @@ jobs:
         docker build -t aics/pytorch_integrated_cell -f Dockerfile .
     - name: Run tests
       run: |
-        docker run aics/pytorch_integrated_cell pytest --cov-report xml --cov=integrated_cell integrated_cell/tests/
-        docker run aics/pytorch_integrated_cell codecov -t ${{ secrets.CODECOV_TOKEN }}
+        docker run aics/pytorch_integrated_cell pytest integrated_cell/tests/
