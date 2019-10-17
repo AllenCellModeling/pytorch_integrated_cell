@@ -10,3 +10,7 @@ jobs:
     - name: Build Docker Image
       run: |
         docker build -t aics/pytorch_integrated_cell -f Dockerfile .
+    - name: Enter Docker Image
+      run: |
+        docker run --rm -it aics/pytorch_integrated_cell pytest --cov-report xml --cov=integrated_cell integrated_cell/tests/
+        codecov -t ${{ secrets.CODECOV_TOKEN }}
