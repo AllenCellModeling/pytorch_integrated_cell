@@ -1,4 +1,4 @@
-name: Build Docker
+name: Build
 
 on: [push, pull_request]
 
@@ -10,3 +10,6 @@ jobs:
     - name: Build Docker Image
       run: |
         docker build -t aics/pytorch_integrated_cell -f Dockerfile .
+    - name: Run tests
+      run: |
+        docker run aics/pytorch_integrated_cell pytest integrated_cell/tests/
