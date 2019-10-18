@@ -27,15 +27,21 @@ def history(logger, save_path):
 
     plts = list()
 
+    x = logger.log["iter"]
+    y = logger.log["reconLoss"]
+
+    keep_inds = ~np.any(np.stack([np.isnan(y), np.isinf(y)]), 0)
+
+    x = np.array(x)[keep_inds]
+    y = np.array(y)[keep_inds]
+
     # Plot reconstruction loss
-    plts += ax.plot(
-        logger.log["iter"], logger.log["reconLoss"], label="reconLoss", color=colors[0]
-    )
+    plts += ax.plot(x, y, label="reconLoss", color=colors[0])
 
     plt.ylabel("reconLoss")
 
-    ax_max = np.percentile(logger.log["reconLoss"], 99)
-    ax_min = np.percentile(logger.log["reconLoss"], 0)
+    ax_max = np.percentile(y, 99)
+    ax_min = np.percentile(y, 0)
 
     ax.set_ylim([ax_min, ax_max])
 
@@ -50,10 +56,16 @@ def history(logger, save_path):
     i = 1
     for field in logger.fields:
         if field not in do_not_print:
-            plts += ax2.plot(
-                logger.log["iter"], logger.log[field], label=field, color=colors[i]
-            )
-            y_vals += logger.log[field]
+            x = logger.log["iter"]
+            y = logger.log[field]
+
+            keep_inds = ~np.any(np.stack([np.isnan(y), np.isinf(y)]), 0)
+
+            x = np.array(x)[keep_inds]
+            y = np.array(y)[keep_inds]
+
+            plts += ax2.plot(x, y, label=field, color=colors[i])
+            y_vals.append(y)
             i += 1
 
     if len(y_vals) > 0:

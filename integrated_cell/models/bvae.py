@@ -60,7 +60,6 @@ class Model(base_model.Model):
         c_iters_max=1.2e5,
         gamma=1000,
         objective="H",
-        provide_decoder_vars=False,
         kld_avg=False,
     ):
 
@@ -71,7 +70,6 @@ class Model(base_model.Model):
             save_dir=save_dir,
             save_state_iter=save_state_iter,
             save_progress_iter=save_progress_iter,
-            provide_decoder_vars=provide_decoder_vars,
         )
 
         self.enc = enc
