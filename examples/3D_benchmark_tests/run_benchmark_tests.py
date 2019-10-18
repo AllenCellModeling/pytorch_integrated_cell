@@ -34,7 +34,7 @@ def get_experiments(save_parent):
     ]
     experiment_dict["batch_size"] = [8, 16, 32, 64, 128, 256]
 
-    # total amount of data to use
+    # total number of iterations to run
     n_iter = 11
 
     param_names = [k for k in experiment_dict]

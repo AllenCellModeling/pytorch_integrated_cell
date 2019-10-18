@@ -17,7 +17,7 @@ ic_train_model \
 	--data_save_path $save_dir/data.pyt \
 	--crit_recon torch.nn.MSELoss \
 	--kwargs_crit_recon '{"reduction": "sum"}' \
-	--network_name vaegan3D_cgan \
+	--network_name vaegan3D_cgan_p \
 	--kwargs_enc '{"n_classes": 24, "n_channels": 2, "n_channels_target": 1, "n_latent_dim": 512, "n_ref": 512}'  \
     --kwargs_enc_optim '{"betas": [0.9, 0.999]}' \
     --kwargs_dec '{"n_classes": 24, "n_channels": 2, "n_channels_target": 1, "n_latent_dim": 512, "n_ref": 512, "proj_z": 0, "proj_z_ref_to_target": 0, "activation_last": "softplus"}' \
