@@ -26,7 +26,7 @@ Installing on linux is recommended.
 - Install Python 3.6+/Docker/etc if necessary.
 - All commands listed below assume the bash shell.
 
-### **Installation method (A) In Existing Workspace**
+### **Installation method (A): In Existing Workspace**
 (Optional) Make a fresh conda repo. (This will mess up some libraries if inside a some of Nvidia's Docker images)
 ```shell
 conda create --name pytorch_integrated_cell python=3.7
@@ -47,7 +47,7 @@ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cud
 ```
 
 ### **Installation method (B): Docker**
-We build on Nvidia Docker images. In our tests this runs about 20% faster (A) although your mileage may vary. This comes with Nvidia Apex.
+We build on Nvidia Docker images. In our tests this runs very slightly slower than (A) although your mileage may vary. This comes with Nvidia Apex.
 ```shell
 git clone https://github.com/AllenCellModeling/pytorch_integrated_cell
 cd pytorch_integrated_cell/docker
@@ -59,9 +59,10 @@ Data can be downloaded via Quilt T3. The following script will dump the complete
 ```shell
 python download_data.py
 ```
+The dataset is about 250gb.
 
 ## Project website
-Example outputs of this model can be viewed at http://www.allencell.org
+Example outputs of this model can be viewed at http://www.allencell.org.
 
 ## Examples ##
 Examples of how to run the code can be found in the [3D benchmarks section](doc/benchmarks.md).
