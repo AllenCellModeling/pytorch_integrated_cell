@@ -17,25 +17,16 @@ from matplotlib import cm  # noqa
 
 
 # This is a script to benchmark how GPU scaling effects the iteration time of 3D IC models
+# we fire off all 8 models at the same time
 
 
 def get_experiments(save_parent):
 
     experiment_dict = {}
-    experiment_dict["function_call"] = ["bash run_docker.sh", "bash run_3D.sh"]
-    experiment_dict["trainer_type"] = ["cbvae_apex", "cbvae"]
-    experiment_dict["gpu_id"] = [
-        [2],
-        [2, 3],
-        [3, 4],
-        [0, 1, 2, 3],
-        [2, 3, 4, 5],
-        [0, 1, 2, 3, 4, 5, 6, 7],
-    ]
-    experiment_dict["batch_size"] = [8, 16, 32, 64, 128, 256]
-
-    # total amount of data to use
-    n_iter = 11
+    experiment_dict["function_call"] = ["bash run_docker_apex.sh"]
+    experiment_dict["network_type"] = ["run_3D_small.sh", "run_3D_big.sh"]
+    experiment_dict["opt_level"] = ["O0", "O1", "O2", "O3"]
+    # experiment_dict["gpu_id"] = [[2]]
 
     param_names = [k for k in experiment_dict]
     param_values = [experiment_dict[k] for k in experiment_dict]
@@ -43,26 +34,24 @@ def get_experiments(save_parent):
     # build up the list of experiments
     experiments = list()
 
-    for param_permutation in itertools.product(*param_values):
+    for i, param_permutation in enumerate(itertools.product(*param_values)):
 
         experiment = dict(zip(param_names, param_permutation))
 
-        experiment["n_dat"] = int(n_iter * experiment["batch_size"])
-
-        str_gpu_id = " ".join([str(gpu) for gpu in experiment["gpu_id"]])
-        experiment["str_gpu_id"] = str_gpu_id
+        # str_gpu_id = " ".join([str(gpu) for gpu in experiment["gpu_id"]])
+        experiment["str_gpu_id"] = str(i)
 
         # make a big string with all the crap in the dictionary and hash it, so we can get our unique directory for the experiment
         mystr = "_".join([str(experiment[k]) for k in experiment])
         mystr2hash = hashlib.sha1(mystr.encode()).hexdigest()
 
         # specify a save dir with that hash
-        save_dir = "{}/results/test_{}".format(save_parent, mystr2hash)
+        save_dir = "{}/test_{}".format(save_parent, mystr2hash)
 
         experiment["save_dir"] = save_dir
 
         # make the executable string
-        exe_str = "{function_call} '{str_gpu_id}' {save_dir} {trainer_type} {batch_size} {n_dat}".format(
+        exe_str = "{function_call} {network_type} '{str_gpu_id}' {save_dir} {opt_level}".format(
             **experiment
         )
 
@@ -79,7 +68,7 @@ def run_experiments(experiments):
     for experiment in experiments:
         print(experiment["exe_str"])
         if not os.path.exists(experiment["save_dir"]):
-            subprocess.call(experiment["exe_str"], shell=True)
+            subprocess.Popen(experiment["exe_str"], shell=True)
 
     return
 
@@ -266,14 +255,15 @@ def str2bool(v):
 
 def main(use_current_results=False, save_dir="./"):
 
-    experiments = get_experiments(save_dir)
+    experiments_dir = "{}/apex_results".format(save_dir)
+    experiments = get_experiments(experiments_dir)
 
     if not use_current_results:
         run_experiments(experiments)
 
     df_experiments = get_experiment_info_dataframe(experiments)
 
-    plots_dir = "{}/plots".format(save_dir)
+    plots_dir = "{}/apex_plots".format(save_dir)
     if not os.path.exists(plots_dir):
         os.makedirs(plots_dir)
 
