@@ -34,7 +34,7 @@ def get_experiments(save_parent):
     ]
     experiment_dict["batch_size"] = [8, 16, 32, 64, 128, 256]
 
-    # total amount of data to use
+    # total number of iterations to run
     n_iter = 11
 
     param_names = [k for k in experiment_dict]
@@ -57,7 +57,7 @@ def get_experiments(save_parent):
         mystr2hash = hashlib.sha1(mystr.encode()).hexdigest()
 
         # specify a save dir with that hash
-        save_dir = "{}/results/test_{}".format(save_parent, mystr2hash)
+        save_dir = "{}/test_{}".format(save_parent, mystr2hash)
 
         experiment["save_dir"] = save_dir
 
@@ -266,14 +266,15 @@ def str2bool(v):
 
 def main(use_current_results=False, save_dir="./"):
 
-    experiments = get_experiments(save_dir)
+    experiments_dir = "{}/benchmark_results".format(save_dir)
+    experiments = get_experiments(experiments_dir)
 
     if not use_current_results:
         run_experiments(experiments)
 
     df_experiments = get_experiment_info_dataframe(experiments)
 
-    plots_dir = "{}/plots".format(save_dir)
+    plots_dir = "{}/benchmark_plots".format(save_dir)
     if not os.path.exists(plots_dir):
         os.makedirs(plots_dir)
 
@@ -313,6 +314,12 @@ def main(use_current_results=False, save_dir="./"):
         df_experiments.iloc[is_docker],
         pair_on="trainer_type",
         save_path="{}/{}".format(plots_dir, "stats_apex_vs_not_apex.png"),
+    )
+
+    # Apex vs Non-Apex experiments (Docker only)
+    plot_experiments(
+        df_experiments.iloc[is_docker],
+        save_path="{}/{}".format(plots_dir, "stats_apex_vs_not_apex_all.png"),
     )
 
 

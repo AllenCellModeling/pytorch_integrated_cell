@@ -63,29 +63,8 @@ python download_data.py
 ## Project website
 Example outputs of this model can be viewed at http://www.allencell.org
 
-## Important files ##
-
-	bin/train_model.py
-		Main function
-
-	model_utils.py
-		Misc functions including...
-			Initialization of models, optimizers, loss criteria
-			Assignment of models to different GPUs
-			Saving and loading
-
-	models/
-		Definitions for training schemas
-
-	networks/
-		Definitions for variations on the integrated cell model. Each model consists of a subset of these four parts:
-			Encoder 
-			Decoder
-			Encoder Discriminator
-			Decoder Discriminator
-
-	data_providers/
-		Definitions for DataProvider objects i.e. loading data into pytorch tensors
+## Examples ##
+Examples of how to run the code can be found in the [3D benchmarks section](doc/benchmarks.md).
 
 ## Citation
 If you find this code useful in your research, please consider citing the following paper:

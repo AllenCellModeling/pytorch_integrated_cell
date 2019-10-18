@@ -23,10 +23,10 @@ class DataProvider(DataProviderABC):
         channelInds=[0, 1, 2],
         check_files=True,
         split_seed=1,
-        crop_to=None,
         return2D=False,
         rescale_to=None,
-        make_controls=True,
+        crop_to=None,
+        make_controls=False,
         normalize_intensity=False,
     ):
 
@@ -228,6 +228,9 @@ class DataProvider(DataProviderABC):
                     seg_cell = im_tmp[df_row["ch_seg_cell"]] > 0
 
                     im[i] = im[i] * seg_cell
+
+            if str(self.normalize_intensity).lower() == "avg_intensity":
+                pass
 
         if self.normalize_intensity:
             im = im.astype("float")

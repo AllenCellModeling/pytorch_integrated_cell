@@ -15,6 +15,8 @@ def get_latent_embeddings(
     n_recon_samples=10,
     sampler=None,
     beta=1,
+    channels_ref=[0, 2],
+    channels_target=[1],
 ):
 
     if sampler is None:
@@ -38,14 +40,16 @@ def get_latent_embeddings(
         with torch.no_grad():
             zAll = enc(x, classes_onehot)
 
-        embeddings_ref_mu = torch.zeros(ndat, zAll[0][0].shape[1])
-        embeddings_ref_sigma = torch.zeros(ndat, zAll[0][1].shape[1])
+        ndims = torch.prod(torch.tensor(zAll[0][0].shape[1:]))
+
+        embeddings_ref_mu = torch.zeros(ndat, ndims)
+        embeddings_ref_sigma = torch.zeros(ndat, ndims)
 
         embeddings_ref_recons = torch.zeros(ndat, n_recon_samples)
         embeddings_ref_kld = torch.zeros(ndat)
 
-        embeddings_target_mu = torch.zeros(ndat, zAll[1][0].shape[1])
-        embeddings_target_sigma = torch.zeros(ndat, zAll[1][1].shape[1])
+        embeddings_target_mu = torch.zeros(ndat, ndims)
+        embeddings_target_sigma = torch.zeros(ndat, ndims)
 
         embeddings_target_recons = torch.zeros(ndat, n_recon_samples)
         embeddings_target_kld = torch.zeros(ndat)
@@ -54,10 +58,13 @@ def get_latent_embeddings(
 
         inds = list(range(0, ndat))
         data_iter = [
-            inds[i : i + batch_size] for i in range(0, len(inds), batch_size)  # noqa
+            torch.LongTensor(inds[i : i + batch_size])  # noqa
+            for i in range(0, len(inds), batch_size)  # noqa
         ]
 
         for i in tqdm(range(0, len(data_iter))):
+            batch_size = len(data_iter[i])
+
             x, classes, ref = sampler(mode, data_iter[i])
 
             x = x.cuda()
@@ -67,23 +74,30 @@ def get_latent_embeddings(
                 zAll = enc(x, classes_onehot)
 
             embeddings_ref_mu.index_copy_(
-                0, torch.LongTensor(data_iter[i]), zAll[0][0].data[:].cpu()
+                0, data_iter[i], zAll[0][0].cpu().view([batch_size, -1])
             )
             embeddings_ref_sigma.index_copy_(
-                0, torch.LongTensor(data_iter[i]), zAll[0][1].data[:].cpu()
+                0, data_iter[i], zAll[0][1].cpu().view([batch_size, -1])
             )
 
             embeddings_target_mu.index_copy_(
-                0, torch.LongTensor(data_iter[i]), zAll[1][0].data[:].cpu()
+                0, data_iter[i], zAll[1][0].cpu().view([batch_size, -1])
             )
             embeddings_target_sigma.index_copy_(
-                0, torch.LongTensor(data_iter[i]), zAll[1][1].data[:].cpu()
+                0, data_iter[i], zAll[1][1].cpu().view([batch_size, -1])
             )
 
-            embeddings_classes.index_copy_(0, torch.LongTensor(data_iter[i]), classes)
+            embeddings_classes.index_copy_(0, data_iter[i], classes)
 
             recons_ref, recons_target = get_recons(
-                x, classes_onehot, dec, zAll, n_recon_samples, recon_loss=recon_loss
+                x,
+                classes_onehot,
+                dec,
+                zAll,
+                n_recon_samples,
+                recon_loss=recon_loss,
+                channels_ref=channels_ref,
+                channels_target=channels_target,
             )
 
             embeddings_ref_kld.index_copy_(
@@ -159,9 +173,6 @@ def get_recons(
     channels_target=[1],
 ):
 
-    channels_ref_out = dec.ch_ref
-    channels_target_out = dec.ch_target
-
     recons_ref = torch.zeros(x.shape[0], n_recon_samples)
     recons_target = torch.zeros(x.shape[0], n_recon_samples)
 
@@ -173,16 +184,14 @@ def get_recons(
 
         recons_ref[:, i] = torch.stack(
             [
-                recon_loss(xHat[[ind], [channels_ref_out]], x[[ind], [channels_ref]])
+                recon_loss(xHat[[ind], [channels_ref]], x[[ind], [channels_ref]])
                 for ind in range(len(x))
             ]
         )
 
         recons_target[:, i] = torch.stack(
             [
-                recon_loss(
-                    xHat[[ind], [channels_target_out]], x[[ind], [channels_target]]
-                )
+                recon_loss(xHat[[ind], [channels_target]], x[[ind], [channels_target]])
                 for ind in range(len(x))
             ]
         )
