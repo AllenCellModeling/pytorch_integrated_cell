@@ -64,7 +64,7 @@ python download_data.py
 Example outputs of this model can be viewed at http://www.allencell.org
 
 ## Examples ##
-Examples of how to run the code can be found in the [3D benchmarks section](docs/benchmarks.md).
+Examples of how to run the code can be found in the [3D benchmarks section](doc/benchmarks.md).
 
 ## Citation
 If you find this code useful in your research, please consider citing the following paper:
