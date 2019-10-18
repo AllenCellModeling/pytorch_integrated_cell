@@ -147,19 +147,6 @@ def weights_init(m, init_meth="normal"):
                 pass
 
 
-# def load_data_provider_from_dir(model_save_dir, parent_dir):
-#     args_file = "{}/args.json".format(model_save_dir)
-
-#     with open(args_file, "r") as f:
-#         args = json.load(f)
-
-#     dp_name, dp_kwargs = save_load_dict("{}/args_dp.json".format(args["save_dir"]))
-#     dp_kwargs["save_path"] = dp_kwargs["save_path"].replace("./", parent_dir)
-#     dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
-
-#     return dp
-
-
 def load_network(
     network_name,
     component_name,
@@ -216,7 +203,6 @@ def load_network_from_dir(
     dp_kwargs["save_path"] = dp_kwargs["save_path"].replace("./", parent_dir)
     dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
 
-    net_names = ["enc", "dec"]
     net_kwargs = {}
     networks = {}
 

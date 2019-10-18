@@ -6,6 +6,68 @@ import torch
 import math
 
 
+class KLDLoss(nn.Module):
+    # computes kl loss against a reference isotropic gaussian distribution
+    def __init__(self, reduction):
+        super(KLDLoss, self).__init__()
+        self.reduction = reduction
+
+    def forward(self, mu, logvar):
+
+        kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
+        if self.reduction == "sum":
+            pass
+        elif self.reduction == "batch":  # sum then divide over batch size
+            kld = kld / mu.shape[0]
+        elif self.reduction == "mean":  # divide over all elements
+            kld = kld / torch.numel(mu)
+
+        return kld
+
+
+class BatchLoss(nn.Module):
+    # makes a loss function, and divides by the number of elements in the batch
+    def __init__(self, loss, loss_kwargs):
+        super(BatchLoss, self).__init__()
+
+        self.loss = utils.load_object(loss, loss_kwargs)
+
+    def forward(self, *args):
+        return self.loss(*args) / args[0].shape[0]
+
+
+class ListMSELoss(nn.Module):
+    # computes mse loss over all items
+    def __init__(self, **kwargs):
+        super(ListMSELoss, self).__init__()
+
+        self.mseloss = nn.MSELoss(**kwargs)
+
+    def forward(self, input_list, target_list):
+
+        losses = torch.zeros(1).type_as(target_list[0])
+
+        for i, t in zip(input_list, target_list):
+            losses = losses + self.mseloss(i, t)
+
+        return losses
+
+
+class BatchMSELoss(nn.Module):
+    # computes mse loss and averages over batch size
+    def __init__(self):
+        super(BatchMSELoss, self).__init__()
+
+        self.mseloss = nn.MSELoss(reduction="sum")
+
+    def forward(self, input, target):
+        losses = self.mseloss(input, target)
+        losses = losses / input.shape[0]
+
+        return losses
+
+
 class MSELoss(nn.Module):
     def __init__(self, **kwargs):
         super(MSELoss, self).__init__()
