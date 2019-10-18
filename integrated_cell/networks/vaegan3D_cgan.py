@@ -529,6 +529,9 @@ class Dec(nn.Module):
         out_shape[1] = self.n_channels + self.n_channels_target
         out = torch.zeros(out_shape).type_as(x_ref)
 
+        if x_ref.is_cuda:
+            out = out.cuda(x_ref.device)
+
         out[:, self.ch_ref] = x_ref
         out[:, self.ch_target] = x_target
 
@@ -544,7 +547,7 @@ class DecD(nn.Module):
         noise_std,
         activation="leakyrelu",
         n_classes_out=1,
-        conv_channels_list=[64, 128, 256, 512, 1024, 1024],
+        conv_channels_list=[32, 64, 128, 256, 512],
         imsize_compressed=[5, 3, 2],
         **kwargs
     ):
