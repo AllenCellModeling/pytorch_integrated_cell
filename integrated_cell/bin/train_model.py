@@ -78,9 +78,6 @@ def setup_kwargs_network(args):
     kwargs_enc["component_name"] = "Enc"
     kwargs_enc["network_name"] = args["network_name"]
     kwargs_enc["kwargs_network"] = {}
-    kwargs_enc["kwargs_network"]["n_channels"] = len(args["channels"])
-    kwargs_enc["kwargs_network"]["n_classes"] = args["n_classes"]
-    kwargs_enc["kwargs_network"]["n_ref"] = args["n_ref"]
     for k in args["kwargs_enc"]:
         kwargs_enc["kwargs_network"][k] = args["kwargs_enc"][k]
 
@@ -94,9 +91,6 @@ def setup_kwargs_network(args):
     kwargs_dec["component_name"] = "Dec"
     kwargs_dec["network_name"] = args["network_name"]
     kwargs_dec["kwargs_network"] = {}
-    kwargs_dec["kwargs_network"]["n_channels"] = len(args["channels"])
-    kwargs_dec["kwargs_network"]["n_classes"] = args["n_classes"]
-    kwargs_dec["kwargs_network"]["n_ref"] = args["n_ref"]
     for k in args["kwargs_dec"]:
         kwargs_dec["kwargs_network"][k] = args["kwargs_dec"][k]
 
@@ -110,7 +104,6 @@ def setup_kwargs_network(args):
     kwargs_encD["component_name"] = "EncD"
     kwargs_encD["network_name"] = args["network_name"]
     kwargs_encD["kwargs_network"] = {}
-    kwargs_encD["kwargs_network"]["n_classes"] = args["n_classes"] + 1
     for k in args["kwargs_encD"]:
         kwargs_encD["kwargs_network"][k] = args["kwargs_encD"][k]
 
@@ -124,8 +117,6 @@ def setup_kwargs_network(args):
     kwargs_decD["component_name"] = "DecD"
     kwargs_decD["network_name"] = args["network_name"]
     kwargs_decD["kwargs_network"] = {}
-    kwargs_decD["kwargs_network"]["n_channels"] = len(args["channels"])
-    kwargs_decD["kwargs_network"]["n_classes"] = args["n_classes"] + 1
 
     for k in args["kwargs_decD"]:
         kwargs_decD["kwargs_network"][k] = args["kwargs_decD"][k]
@@ -323,9 +314,9 @@ def main():
     parser.add_argument(
         "--nepochs", type=int, default=250, help="total number of epochs"
     )
-    parser.add_argument(
-        "--nepochs_pt2", type=int, default=-1, help="total number of epochs"
-    )
+    # parser.add_argument(
+    #     "--nepochs_pt2", type=int, default=-1, help="total number of epochs"
+    # )
 
     parser.add_argument(
         "--network_name", default="waaegan", help="name of the model module"
@@ -372,15 +363,8 @@ def main():
         "--channels_pt1",
         nargs="+",
         type=int,
-        default=[0, 2],
-        help="channels to use for part 1",
-    )
-    parser.add_argument(
-        "--channels_pt2",
-        nargs="+",
-        type=int,
         default=[0, 1, 2],
-        help="channels to use for part 2",
+        help="channels to use for part 1",
     )
 
     parser.add_argument(
@@ -404,13 +388,6 @@ def main():
         default="struct_model",
         type=str,
         help="Directory name for structure model",
-    )
-
-    parser.add_argument(
-        "--pt2_use_pretrained",
-        default=False,
-        type=str2bool,
-        help="User part 1 models to start part 2",
     )
 
     parser.add_argument(
@@ -458,8 +435,6 @@ def main():
     )
 
     # load the networks
-    args["n_classes"] = 0
-    args["n_ref"] = 0
     args["channels"] = args["channels_pt1"]
 
     net_kwargs = setup_kwargs_network(args)
@@ -475,9 +450,10 @@ def main():
             **net_kwargs[net_name]
         )
 
-    if torch.cuda.device_count() > 1:
-        for net_name in networks:
-            networks[net_name] = torch.nn.DataParallel(networks[net_name])
+    # if torch.cuda.device_count() > 1:
+    #     for net_name in networks:
+    #         if len(net_kwargs[net_name]['gpu_ids']) > 1:
+    #             networks[net_name] = torch.nn.DataParallel(networks[net_name])
 
     losses = utils.load_losses(args)
 

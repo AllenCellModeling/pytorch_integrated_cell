@@ -10,13 +10,12 @@ from integrated_cell.model_utils import tensor2img
 from integrated_cell.utils import plots as plots
 from .. import model_utils
 from ..metrics import embeddings
+from .bvae import reparameterize, kl_divergence
 
 import os
 import pickle
 
 import shutil
-
-# conditional beta variational autencoder
 
 
 class Model(bvae.Model):
@@ -44,7 +43,6 @@ class Model(bvae.Model):
         c_iters_max=80000,
         gamma=500,
         objective="H",
-        kld_avg=False,
     ):
 
         super(Model, self).__init__(
@@ -71,7 +69,6 @@ class Model(bvae.Model):
         self.beta = beta
         self.beta_start = beta_start
         self.beta_step = beta_step
-        self.kld_avg = kld_avg
         self.objective = objective
 
         # for mode 'A'
@@ -127,17 +124,8 @@ class Model(bvae.Model):
         # Forward passes
         z_ref, z_struct = enc(x, classes_onehot)
 
-        total_kld_ref, _, mean_kld_ref = bvae.kl_divergence(z_ref[0], z_ref[1])
-        total_kld_struct, _, mean_kld_struct = bvae.kl_divergence(
-            z_struct[0], z_struct[1]
-        )
-
-        if self.kld_avg:
-            kld_ref = mean_kld_ref
-            kld_struct = mean_kld_struct
-        else:
-            kld_ref = total_kld_ref
-            kld_struct = total_kld_struct
+        kld_ref, _, _ = kl_divergence(z_ref[0], z_ref[1])
+        kld_struct, _, _ = kl_divergence(z_struct[0], z_struct[1])
 
         kld = kld_ref + kld_struct
 
@@ -148,7 +136,7 @@ class Model(bvae.Model):
 
         zAll = [z_ref, z_struct]
         for i in range(len(zAll)):
-            zAll[i] = bvae.reparameterize(zAll[i][0], zAll[i][1])
+            zAll[i] = reparameterize(zAll[i][0], zAll[i][1])
 
         xHat = dec([classes_onehot] + zAll)
 
@@ -295,24 +283,6 @@ class Model(bvae.Model):
             "{0}/progress_{1}.png".format(self.save_dir, int(epoch - 1)), imgOut
         )
 
-        embeddings_validate = embeddings.get_latent_embeddings(
-            enc,
-            dec,
-            dp=self.data_provider,
-            recon_loss=self.crit_recon,
-            modes=["validate"],
-            batch_size=self.data_provider.batch_size,
-        )
-        embeddings_validate["iteration"] = self.get_current_iter()
-        embeddings_validate["epoch"] = self.get_current_epoch()
-
-        torch.save(
-            embeddings_validate,
-            "{}/embeddings_validate_{}.pth".format(
-                self.save_dir, self.get_current_iter()
-            ),
-        )
-
         # embeddings_test = embeddings.get_latent_embeddings(
         #     enc,
         #     dec,
@@ -332,6 +302,7 @@ class Model(bvae.Model):
         # )
 
         embeddings_train = np.concatenate(self.zAll, 0)
+        embeddings_train = embeddings_train.reshape(embeddings_train.shape[0], -1)
 
         pickle.dump(
             embeddings_train, open("{0}/embedding.pth".format(self.save_dir), "wb")
@@ -354,6 +325,24 @@ class Model(bvae.Model):
 
         # Embedding figure
         plots.embeddings(embeddings_train, "{0}/embedding.png".format(self.save_dir))
+
+        embeddings_validate = embeddings.get_latent_embeddings(
+            enc,
+            dec,
+            dp=self.data_provider,
+            recon_loss=self.crit_recon,
+            modes=["validate"],
+            batch_size=self.data_provider.batch_size,
+        )
+        embeddings_validate["iteration"] = self.get_current_iter()
+        embeddings_validate["epoch"] = self.get_current_epoch()
+
+        torch.save(
+            embeddings_validate,
+            "{}/embeddings_validate_{}.pth".format(
+                self.save_dir, self.get_current_iter()
+            ),
+        )
 
         xHat = None
         x = None
