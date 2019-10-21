@@ -46,9 +46,6 @@ def setup(args):
     torch.cuda.manual_seed(args["myseed"])
     np.random.seed(args["myseed"])
 
-    if args["nepochs_pt2"] == -1:
-        args["nepochs_pt2"] = args["nepochs"]
-
     return args
 
 
