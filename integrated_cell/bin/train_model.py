@@ -81,6 +81,10 @@ def setup_kwargs_network(args):
     kwargs_enc["kwargs_optim"] = args["kwargs_enc_optim"]
     kwargs_enc["kwargs_optim"]["lr"] = args["lr_enc"]
 
+    if "enc" in args["kwargs_pretrain"]:
+        for k in args["kwargs_pretrain"]["enc"]:
+            kwargs_enc[k] = args["kwargs_pretrain"]["enc"][k]
+
     # Decoder
     kwargs_dec = kwargs_base.copy()
     kwargs_dec["save_path"] = "{}/{}.pth".format(args["save_dir"], "dec")
@@ -94,6 +98,10 @@ def setup_kwargs_network(args):
     kwargs_dec["kwargs_optim"] = args["kwargs_dec_optim"]
     kwargs_dec["kwargs_optim"]["lr"] = args["lr_dec"]
 
+    if "dec" in args["kwargs_pretrain"]:
+        for k in args["kwargs_pretrain"]["dec"]:
+            kwargs_dec[k] = args["kwargs_pretrain"]["dec"][k]
+
     # Encoder discriminator
     kwargs_encD = kwargs_base.copy()
     kwargs_encD["save_path"] = "{}/{}.pth".format(args["save_dir"], "encD")
@@ -106,6 +114,10 @@ def setup_kwargs_network(args):
 
     kwargs_encD["kwargs_optim"] = args["kwargs_encD_optim"]
     kwargs_encD["kwargs_optim"]["lr"] = args["lr_encD"]
+
+    if "encD" in args["kwargs_pretrain"]:
+        for k in args["kwargs_pretrain"]["encD"]:
+            kwargs_encD[k] = args["kwargs_pretrain"]["encD"][k]
 
     # Decoder discriminator
     kwargs_decD = kwargs_base.copy()
@@ -121,17 +133,28 @@ def setup_kwargs_network(args):
     kwargs_decD["kwargs_optim"] = args["kwargs_decD_optim"]
     kwargs_decD["kwargs_optim"]["lr"] = args["lr_decD"]
 
+    if "decD" in args["kwargs_pretrain"]:
+        for k in args["kwargs_pretrain"]["decD"]:
+            kwargs_decD[k] = args["kwargs_pretrain"]["decD"][k]
+
     network_kwargs = {}
     network_kwargs["enc"] = kwargs_enc
     network_kwargs["dec"] = kwargs_dec
 
     if args["model_type"] == "ae":
+        # autoencoder
         pass  # already setup!
 
+    if args["model_type"] == "aae":
+        # autoencoder with advarsary on enc
+        network_kwargs["encD"] = kwargs_encD
+
     elif args["model_type"] == "aegan":
+        # autoencoder with advarsary on dec
         network_kwargs["decD"] = kwargs_decD
 
     elif args["model_type"] == "aaegan":
+        # autoencoder with advarsary on enc and dec
         network_kwargs["decD"] = kwargs_decD
         network_kwargs["encD"] = kwargs_encD
 
@@ -311,9 +334,6 @@ def main():
     parser.add_argument(
         "--nepochs", type=int, default=250, help="total number of epochs"
     )
-    # parser.add_argument(
-    #     "--nepochs_pt2", type=int, default=-1, help="total number of epochs"
-    # )
 
     parser.add_argument(
         "--network_name", default="waaegan", help="name of the model module"
@@ -353,8 +373,6 @@ def main():
     )
 
     parser.add_argument("--train_module", default=None, help="training module")
-    # parser.add_argument("--train_module_pt1", default=None, help="training module")
-    # parser.add_argument("--train_module_pt2", default=None, help="training module")
 
     parser.add_argument(
         "--channels_pt1",
@@ -389,6 +407,13 @@ def main():
 
     parser.add_argument(
         "--init_meth", default="normal", type=str, help="Network initialization method."
+    )
+
+    parser.add_argument(
+        "--kwargs_pretrain",
+        default={},
+        type=json.loads,
+        help="Takes format {'component_name': {'path': 'my_path', 'reset_optim': True}}",
     )
 
     args = vars(parser.parse_args())
