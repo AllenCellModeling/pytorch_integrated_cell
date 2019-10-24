@@ -37,20 +37,23 @@ Clone and install the repo
 git clone https://github.com/AllenCellModeling/pytorch_integrated_cell
 cd pytorch_integrated_cell
 pip install -e .
+```
+
+If you want to do some development, install the pre-commit hooks:
+```shell
+pip install pre-commit
 pre-commit install
 ```
+
 (Optional) Clone and install Nvidia Apex for half-precision computation
-```shell
-git clone https://github.com/NVIDIA/apex
-cd apex
-pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
-```
+Please follow the instructions on the Nvidia Apex github page:
+https://github.com/NVIDIA/apex
 
 ### **Installation method (B): Docker**
 We build on Nvidia Docker images. In our tests this runs very slightly slower than (A) although your mileage may vary. This comes with Nvidia Apex.
 ```shell
 git clone https://github.com/AllenCellModeling/pytorch_integrated_cell
-cd pytorch_integrated_cell/docker
+cd pytorch_integrated_cell
 docker build -t aics/pytorch_integrated_cell -f Dockerfile .
 ```
 

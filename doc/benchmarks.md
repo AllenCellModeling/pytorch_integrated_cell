@@ -8,7 +8,7 @@ In the directory
 
 ### System requirements
 
-Benchmarks are set to run on a box with 8 GPUs. Please reconfigure the following section to work with the GPUs on your machine.
+Benchmarks are set to run on a box with 8 GPUs. Instructions to reconfigure your code are at the bottom of this page.
 
 ### Installation
 Install the Integrated Cell code via _both_ method (A) (with Nvidia Apex) and method (B). Download the data too.
