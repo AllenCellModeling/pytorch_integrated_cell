@@ -84,6 +84,11 @@ def load_losses(args):
     if args["model_type"] == "ae":
         pass  # already setup!
 
+    elif args["model_type"] == "aae":
+        kwargs_losses["crit_encD"] = {}
+        kwargs_losses["crit_encD"]["name"] = args["crit_encD"]
+        kwargs_losses["crit_encD"]["kwargs"] = args["kwargs_crit_encD"]
+
     elif args["model_type"] == "aegan":
         kwargs_losses["crit_decD"] = {}
         kwargs_losses["crit_decD"]["name"] = args["crit_decD"]
@@ -154,6 +159,8 @@ def load_network(
     optim_name,
     kwargs_optim,
     save_path,
+    pretrained_path=None,
+    pretrained_reset_optim=True,
     gpu_ids=None,
     init_meth="normal",
     verbose=True,
@@ -181,16 +188,43 @@ def load_network(
     optimizer = load_object(optim_name, kwargs_optim)
 
     if os.path.exists(save_path):
+        # if the save path exists
         if verbose:
             print("loading from {}".format(save_path))
         model_utils.load_state(network, optimizer, save_path, gpu_ids[0])
+
+    elif pretrained_path is not None:
+        # otherwise try to load from a pretrained path
+        if verbose:
+            print(
+                "loading pretrained {}.{} from {}".format(
+                    network_name, component_name, pretrained_path
+                )
+            )
+        model_utils.load_state(network, optimizer, pretrained_path, gpu_ids[0])
+
+        if pretrained_reset_optim:
+            kwargs_optim["params"] = network.parameters()
+
+            if optim_name.lower() == "adam":
+                optim_name = "torch.optim.Adam"
+
+            optimizer = load_object(optim_name, kwargs_optim)
 
     return network, optimizer
 
 
 def load_network_from_dir(
-    model_save_dir, parent_dir="./", net_names=["enc", "dec"], suffix="", gpu_ids=[0]
+    model_save_dir,
+    parent_dir="./",
+    net_names=["enc", "dec"],
+    suffix="",
+    gpu_ids=[0],
+    load_dataprovider=True,
 ):
+
+    if suffix is None:
+        suffix = ""
 
     args_file = "{}/args.json".format(model_save_dir)
 
@@ -199,15 +233,19 @@ def load_network_from_dir(
 
     args["save_dir"] = "{}/{}".format(model_save_dir, args["ref_dir"])
 
-    dp_name, dp_kwargs = save_load_dict("{}/args_dp.json".format(args["save_dir"]))
-    dp_kwargs["save_path"] = dp_kwargs["save_path"].replace("./", parent_dir)
-    dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
+    if load_dataprovider:
+        dp_name, dp_kwargs = save_load_dict("{}/args_dp.json".format(args["save_dir"]))
+        dp_kwargs["save_path"] = dp_kwargs["save_path"].replace("./", parent_dir)
+        dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
+    else:
+        dp = None
 
     net_kwargs = {}
     networks = {}
 
     for net_name in net_names:
         args_save_path = "{}/args_{}.json".format(args["save_dir"], net_name)
+
         net_kwargs[net_name] = save_load_dict(args_save_path)
         net_kwargs[net_name]["save_path"] = net_kwargs[net_name]["save_path"].replace(
             "./", parent_dir

@@ -23,15 +23,22 @@ def get_patch_slice(shape, patch_size):
 
 class DataProvider(ParentDataProvider):
     # Same as DataProvider but zeros out channels indicated by the variable 'masked_channels'
-    def __init__(self, patch_size=[3, 64, 64, 32], default_return_mesh=False, **kwargs):
+    def __init__(
+        self,
+        patch_size=[3, 64, 64, 32],
+        default_return_mesh=False,
+        default_return_patch=True,
+        **kwargs
+    ):
 
         super().__init__(**kwargs)
 
         self.patch_size = patch_size
         self.default_return_mesh = default_return_mesh
+        self.default_return_patch = default_return_patch
 
     def get_sample(
-        self, train_or_test="train", inds=None, patched=True, return_mesh=None
+        self, train_or_test="train", inds=None, patched=None, return_mesh=None
     ):
         # returns
         # x         is b by c by y by x
@@ -40,6 +47,9 @@ class DataProvider(ParentDataProvider):
 
         if return_mesh is None:
             return_mesh = self.default_return_mesh
+
+        if patched is None:
+            patched = self.default_return_patch
 
         x, classes, ref = super().get_sample(train_or_test=train_or_test, inds=inds)
 

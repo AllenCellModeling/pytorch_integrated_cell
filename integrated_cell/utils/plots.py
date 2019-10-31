@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import scipy.stats as stats
 import pickle
 
+import torch
+
 # mpl.use("Agg")  # noqa
 
 dpi = 100
@@ -365,32 +367,86 @@ def scatter_im(
     return ax
 
 
-def tensor2im(im):
-    # assume CYX image
+def tensor2im(im, scale_channels=True, scale_global=True, color_transform=None):
+    # assume #imgs by #channels by Y by X by Z image
+    #
+    # scale_channels scales channels across all images to range (0, 1)
+    # scale_global scales max intensity across all images to range (0, 1)
+    # color_transform is #channels by 3 matrix that corresponds to RGB color for each channel
+    # todo: fine tune color choices
+
+    def im_adjust(im, scale_channels):
+        # assume 3 by x by y (by z) image
+
+        if len(im.shape) == 4:
+            # if 3D, then max project
+            im = torch.max(im, 3)[0]
+
+        if scale_channels:
+            for i in range(im.shape[0]):
+                if torch.sum(im[i]) > 0:
+                    im[i] = im[i] / torch.max(im[i])
+
+        return im
+
+    im = torch.cat([im_adjust(i, scale_channels) for i in im], 2)
+
     im = im.clone().cpu().detach().numpy().transpose([1, 2, 0])
 
-    for i in range(im.shape[2]):
-        im[:, :, i] = im[:, :, i] / (np.max(im[:, :, i]) + (1 / 255))
+    im_shape = np.array(im.shape)
+    n_channels = im_shape[2]
 
-    color_transform = np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]])
-
-    im_shape = im.shape
+    if color_transform is None:
+        if n_channels == 3:
+            # do magenta-yellow-cyan instead of RGB
+            color_transform = np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]]).T
+        elif n_channels == 1:
+            # do white
+            color_transform = np.array([[1, 1, 1]])
+        else:
+            # pick colors from HSV
+            color_transform = plt.get_cmap("jet")(np.linspace(0, 1, n_channels))[:, 0:3]
 
     im_reshape = im.reshape([np.prod(im_shape[0:2]), im_shape[2]]).T
 
-    im_recolored = np.matmul(color_transform, im_reshape).T
+    im_recolored = np.matmul(color_transform.T, im_reshape).T
 
+    im_shape[2] = 3
     im = im_recolored.reshape(im_shape)
-    im = im / np.max(im)
 
-    im[im > 1] = 1
+    if scale_global:
+        im = im / np.max(im)
+        # im[im > 1] = 1
 
     return im
 
 
-def imshow(im):
+def imshow(im, scale_channels=True, scale_global=True):
     # assume CYX image
-    im = tensor2im(im)
+    im = tensor2im(im, scale_channels, scale_global)
     plt.imshow(im)
     plt.axis("off")
     plt.show()
+
+
+# def tensor2img(img):
+
+#     img = img.numpy()
+#     im_out = list()
+#     for i in range(0, img.shape[0]):
+#         im_out.append(img[i])
+
+#     img = np.concatenate(im_out, 2)
+
+#     if len(img.shape) == 3:
+#         img = np.expand_dims(img, 3)
+
+#     colormap = "hsv"
+
+#     colors = plt.get_cmap(colormap)(np.linspace(0, 1, img.shape[0] + 1))
+
+#     # img = np.swapaxes(img, 2,3)
+#     img = imgtoprojection(np.swapaxes(img, 1, 3), colors=colors, global_adjust=True)
+#     img = np.swapaxes(img, 0, 2)
+
+#     return img
