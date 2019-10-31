@@ -87,3 +87,26 @@ class DecD(vaegan3D_cgan.DecD):
                 out = out.cuda(self.output_device)
 
             return out
+
+
+class EncD(vaegan3D_cgan.EncD):
+    def __init__(self, output_device=None, **kwargs):
+        super(EncD, self).__init__(**kwargs)
+
+        self.output_device = output_device
+
+    def forward(self, x_in):
+        if len(self.gpu_ids) > 0:
+            x_in = x_in.cuda(self.gpu_ids[0])
+
+        if len(self.gpu_ids) > 1:
+            return torch.nn.parallel.data_parallel(
+                super().forward, [x_in], device_ids=self.gpu_ids
+            )
+        else:
+            out = super().forward(x_in)
+
+            if (len(self.gpu_ids) > 0) and (self.output_device is not None):
+                out = out.cuda(self.output_device)
+
+            return out

@@ -24,14 +24,7 @@ def get_experiments(save_parent):
     experiment_dict = {}
     experiment_dict["function_call"] = ["bash run_docker.sh", "bash run_3D.sh"]
     experiment_dict["trainer_type"] = ["cbvae_apex", "cbvae"]
-    experiment_dict["gpu_id"] = [
-        [2],
-        [2, 3],
-        [3, 4],
-        [0, 1, 2, 3],
-        [2, 3, 4, 5],
-        [0, 1, 2, 3, 4, 5, 6, 7],
-    ]
+    experiment_dict["gpu_id"] = [[0], [0, 1], [0, 1, 2]]
     experiment_dict["batch_size"] = [8, 16, 32, 64, 128, 256]
 
     # total number of iterations to run
