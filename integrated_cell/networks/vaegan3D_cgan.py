@@ -30,7 +30,31 @@ class BasicLayer(nn.Module):
     def forward(self, x):
         x = self.conv(x)
 
-        if self.bn is not None:
+        if self.bn:
+            x = self.bn(x)
+
+        x = self.activation(x)
+
+        return x
+
+
+class BasicLinearLayer(nn.Module):
+    def __init__(self, ch_in, ch_out, activation="relu", bn=True):
+        super(BasicLinearLayer, self).__init__()
+
+        self.linear = spectral_norm(nn.Linear(ch_in, ch_out, bias=True))
+
+        if bn:
+            self.bn = nn.BatchNorm1d(ch_out)
+        else:
+            self.bn = None
+
+        self.activation = get_activation(activation)
+
+    def forward(self, x):
+        x = self.linear(x)
+
+        if self.bn:
             x = self.bn(x)
 
         x = self.activation(x)
@@ -607,3 +631,38 @@ class DecD(nn.Module):
         out = self.fc(x).squeeze()
 
         return out
+
+
+class EncD(nn.Module):
+    def __init__(self, gpu_ids, channels_list=[512, 512, 256, 25]):
+        super(EncD, self).__init__()
+
+        self.gpu_ids = gpu_ids
+        self.path = nn.ModuleList([])
+
+        input_list = channels_list[0:-1]
+        output_list = channels_list[1:]
+
+        for i, [ch_in, ch_out] in enumerate(zip(input_list, output_list)):
+
+            if i == 0:
+                # first layer
+                layer = BasicLinearLayer(
+                    ch_in, ch_out, activation="leakyrelu", bn=False
+                )
+            elif i == len(input_list) - 1:
+                # last layer
+                layer = BasicLinearLayer(ch_in, ch_out, activation="none", bn=False)
+            else:
+                # middle layers
+                layer = BasicLinearLayer(ch_in, ch_out, activation="leakyrelu", bn=True)
+
+            self.path.append(layer)
+
+    def forward(self, x):
+
+        for layer in self.path:
+            # progressively pass x through each layer of the network
+            x = layer(x)
+
+        return x

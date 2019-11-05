@@ -1,16 +1,14 @@
 import torch
 import importlib
 import os
-import numpy as np
 import pickle
 
-from integrated_cell import imgtoprojection
-
+from .utils import plots
 import matplotlib as mpl
 
 mpl.use("Agg")  # noqa
 
-import matplotlib.pyplot as plt
+import warnings
 
 
 def init_opts(opt, opt_default):
@@ -45,26 +43,10 @@ def sampleGaussian(batsize, nlatentdim):
 
 
 def tensor2img(img):
-
-    img = img.numpy()
-    im_out = list()
-    for i in range(0, img.shape[0]):
-        im_out.append(img[i])
-
-    img = np.concatenate(im_out, 2)
-
-    if len(img.shape) == 3:
-        img = np.expand_dims(img, 3)
-
-    colormap = "hsv"
-
-    colors = plt.get_cmap(colormap)(np.linspace(0, 1, img.shape[0] + 1))
-
-    # img = np.swapaxes(img, 2,3)
-    img = imgtoprojection(np.swapaxes(img, 1, 3), colors=colors, global_adjust=True)
-    img = np.swapaxes(img, 0, 2)
-
-    return img
+    warnings.warn(
+        "integrated_cell.model_utils.tensor2img is depricated. Please use integrated_cell.utils.plots.tensor2im instead."
+    )
+    return plots.tensor2im(img)
 
 
 def load_embeddings(embeddings_path, enc=None, dp=None):
