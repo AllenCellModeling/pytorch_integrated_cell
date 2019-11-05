@@ -4,6 +4,8 @@ from ..data_providers import DataProvider
 
 import pandas as pd
 
+# TODO: Add croping, rescaling, normalization tests
+
 
 @pytest.mark.parametrize(
     "batch_size, n_dat, hold_out, channelInds, return2D, rescale_to, crop_to, normalize_intensity",

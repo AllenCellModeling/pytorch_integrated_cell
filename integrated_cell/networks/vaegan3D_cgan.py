@@ -30,7 +30,7 @@ class BasicLayer(nn.Module):
     def forward(self, x):
         x = self.conv(x)
 
-        if self.bn is not None:
+        if self.bn:
             x = self.bn(x)
 
         x = self.activation(x)
@@ -54,7 +54,7 @@ class BasicLinearLayer(nn.Module):
     def forward(self, x):
         x = self.linear(x)
 
-        if self.bn is not None:
+        if self.bn:
             x = self.bn(x)
 
         x = self.activation(x)
@@ -640,16 +640,17 @@ class EncD(nn.Module):
         self.gpu_ids = gpu_ids
         self.path = nn.ModuleList([])
 
-        for i, [ch_in, ch_out] in enumerate(
-            zip(channels_list[0:-1], channels_list[1:])
-        ):
+        input_list = channels_list[0:-1]
+        output_list = channels_list[1:]
+
+        for i, [ch_in, ch_out] in enumerate(zip(input_list, output_list)):
 
             if i == 0:
                 # first layer
                 layer = BasicLinearLayer(
                     ch_in, ch_out, activation="leakyrelu", bn=False
                 )
-            elif i == len(channels_list) - 2:
+            elif i == len(input_list) - 1:
                 # last layer
                 layer = BasicLinearLayer(ch_in, ch_out, activation="none", bn=False)
             else:
@@ -661,6 +662,7 @@ class EncD(nn.Module):
     def forward(self, x):
 
         for layer in self.path:
+            # progressively pass x through each layer of the network
             x = layer(x)
 
         return x
