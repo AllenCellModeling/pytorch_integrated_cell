@@ -1,2 +1,6 @@
+import pytest
+
+
 def test_kld():
-    raise NotImplementedError
+    with pytest.mark.raises(NotImplementedError):
+        raise NotImplementedError

@@ -1,18 +1,12 @@
 import torch
 import importlib
 import os
-
-# import numpy as np
 import pickle
 
-# from integrated_cell import imgtoprojection
 from .utils import plots
-
 import matplotlib as mpl
 
 mpl.use("Agg")  # noqa
-
-# import matplotlib.pyplot as plt
 
 import warnings
 

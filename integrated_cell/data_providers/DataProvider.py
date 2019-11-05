@@ -125,26 +125,6 @@ class DataProvider(DataProviderABC):
         csv_df["rand_split"] = rand_split
         csv_df["rand_dna_memb"] = rand_dna_memb
 
-        # if make_controls:
-        #     # munge the data so we have an additional DNA and Membrane classes that are randomly sampled from the data here
-        #     image_classes = list(csv_df[self.target_col])
-        #     [label_names, labels] = np.unique(image_classes, return_inverse=True)
-
-        #     n_classes = len(label_names)
-        #     fract_sample_labels = 1 / n_classes
-
-        #     duplicate_inds = csv_df["rand_dna_memb"] <= fract_sample_labels
-
-        #     df_memb = csv_df[duplicate_inds].copy()
-        #     df_memb["ch_struct"] = df_memb["ch_memb"]
-        #     df_memb[self.target_col] = "CellMask"
-
-        #     df_dna = csv_df[duplicate_inds].copy()
-        #     df_dna["ch_struct"] = df_memb["ch_dna"]
-        #     df_dna[self.target_col] = "Hoechst"
-
-        #     csv_df = pd.concat([csv_df, df_memb, df_dna])
-
         csv_df = csv_df.reset_index()
 
         image_classes = list(csv_df[self.target_col])

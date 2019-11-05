@@ -427,26 +427,3 @@ def imshow(im, scale_channels=True, scale_global=True):
     plt.imshow(im)
     plt.axis("off")
     plt.show()
-
-
-# def tensor2img(img):
-
-#     img = img.numpy()
-#     im_out = list()
-#     for i in range(0, img.shape[0]):
-#         im_out.append(img[i])
-
-#     img = np.concatenate(im_out, 2)
-
-#     if len(img.shape) == 3:
-#         img = np.expand_dims(img, 3)
-
-#     colormap = "hsv"
-
-#     colors = plt.get_cmap(colormap)(np.linspace(0, 1, img.shape[0] + 1))
-
-#     # img = np.swapaxes(img, 2,3)
-#     img = imgtoprojection(np.swapaxes(img, 1, 3), colors=colors, global_adjust=True)
-#     img = np.swapaxes(img, 0, 2)
-
-#     return img
