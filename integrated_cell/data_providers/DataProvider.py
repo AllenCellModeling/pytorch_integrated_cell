@@ -119,32 +119,11 @@ class DataProvider(DataProviderABC):
                 )
 
         # Psuedorandomly deterministically convert the cellID to a number for cross validation splits
-
         rand_split = str2rand(csv_df["CellId"], self.split_seed)
         rand_dna_memb = str2rand(csv_df["CellId"], self.split_seed + 1)
 
         csv_df["rand_split"] = rand_split
         csv_df["rand_dna_memb"] = rand_dna_memb
-
-        if make_controls:
-            # munge the data so we have an additional DNA and Membrane classes that are randomly sampled from the data here
-            image_classes = list(csv_df[self.target_col])
-            [label_names, labels] = np.unique(image_classes, return_inverse=True)
-
-            n_classes = len(label_names)
-            fract_sample_labels = 1 / n_classes
-
-            duplicate_inds = csv_df["rand_dna_memb"] <= fract_sample_labels
-
-            df_memb = csv_df[duplicate_inds].copy()
-            df_memb["ch_struct"] = df_memb["ch_memb"]
-            df_memb[self.target_col] = "CellMask"
-
-            df_dna = csv_df[duplicate_inds].copy()
-            df_dna["ch_struct"] = df_memb["ch_dna"]
-            df_dna[self.target_col] = "Hoechst"
-
-            csv_df = pd.concat([csv_df, df_memb, df_dna])
 
         csv_df = csv_df.reset_index()
 
@@ -200,7 +179,7 @@ class DataProvider(DataProviderABC):
 
     def load_image(self, df_row):
 
-        im_path = self.image_parent + os.sep + df_row[self.image_col]
+        im_path = "{}{}{}".format(self.image_parent, os.sep, df_row[self.image_col])
 
         if self.return2D:
             im_tmp = np.asarray(Image.open(im_path)).astype("float")
@@ -209,6 +188,7 @@ class DataProvider(DataProviderABC):
             im_tmp = tifffile.imread(im_path)
             im_tmp = im_tmp.transpose([0, 2, 3, 1])
 
+        # this exists so we can assign the channel to use from the source .csv
         ch_names = [self.channel_dict[i] for i in self.channelInds]
         ch_inds = [df_row[ch_name] for ch_name in ch_names]
 
@@ -228,9 +208,6 @@ class DataProvider(DataProviderABC):
                     seg_cell = im_tmp[df_row["ch_seg_cell"]] > 0
 
                     im[i] = im[i] * seg_cell
-
-            if str(self.normalize_intensity).lower() == "avg_intensity":
-                pass
 
         if self.normalize_intensity:
             im = im.astype("float")
