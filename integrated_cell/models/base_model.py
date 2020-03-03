@@ -76,12 +76,13 @@ class Model(object):
     def save_progress(self):
         raise NotImplementedError
 
+    def total_iters(self):
+        return int(np.ceil(self.iters_per_epoch) * self.n_epochs)
+
     def train(self):
         start_iter = self.get_current_iter()
 
-        for this_iter in range(
-            int(start_iter), int(np.ceil(self.iters_per_epoch) * self.n_epochs)
-        ):
+        for this_iter in range(int(start_iter), self.total_iters()):
 
             start = time.time()
 

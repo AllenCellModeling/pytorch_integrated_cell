@@ -1,65 +1,51 @@
 import torch
 import numpy as np
+from .. import utils
 from . import cbvae2
-from .. import SimpleLogger
 
 import scipy
 
-from ..utils.plots import tensor2im
+from integrated_cell.model_utils import tensor2img
 from integrated_cell.utils import plots as plots
-from ..utils import reparameterize
 from .. import model_utils
+from ..metrics import embeddings
 
-from ..metrics import embeddings_reference as embeddings
-
-import os
 import pickle
 
 import shutil
 
+# conditional beta variational autencoder
+def reparameterize(mu, log_var, add_noise=True):
+    if add_noise:
+        std = torch.exp(0.5 * log_var)
+        eps = torch.randn_like(std)
+        out = mu + eps * std
+    else:
+        out = mu
 
-def kl_divergence(mu, logvar):
-
-    batch_size = mu.size(0)
-    assert batch_size != 0
-
-    if mu.data.ndimension() >= 4:
-        mu = mu.view(mu.size(0), -1)
-
-    if logvar.data.ndimension() >= 4:
-        logvar = logvar.view(logvar.size(0), -1)
-
-    klds = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
-    total_kld = klds.sum(1).mean(0, True)
-    dimension_wise_kld = klds.mean(0)
-    mean_kld = klds.mean(1).mean(0, True)
-
-    return total_kld, dimension_wise_kld, mean_kld
+    return out
 
 
 class Model(cbvae2.Model):
-    def __init__(self, n_display_imgs=10, **kwargs):
+    def __init__(self, prog_model_dir, prog_parent_dir, prog_suffix, **kwargs):
 
         super(Model, self).__init__(**kwargs)
 
-        self.n_display_imgs = n_display_imgs
+        networks, _, _ = utils.load_network_from_dir(
+            prog_model_dir, parent_dir=prog_parent_dir, suffix=prog_suffix
+        )
 
-        logger_path = "{}/logger.pkl".format(self.save_dir)
-        if os.path.exists(logger_path):
-            self.logger = pickle.load(open(logger_path, "rb"))
-        else:
-            columns = ("epoch", "iter", "reconLoss")
-            print_str = "[%d][%d] reconLoss: %.6f"
+        self.prog_enc = networks["enc"]
+        self.prog_enc.train(False)
 
-            columns += ("kldLoss", "time")
-            print_str += " kld: %.6f time: %.2f"
-            self.logger = SimpleLogger(columns, print_str)
+        for p in self.prog_enc.parameters():
+            p.requires_grad = False
 
-    def reparameterize(self, mu, log_var, *args):
-        return reparameterize(mu, log_var, *args)
+        self.prog_dec = networks["dec"]
+        self.prog_dec.train(False)
 
-    def kld_loss(self, mu, log_var):
-        return kl_divergence(mu, log_var)
+        for p in self.prog_dec.parameters():
+            p.requires_grad = False
 
     def iteration(self):
 
@@ -73,8 +59,13 @@ class Model(cbvae2.Model):
         enc.train(True)
         dec.train(True)
 
-        x = self.data_provider.get_sample()
+        x, classes, ref = self.data_provider.get_sample()
         x = x.cuda()
+
+        classes = classes.type_as(x).long()
+        classes_onehot = utils.index_to_onehot(
+            classes, self.data_provider.get_n_classes()
+        )
 
         for p in enc.parameters():
             p.requires_grad = True
@@ -90,18 +81,32 @@ class Model(cbvae2.Model):
         #####################
 
         # Forward passes
-        mu, logsigma = enc(x)
+        with torch.no_grad():
+            x_ref, x_struct = self.prog_enc(x, classes_onehot)
 
-        kld_loss = self.kld_loss(mu, logsigma)
+        # take only the mus
+        x_ref, x_struct = x_ref[0].detach(), x_struct[0].detach()
 
-        zLatent = mu.data.cpu()
+        z_ref, z_struct = enc(x_ref, x_struct, classes_onehot)
 
-        z = self.reparameterize(mu, logsigma)
+        kld_ref = self.kld_loss(z_ref[0], z_ref[1])
+        kld_struct = self.kld_loss(z_struct[0], z_struct[1])
 
-        xHat = dec(z)
+        kld_loss = kld_ref + kld_struct
+
+        kld_loss_ref = kld_ref.item()
+        kld_loss_struct = kld_struct.item()
+
+        zLatent = z_struct[0].data.cpu()
+
+        zAll = [z_ref, z_struct]
+        for i in range(len(zAll)):
+            zAll[i] = self.reparameterize(zAll[i][0], zAll[i][1])
+
+        x_hat_ref, x_hat_struct = dec([classes_onehot] + zAll)
 
         # Update the image reconstruction
-        recon_loss = crit_recon(xHat, x)
+        recon_loss = crit_recon(x_hat_ref, x_ref) + crit_recon(x_hat_struct, x_struct)
 
         beta_vae_loss = self.vae_loss(recon_loss, kld_loss)
 
@@ -112,7 +117,7 @@ class Model(cbvae2.Model):
         opt_enc.step()
         opt_dec.step()
 
-        errors = [recon_loss, kld_loss.item()]
+        errors = [recon_loss, kld_loss_ref, kld_loss_struct]
 
         return errors, zLatent
 
@@ -130,10 +135,20 @@ class Model(cbvae2.Model):
         ###############
         # TRAINING DATA
         ###############
-        img_inds = np.arange(self.n_display_imgs)
+        train_classes = data_provider.get_classes(
+            np.arange(0, data_provider.get_n_dat("train", override=True)), "train"
+        )
+        _, train_inds = np.unique(train_classes.numpy(), return_index=True)
 
-        x = data_provider.get_sample("train", img_inds)
+        x, classes, ref = data_provider.get_sample("train", train_inds)
         x = x.cuda(gpu_id)
+
+        classes = classes.type_as(x).long()
+        classes_onehot = utils.index_to_onehot(
+            classes, self.data_provider.get_n_classes()
+        )
+
+        ref = ref.type_as(x)
 
         def xHat2sample(xHat, x):
             if xHat.shape[1] == x.shape[1]:
@@ -142,39 +157,52 @@ class Model(cbvae2.Model):
                 mu = xHat[:, 0::2, :, :]
                 log_var = torch.log(xHat[:, 1::2, :, :])
 
-                xHat = self.reparameterize(mu, log_var, add_noise=True)
+                xHat = reparameterize(mu, log_var, add_noise=True)
 
             return xHat
 
         with torch.no_grad():
-            z_mu, _ = enc(x)
-            xHat = dec(z_mu)
+            z = enc(x, classes_onehot)
+            for i in range(len(z)):
+                z[i] = z[i][0]
+            xHat = dec([classes_onehot] + z)
             xHat = xHat2sample(xHat, x)
 
-        imgX = tensor2im(x.data.cpu())
-        imgXHat = tensor2im(xHat.data.cpu())
+        imgX = tensor2img(x.data.cpu())
+        imgXHat = tensor2img(xHat.data.cpu())
         imgTrainOut = np.concatenate((imgX, imgXHat), 0)
 
         ###############
         # TESTING DATA
         ###############
-        x = data_provider.get_sample("test", img_inds)
+        test_classes = data_provider.get_classes(
+            np.arange(0, data_provider.get_n_dat("test")), "test"
+        )
+        _, test_inds = np.unique(test_classes.numpy(), return_index=True)
+
+        x, classes, ref = data_provider.get_sample("test", test_inds)
         x = x.cuda(gpu_id)
+        classes = classes.type_as(x).long()
+        ref = ref.type_as(x)
 
         with torch.no_grad():
-            z_mu, _ = enc(x)
-            xHat = dec(z_mu)
+            z = enc(x, classes_onehot)
+            for i in range(len(z)):
+                z[i] = z[i][0]
+
+            xHat = dec([classes_onehot] + z)
             xHat = xHat2sample(xHat, x)
 
-        z_mu.normal_()
+        for z_sub in z:
+            z_sub.normal_()
 
         with torch.no_grad():
-            xHat_z = dec(z_mu)
+            xHat_z = dec([classes_onehot] + z)
             xHat_z = xHat2sample(xHat_z, x)
 
-        imgX = tensor2im(x.data.cpu())
-        imgXHat = tensor2im(xHat.data.cpu())
-        imgXHat_z = tensor2im(xHat_z.data.cpu())
+        imgX = tensor2img(x.data.cpu())
+        imgXHat = tensor2img(xHat.data.cpu())
+        imgXHat_z = tensor2img(xHat_z.data.cpu())
         imgTestOut = np.concatenate((imgX, imgXHat, imgXHat_z), 0)
 
         imgOut = np.concatenate((imgTrainOut, imgTestOut))
@@ -239,11 +267,10 @@ class Model(cbvae2.Model):
 
         n_iters = self.get_current_iter()
 
-        img_embeddings = np.concatenate(self.zAll, 0)
-        pickle.dump(img_embeddings, open("{0}/embedding.pth".format(save_dir), "wb"))
+        embeddings = np.concatenate(self.zAll, 0)
+        pickle.dump(embeddings, open("{0}/embedding.pth".format(save_dir), "wb"))
         pickle.dump(
-            img_embeddings,
-            open("{0}/embedding_{1}.pth".format(save_dir, n_iters), "wb"),
+            embeddings, open("{0}/embedding_{1}.pth".format(save_dir, n_iters), "wb")
         )
 
         enc_save_path_tmp = "{0}/enc.pth".format(save_dir)

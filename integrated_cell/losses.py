@@ -55,7 +55,7 @@ class ListMSELoss(nn.Module):
 
 
 class BatchMSELoss(nn.Module):
-    # computes mse loss and averages over batch size
+    # computes mse loss (really SSE) and averages over batch size
     def __init__(self):
         super(BatchMSELoss, self).__init__()
 

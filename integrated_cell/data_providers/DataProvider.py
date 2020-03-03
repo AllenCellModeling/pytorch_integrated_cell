@@ -190,6 +190,7 @@ class DataProvider(DataProviderABC):
 
         # this exists so we can assign the channel to use from the source .csv
         ch_names = [self.channel_dict[i] for i in self.channelInds]
+
         ch_inds = [df_row[ch_name] for ch_name in ch_names]
 
         im = im_tmp[ch_inds]

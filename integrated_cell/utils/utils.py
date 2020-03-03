@@ -1,15 +1,31 @@
-import torch
 import datetime
 import os
 import json
 import importlib
-from .. import model_utils
-from .. import layers
 import warnings
 import argparse
 import shutil
 import hashlib
+import pickle
+
 import numpy as np
+import pandas as pd
+import torch
+
+from ..model_utils import load_state as load_state
+from .. import layers
+
+
+# conditional beta variational autencoder
+def reparameterize(mu, log_var, add_noise=True):
+    if add_noise:
+        std = torch.exp(0.5 * log_var)
+        eps = torch.randn_like(std)
+        out = mu + eps * std
+    else:
+        out = mu
+
+    return out
 
 
 def index_to_onehot(index, n_classes):
@@ -191,7 +207,7 @@ def load_network(
         # if the save path exists
         if verbose:
             print("loading from {}".format(save_path))
-        model_utils.load_state(network, optimizer, save_path, gpu_ids[0])
+        load_state(network, optimizer, save_path, gpu_ids[0])
 
     elif pretrained_path is not None:
         # otherwise try to load from a pretrained path
@@ -201,7 +217,7 @@ def load_network(
                     network_name, component_name, pretrained_path
                 )
             )
-        model_utils.load_state(network, optimizer, pretrained_path, gpu_ids[0])
+        load_state(network, optimizer, pretrained_path, gpu_ids[0])
 
         if pretrained_reset_optim:
             kwargs_optim["params"] = network.parameters()
@@ -236,7 +252,7 @@ def load_network_from_dir(
     if load_dataprovider:
         dp_name, dp_kwargs = save_load_dict("{}/args_dp.json".format(args["save_dir"]))
         dp_kwargs["save_path"] = dp_kwargs["save_path"].replace("./", parent_dir)
-        dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
+        dp = load_data_provider(dp_name, **dp_kwargs)
     else:
         dp = None
 
@@ -383,3 +399,236 @@ def predict_image(enc, dec, im_in, im_class):
         xHat = dec([vec_class] + zAll)
 
     return xHat.detach().cpu()
+
+
+def save_load_mitosis_annotations(data_provider, save_dir=None):
+    # queries labkey and populates the data_provider with mitosis annotations that correspond to the cell indecies
+    if save_dir is None:
+        save_dir = data_provider.image_parent
+
+    save_path = "{}/mitosis_annotations.pkl".format(save_dir)
+
+    if os.path.exists(save_path):
+        with open(save_path, "rb") as f:
+            mito_data = pickle.load(f)
+    else:
+        # get mito data from labkey and split it into two groups
+        # binary mitosis labels and resolved (m1, m2, etc) labels
+
+        from lkaccess import LabKey
+
+        lk = LabKey(host="aics")
+        mito_data = lk.select_rows_as_list(
+            schema_name="processing",
+            query_name="MitoticAnnotation",
+            sort="MitoticAnnotation",
+            columns=["CellId", "MitoticStateId", "MitoticStateId/Name", "Complete"],
+        )
+
+        mito_data = pd.DataFrame(mito_data)
+
+        with open(save_path, "wb") as f:
+            pickle.dump(mito_data, f)
+
+    mito_binary_inds = mito_data["MitoticStateId/Name"] == "Mitosis"
+    not_mito_inds = mito_data["MitoticStateId/Name"] == "M0"
+
+    mito_data_binary = mito_data[mito_binary_inds | not_mito_inds]
+    mito_data_resolved = mito_data[~mito_binary_inds]
+
+    # print(np.unique(mito_data["MitoticStateId/Name"]))
+
+    modes = [k for k in data_provider.data]
+
+    for mode in modes:
+        mito_states = list()
+        for cellId in data_provider.data[mode]["CellId"]:
+            mito_state = mito_data_binary["MitoticStateId/Name"][
+                mito_data_binary["CellId"] == cellId
+            ].values
+            if len(mito_state) == 0:
+                mito_state = "unknown"
+
+            mito_states.append(mito_state[0])
+
+        data_provider.data[mode]["mito_state_binary"] = np.array(mito_states)
+        data_provider.data[mode]["mito_state_binary_ind"] = np.array(
+            np.unique(mito_states, return_inverse=True)[1]
+        )
+
+    for mode in modes:
+        mito_states = list()
+        for cellId in data_provider.data[mode]["CellId"]:
+            mito_state = mito_data_resolved["MitoticStateId/Name"][
+                mito_data_resolved["CellId"] == cellId
+            ].values
+            if len(mito_state) == 0:
+                mito_state = "u"
+
+            mito_states.append(mito_state[0])
+
+        data_provider.data[mode]["mito_state_resolved"] = np.array(mito_states)
+        data_provider.data[mode]["mito_state_resolved_ind"] = np.array(
+            np.unique(mito_states, return_inverse=True)[1]
+        )
+
+    mito_state_names = np.unique(
+        data_provider.data[mode]["mito_state_binary"][
+            data_provider.data[mode]["mito_state_binary"] != "u"
+        ]
+    )
+    mito_state_names = [name.replace("M0", "Interphase") for name in mito_state_names]
+
+    data_provider.mito_state_names = mito_state_names
+
+    return data_provider
+
+
+def load_data_provider(
+    module_name, save_path, batch_size, im_dir, channelInds=None, n_dat=-1, **kwargs_dp
+):
+    DP = importlib.import_module("integrated_cell.data_providers." + module_name)
+
+    if os.path.exists(save_path):
+        dp = pickle.load(open(save_path, "rb"))
+        dp.image_parent = im_dir
+    else:
+        dp = DP.DataProvider(
+            image_parent=im_dir, batch_size=batch_size, n_dat=n_dat, **kwargs_dp
+        )
+        pickle.dump(dp, open(save_path, "wb"))
+
+    if not hasattr(dp, "normalize_intensity"):
+        dp.normalize_intensity = False
+
+    dp.batch_size = batch_size
+    dp.set_n_dat(n_dat, "train")
+
+    if channelInds is not None:
+        dp.channelInds = channelInds
+
+    for k in dp.data:
+        dp.data[k]["CellId"] = dp.csv_data["CellId"].values[dp.data[k]["inds"]]
+
+    try:
+        save_load_mitosis_annotations(dp)
+    except ModuleNotFoundError:
+        warnings.warn(
+            'Could not load mitosis annotations. Probably because you dont have "lkaccess" (for internal AICS use only).'
+        )
+
+    return dp
+
+
+def load_drug_data_provider(
+    data_provider,
+    args,
+    image_parent="/allen/aics/modeling/gregj/results/ipp/scp_drug_pilot_fixed/",
+):
+
+    image_parent = "/allen/aics/modeling/gregj/results/ipp/scp_drug_pilot_fixed/"
+
+    data_jobs_out_path = "{}/{}".format(image_parent, "data_jobs_out.csv")
+
+    data_jobs_out_corrected_path = "{}/{}".format(
+        image_parent, "data_jobs_out_corrected.csv"
+    )
+
+    if not os.path.exists(data_jobs_out_corrected_path):
+        df = pd.read_csv(data_jobs_out_path)
+
+        # These are the default values from the single cell processing pipeline
+        df["ch_memb"] = 3
+        df["ch_struct"] = 4
+        df["ch_dna"] = 2
+        df["ch_seg_cell"] = 1
+        df["ch_seg_nuc"] = 0
+        df["ch_trans"] = 5
+
+        df.to_csv(data_jobs_out_corrected_path)
+
+    kwargs_dp_drugs = args["kwargs_dp"]
+
+    kwargs_dp_drugs["csv_name"] = "data_jobs_out_corrected.csv"
+    kwargs_dp_drugs["hold_out"] = 1
+    kwargs_dp_drugs["batch_size"] = 1
+    kwargs_dp_drugs["image_parent"] = image_parent
+
+    dp_drugs = load_object(
+        "integrated_cell.data_providers.{}.DataProvider".format(args["dataProvider"]),
+        kwargs_dp_drugs,
+    )
+
+    dp_drugs.csv_data["drug_label"][
+        dp_drugs.csv_data["drug_label"] == "s-Nitro-Blebbistatin"
+    ] = "S-Nitro-Blebbistatin"
+    experiment_info = dp_drugs.csv_data[["concentration", "drug_label"]]
+
+    u_conc = np.unique(experiment_info["concentration"])
+    u_drug = np.unique(experiment_info["drug_label"])
+
+    dp_drugs.csv_data["drug_name"] = ""
+
+    for i, conc in enumerate(u_conc):
+        for j, drug in enumerate(u_drug):
+            experiment_inds = np.all(
+                np.vstack(
+                    [
+                        experiment_info["concentration"] == conc,
+                        experiment_info["drug_label"] == drug,
+                    ]
+                ),
+                axis=0,
+            )
+            if np.any(experiment_inds):
+                dp_drugs.csv_data["drug_label"][experiment_inds] = r"{} {} μM".format(
+                    drug, conc
+                )
+                dp_drugs.csv_data["drug_name"][experiment_inds] = drug
+
+    # Do some surgery on the drug data provider to make sure it has the same classes in the same order
+    drug_structures = dp_drugs.label_names
+    complete_structures = data_provider.label_names
+
+    drug_label_dict = {}
+    for structure in drug_structures:
+        drug_label_dict[structure] = np.where(complete_structures == structure)[0]
+
+    # set the structure labels
+    dp_drugs.labels = np.hstack(
+        [drug_label_dict[structure] for structure in dp_drugs.image_classes]
+    )
+
+    nimgs = len(dp_drugs.labels)
+
+    onehot = np.zeros((nimgs, np.max(data_provider.labels) + 1))
+    onehot[np.arange(nimgs), dp_drugs.labels] = 1
+
+    dp_drugs.labels_onehot = onehot
+
+    experiment_info = dp_drugs.csv_data[["concentration", "drug_label"]]
+
+    drug_names, drug_ids = np.unique(experiment_info["drug_label"], return_inverse=True)
+    drug_names = np.hstack([["Control"], drug_names])
+    drug_ids = drug_ids + 1  # reserve 0 for "control"
+
+    print("DrugID-Concentration combinations")
+    print(
+        np.unique(
+            np.vstack([drug_ids, experiment_info["concentration"].values]).transpose(),
+            axis=0,
+        )
+    )
+
+    # set the drug IDs as the reference coordinate
+    drug_info = {}
+    for k in dp_drugs.data:
+        drug_info[k] = drug_ids[np.array(dp_drugs.data[k]["inds"])]
+
+    dp_drugs.drug_info = drug_info
+    dp_drugs.drug_names = drug_names
+    # dp_drugs.drug_ids = drug_ids
+
+    # dp_drugs.set_ref(drug_info)
+
+    return dp_drugs

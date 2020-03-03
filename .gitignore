@@ -13,3 +13,6 @@ data/
 integrated_cell/networks/old
 integrated_cell/networks/proto
 integrated_cell/models/proto
+examples/paper_plos_2020/images
+examples/paper_plos_2020/demo_imgs
+examples/paper_plos_2020/*.tiff

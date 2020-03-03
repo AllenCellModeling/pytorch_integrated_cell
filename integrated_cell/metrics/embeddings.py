@@ -1,8 +1,9 @@
 from tqdm import tqdm
 import torch
 
-from ..models import bvae
-from ..utils import utils
+from ..utils import utils, reparameterize
+
+from ..losses import KLDLoss
 
 
 def get_latent_embeddings(
@@ -151,11 +152,13 @@ def get_latent_embeddings(
 
 def get_klds(mus, sigmas):
 
+    kld_loss = KLDLoss(reduction="sum")
+
     klds = torch.zeros(mus.shape[0])
 
     for i, (mu, sigma) in enumerate(zip(mus, sigmas)):
 
-        kld, _, _ = bvae.kl_divergence(mu.unsqueeze(0), sigma.unsqueeze(0))
+        kld, _, _ = kld_loss(mu.unsqueeze(0), sigma.unsqueeze(0))
 
         klds[i] = kld[0]
 
@@ -177,7 +180,7 @@ def get_recons(
     recons_target = torch.zeros(x.shape[0], n_recon_samples)
 
     for i in range(n_recon_samples):
-        zOut = [bvae.reparameterize(z[0], z[1]) for z in zAll]
+        zOut = [reparameterize(z[0], z[1]) for z in zAll]
 
         with torch.no_grad():
             xHat = dec([classes_onehot] + zOut)
