@@ -1,9 +1,7 @@
 import torch
-import importlib
 import os
-import pickle
 
-from .utils import plots
+# from .utils import plots
 import matplotlib as mpl
 
 mpl.use("Agg")  # noqa
@@ -46,7 +44,7 @@ def tensor2img(img):
     warnings.warn(
         "integrated_cell.model_utils.tensor2img is depricated. Please use integrated_cell.utils.plots.tensor2im instead."
     )
-    return plots.tensor2im(img)
+    # return plots.tensor2im(img)
 
 
 def load_embeddings(embeddings_path, enc=None, dp=None):
@@ -93,74 +91,6 @@ def get_latent_embeddings(enc, dp):
         embedding[mode] = embeddings
 
     return embedding
-
-
-def load_data_provider(
-    module_name, save_path, batch_size, im_dir, channelInds=None, n_dat=-1, **kwargs_dp
-):
-    DP = importlib.import_module("integrated_cell.data_providers." + module_name)
-
-    if os.path.exists(save_path):
-        dp = pickle.load(open(save_path, "rb"))
-        dp.image_parent = im_dir
-    else:
-        dp = DP.DataProvider(
-            image_parent=im_dir, batch_size=batch_size, n_dat=n_dat, **kwargs_dp
-        )
-        pickle.dump(dp, open(save_path, "wb"))
-
-    if not hasattr(dp, "normalize_intensity"):
-        dp.normalize_intensity = False
-
-    dp.batch_size = batch_size
-    dp.set_n_dat(n_dat, "train")
-
-    if channelInds is not None:
-        dp.channelInds = channelInds
-
-    return dp
-
-
-def fix_data_paths(parent_dir, new_im_dir=None, data_save_path=None):
-    # this will only work with the h5 dataprovider
-
-    from shutil import copyfile
-
-    def rename_opt_path(opt_dir):
-
-        pkl_path = "{0}/opt.pkl".format(opt_dir)
-        pkl_path_bak = "{0}/opt.pkl.bak".format(opt_dir)
-
-        copyfile(pkl_path, pkl_path_bak)
-
-        opt = pickle.load(open(pkl_path, "rb"))
-        opt.imdir = new_im_dir
-        opt.data_save_path = data_save_path
-        opt.save_parent = parent_dir
-        opt.save_dir = opt_dir
-        pickle.dump(opt, open(pkl_path, "wb"))
-
-    if data_save_path is None:
-        data_save_path = "{0}/data.pyt".format(parent_dir)
-
-    ref_dir = parent_dir + os.sep + "ref_model"
-    rename_opt_path(ref_dir)
-
-    struct_dir = parent_dir + os.sep + "struct_model"
-    rename_opt_path(struct_dir)
-
-    opt = pickle.load(open("{0}/opt.pkl".format(ref_dir), "rb"))
-
-    if new_im_dir is None:
-        new_im_dir = opt.imdir
-
-    copyfile(opt.data_save_path, opt.data_save_path + ".bak")
-
-    dp = load_data_provider(opt.data_save_path, opt.imdir, opt.dataProvider)
-    dp.image_parent = new_im_dir
-    torch.save(dp, opt.data_save_path)
-
-    pass
 
 
 def load_state(model, optimizer, path, gpu_id):

@@ -1,3 +1,5 @@
 data/
 examples/
 .git/
+.*
+*.egg-info

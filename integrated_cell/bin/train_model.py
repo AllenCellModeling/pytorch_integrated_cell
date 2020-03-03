@@ -7,7 +7,6 @@ import datetime
 import socket
 import json
 
-from integrated_cell import model_utils
 from integrated_cell.utils import str2bool
 from integrated_cell import utils
 
@@ -31,11 +30,11 @@ def setup(args):
     if not os.path.exists(args["save_dir"]):
         os.makedirs(args["save_dir"])
 
-    # if args["train_module"] is not None:
-    #     args["train_module_pt1"] = args["train_module"]
-    #     args["train_module_pt2"] = args["train_module"]
+    if os.environ.get("CUDA_VISIBLE_DEVICES") is None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
+            [str(ID) for ID in args["gpu_ids"]]
+        )
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(ID) for ID in args["gpu_ids"]])
     args["gpu_ids"] = list(range(0, len(args["gpu_ids"])))
 
     # if len(args["gpu_ids"]) == 1:
@@ -355,7 +354,7 @@ def main():
         "--saveStateIter",
         type=int,
         default=1,
-        help="number of iterations between saving progress",
+        help="number of iterations between saving model state",
     )
 
     parser.add_argument("--data_save_path", default=None, help="save path of data file")
@@ -439,10 +438,10 @@ def main():
         setup_kwargs_data_provider(args),
         args["overwrite_opts"],
     )
-    dp = model_utils.load_data_provider(dp_name, **dp_kwargs)
+    dp = utils.load_data_provider(dp_name, **dp_kwargs)
 
     #######
-    # TRAIN REFERENCE MODEL
+    # Train Model
     #######
 
     # load the trainer model
@@ -472,11 +471,6 @@ def main():
             **net_kwargs[net_name]
         )
 
-    # if torch.cuda.device_count() > 1:
-    #     for net_name in networks:
-    #         if len(net_kwargs[net_name]['gpu_ids']) > 1:
-    #             networks[net_name] = torch.nn.DataParallel(networks[net_name])
-
     losses = utils.load_losses(args)
 
     if not os.path.exists(args["save_dir"]):
@@ -489,11 +483,9 @@ def main():
 
     model.train()
 
-    # #######
-    # # DONE TRAINING REFERENCE MODEL
-    # #######
-    # embeddings_path = "{}/embeddings.pkl".format(args["save_dir"])
-    # embeddings = model_utils.load_embeddings(embeddings_path, model.enc, dp)
+    #######
+    # DONE TRAINING Model
+    #######
 
 
 if __name__ == "__main__":

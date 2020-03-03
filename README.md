@@ -64,6 +64,60 @@ python download_data.py
 ```
 The dataset is about 250gb.
 
+## Training Models
+Models are trained by via command line argument. A typical training call looks something like:
+```shell
+ic_train_model \
+        --gpu_ids 0 \
+        --model_type ae \
+        --save_parent ./ \
+        --lr_enc 2E-4 --lr_dec 2E-4 \
+        --data_save_path ./data.pyt \
+		--imdir ./data/ \
+        --crit_recon integrated_cell.losses.BatchMSELoss \
+        --kwargs_crit_recon '{}' \
+        --network_name vaegan2D_cgan \
+        --kwargs_enc '{"n_classes": 24, "ch_ref": [0, 2], "ch_target": [1], "n_channels": 2, "n_channels_target": 1, "n_latent_dim": 512, "n_ref": 512}'  \
+        --kwargs_enc_optim '{"betas": [0.9, 0.999]}' \
+        --kwargs_dec '{"n_classes": 24, "n_channels": 2, "n_channels_target": 1, "ch_ref": [0, 2], "ch_target": [1], "n_latent_dim": 512, "n_ref": 512, "output_padding": [1,1], "activation_last": "softplus"}' \
+        --kwargs_dec_optim '{"betas": [0.9, 0.999]}' \
+        --kwargs_model '{"kld_reduction": "mean_batch", "objective": "H", "beta": 1E-2}' \
+        --train_module cbvae2 \
+        --dataProvider DataProvider \
+        --kwargs_dp '{"crop_to": [160,96], "return2D": 1, "check_files": 0, "make_controls": 0, "csv_name": "controls/data_plus_controls.csv", "normalize_intensity": "avg_intensity"}' \
+        --saveStateIter 1 --saveProgressIter 1 \
+        --channels_pt1 0 1 2 \
+        --batch_size 64  \
+        --nepochs 300 \
+```
+
+This automatically creates a timestamped directory in the current directory `./`. 
+
+For details on how to modify training options, please see [the training documentation](doc/training.md)
+
+## Loading Modes
+Models are loaded via python API. A typical loading call looks something like:
+```python
+from integrated_cell import utils
+
+model_dir = '/my_parent_directory/model_type/date_time/'
+parent_dir = '/my_parent_directory/'
+
+networks, data_provider, args = utils.load_network_from_dir(model_dir, parent_dir)
+
+target_enc = networks['enc']
+target_dec = networks['dec']
+
+```
+
+`networks` is a dictionary of the model subcomponents.  
+`data_provider` is the an object that contains train, validate, and test data.  
+`args` is a dictionary of the list of aguments passed to the model
+
+For details on how to modify training options, please see [the loading documentation](doc/loading.md)
+
+
+
 ## Project website
 Example outputs of this model can be viewed at http://www.allencell.org.
 
