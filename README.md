@@ -15,6 +15,31 @@ GitHub: https://github.com/AllenCellModeling/torch_integrated_cell
 
 This code is in active development and is used within our organization. We are currently not supporting this code for external use and are simply releasing the code to the community AS IS. The community is welcome to submit issues, but you should not expect an active response.
 
+## Todo Items
+ - Jupyter notebooks  
+    - [x] Check-in current state to git
+    - [x] Make sure notebooks all run and can produce figures
+    - [ ] Annotate notebooks (notebook purpose)
+    - [ ] Clear outputs
+    - [ ] Check-in final state to git
+    
+- Data
+    - [x] Make sure current Quilt data works
+    - [ ] Check-in manuscript data to Quilt
+
+- Code 
+    - [x] Check-in current state to git
+    - [x] Clear unused code
+    - [ ] Clean up and annotate main functions
+    - [ ] Check-in final state to git
+
+- Demos/Docs
+    - [x] Installation instructions
+    - [x] Getting Started doc
+    - [ ] Demos for different training methods
+    - [ ] Update doc figures
+
+
 ## System requirements
 
 We recommend installation on Linux and an NVIDIA graphics card with 10+ GB of RAM (e.g., NVIDIA Titan X Pascal) with the latest drivers installed.

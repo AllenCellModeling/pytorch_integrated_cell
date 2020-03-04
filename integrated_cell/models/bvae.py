@@ -158,7 +158,7 @@ class Model(cbvae2.Model):
         ###############
         # TESTING DATA
         ###############
-        x = data_provider.get_sample("test", img_inds)
+        x = data_provider.get_sample("validate", img_inds)
         x = x.cuda(gpu_id)
 
         with torch.no_grad():
