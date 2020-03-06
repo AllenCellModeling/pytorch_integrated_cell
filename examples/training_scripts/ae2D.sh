@@ -1,0 +1,22 @@
+ic_train_model \
+        --gpu_ids $1 \
+        --model_type ae \
+        --save_dir $PWD/ae2D \
+        --lr_enc 2E-4 --lr_dec 2E-4 \
+        --data_save_path $PWD/ae2D/data_ae.pyt \
+        --crit_recon integrated_cell.losses.BatchMSELoss \
+        --kwargs_crit_recon '{}' \
+        --network_name ae2D_residual \
+        --kwargs_enc '{"n_latent_dim": 512, "n_ch": 3}'  \
+        --kwargs_enc_optim '{"betas": [0.9, 0.999]}' \
+        --kwargs_dec '{"n_latent_dim": 512, "activation_last": "softplus", "n_ch": 3}' \
+        --kwargs_dec_optim '{"betas": [0.9, 0.999]}' \
+        --kwargs_model '{}' \
+        --train_module ae \
+        --imdir ../../data/ \
+        --dataProvider DataProvider \
+        --kwargs_dp '{"crop_to": [160, 96], "return2D": 1, "check_files": 0, "csv_name": "metadata.csv"}' \
+        --saveStateIter 1 --saveProgressIter 1 \
+        --channels_pt1 0 1 2 \
+        --batch_size 32  \
+        --nepochs 300 \

@@ -1,0 +1,26 @@
+ic_train_model \
+        --gpu_ids $1 \
+        --model_type aegan \
+        --save_dir $PWD/cbvaegan2D \
+        --lr_enc 2E-4 --lr_dec 2E-4 \
+        --data_save_path $PWD/cbvaegan2D/data.pyt \
+        --crit_recon integrated_cell.losses.BatchMSELoss \
+        --kwargs_crit_recon '{}' \
+	--crit_decD torch.nn.BCEWithLogitsLoss \
+	--kwargs_crit_decD '{"reduction": "mean"}' \
+        --network_name cvaegan2D_residual \
+        --kwargs_enc '{"n_latent_dim": 512, "n_ch_target": 1, "n_ch_ref": 2, "n_classes": 24}'  \
+        --kwargs_enc_optim '{"betas": [0.5, 0.9]}' \
+        --kwargs_dec '{"n_latent_dim": 512, "activation_last": "softplus", "n_ch_target": 1, "n_ch_ref": 2, "n_classes": 24}' \
+        --kwargs_dec_optim '{"betas": [0.5, 0.9]}' \
+	--kwargs_decD '{"n_ch_target": 1, "n_ch_ref": 2,  "n_classes": 24}' \
+	--kwargs_decD_optim '{"betas": [0.5, 0.9]}' \
+        --kwargs_model '{"beta": 1, "lambda_decD_loss": 1}' \
+        --train_module cbvaegan_target \
+        --imdir ../../data/ \
+        --dataProvider TargetDataProvider \
+        --kwargs_dp '{"crop_to": [160, 96], "return2D": 1, "check_files": 0, "csv_name": "metadata.csv"}' \
+        --saveStateIter 1 --saveProgressIter 1 \
+        --channels_pt1 0 1 2 \
+        --batch_size 32  \
+        --nepochs 300 \
