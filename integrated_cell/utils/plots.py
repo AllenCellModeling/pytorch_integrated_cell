@@ -4,14 +4,11 @@ import numpy as np
 from matplotlib.ticker import NullFormatter
 from matplotlib import cm
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 import pickle
 
 import torch
-
-# mpl.use("Agg")  # noqa
 
 dpi = 100
 figx = 6
@@ -337,7 +334,7 @@ def scatter_im(
         ]
         ax_inset = plt.axes(inset)
 
-        if inset_clims is None:
+        if inset_clims is None and (not isinstance(inset_colors, str)):
             inset_clims = np.percentile(inset_colors, [0, 100])
 
         ax_inset.scatter(
@@ -364,10 +361,14 @@ def scatter_im(
 
         return ax, ax_inset
 
+    plt.sca(ax)
+
     return ax
 
 
-def tensor2im(im, scale_channels=True, scale_global=True, color_transform=None):
+def tensor2im(
+    im, scale_channels=True, scale_global=True, color_transform=None, proj_xy=True
+):
     # assume #imgs by #channels by Y by X by Z image
     #
     # scale_channels scales channels across all images to range (0, 1)
@@ -379,8 +380,22 @@ def tensor2im(im, scale_channels=True, scale_global=True, color_transform=None):
         # assume 3 by x by y (by z) image
 
         if len(im.shape) == 4:
-            # if 3D, then max project
-            im = torch.max(im, 3)[0]
+            im_xy = torch.max(im, 3)[0]
+
+            if proj_xy:
+                im_xz = torch.max(im, 1)[0].permute(0, 2, 1).flip(1)
+                im_yz = torch.max(im, 2)[0]
+
+                corner = torch.zeros([im.shape[0], im.shape[3], im.shape[3]]).type_as(
+                    im
+                )
+
+                top = torch.cat([im_yz, im_xy], 2)
+                bottom = torch.cat([corner, im_xz], 2)
+
+                im = torch.cat([top, bottom], 1)
+            else:
+                im = im_xy
 
         if scale_channels:
             for i in range(im.shape[0]):
@@ -397,15 +412,20 @@ def tensor2im(im, scale_channels=True, scale_global=True, color_transform=None):
     n_channels = im_shape[2]
 
     if color_transform is None:
-        if n_channels == 3:
-            # do magenta-yellow-cyan instead of RGB
-            color_transform = np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]]).T
-        elif n_channels == 1:
+        if n_channels == 1:
             # do white
             color_transform = np.array([[1, 1, 1]])
+        elif n_channels == 2:
+            # do magenta, cyan
+            color_transform = np.array([[1, 0, 1], [0, 1, 1]])
+        elif n_channels == 3:
+            # do magenta-yellow-cyan instead of RGB
+            color_transform = np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]]).T
         else:
             # pick colors from HSV
             color_transform = plt.get_cmap("jet")(np.linspace(0, 1, n_channels))[:, 0:3]
+    else:
+        color_transform = np.array(color_transform)
 
     im_reshape = im.reshape([np.prod(im_shape[0:2]), im_shape[2]]).T
 
@@ -421,7 +441,7 @@ def tensor2im(im, scale_channels=True, scale_global=True, color_transform=None):
     return im
 
 
-def imshow(im, scale_channels=True, scale_global=True):
+def imshow(im, scale_channels=True, scale_global=True, color_transform=None):
     # assume CYX image
     im = tensor2im(im, scale_channels, scale_global)
     plt.imshow(im)
