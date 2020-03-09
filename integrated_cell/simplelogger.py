@@ -14,14 +14,15 @@ class SimpleLogger:
         for field in fields:
             self.log[field] = []
 
-    def add(self, input):
-        assert len(input) == len(self.fields)
+    def add(self, inputs):
+
+        assert len(inputs) == len(self.fields)
 
         for i in range(0, len(self.fields)):
-            self.log[self.fields[i]].append(input[i])
+            self.log[self.fields[i]].append(inputs[i])
 
         if isinstance(self.print_format, str):
-            print(self.print_format % tuple(input))
+            print(self.print_format % tuple(inputs))
 
     def __len__(self):
         return len(self.log[self.fields[0]])

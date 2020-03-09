@@ -101,21 +101,15 @@ class Model(cbvae2_target.Model):
 
             # train with fake, sampled and decoded
             z.normal_()
+            shuffle_inds = torch.randperm(x.shape[0])
 
             with torch.no_grad():
-                xHat = dec(z, ref, classes_onehot)
+                xHat = dec(z, ref, classes_onehot[shuffle_inds])
 
-            yHat_xFake2 = decD(x, ref, classes_onehot)
+            yHat_xFake2 = decD(x, ref, classes_onehot[shuffle_inds])
             errDecD_fake2 = crit_decD(yHat_xFake2, y_xFake)
 
-            # train with real, but wrong labels
-            shuffle_inds = torch.randperm(x.shape[0])
-            yHat_xFake3 = decD(x, ref, classes_onehot[shuffle_inds])
-            errDecD_fake3 = crit_decD(yHat_xFake3, y_xFake)
-
-            decDLoss_tmp = (
-                errDecD_real + (errDecD_fake + errDecD_fake2 + errDecD_fake3) / 3
-            ) / 2
+            decDLoss_tmp = (errDecD_real + (errDecD_fake + errDecD_fake2) / 2) / 2
             decDLoss_tmp.backward()
 
             opt_decD.step()
@@ -149,11 +143,7 @@ class Model(cbvae2_target.Model):
 
         z = self.reparameterize(mu, logsigma)
 
-        kld = self.kld_loss(mu, logsigma)
-
-        kld_loss = kld.item()
-
-        zLatent = mu.data.cpu()
+        kld_loss = self.kld_loss(mu, logsigma)
 
         xHat = dec(z, ref, classes_onehot)
 
@@ -162,6 +152,8 @@ class Model(cbvae2_target.Model):
         beta_vae_loss.backward(retain_graph=True)
 
         recon_loss = recon_loss.item()
+        kld_loss = kld_loss.item()
+        zLatent = mu.data.cpu()
 
         opt_enc.step()
 
@@ -169,25 +161,28 @@ class Model(cbvae2_target.Model):
             for p in enc.parameters():
                 p.requires_grad = False
 
-            # update wrt decD(dec(enc(X, ref, classes), ref, classes))
+            # update wrt reconstructed images
             yHat_xFake = decD(xHat, ref, classes_onehot)
             minimaxDecDLoss = crit_decD(yHat_xFake, y_xReal)
 
             shuffle_inds = torch.randperm(x.shape[0])
+
+            # update wrt generated imges
+            z = torch.Tensor(z.shape).normal_().type_as(x)
             xHat = dec(z, ref, classes_onehot[shuffle_inds])
 
-            yHat_xFake2 = decD(xHat, ref, classes_onehot)
+            yHat_xFake2 = decD(xHat, ref, classes_onehot[shuffle_inds])
             minimaxDecDLoss2 = crit_decD(yHat_xFake2, y_xReal)
 
-            minimaxDecLoss = (minimaxDecDLoss + minimaxDecDLoss2) / 2
-            minimaxDecLoss.mul(self.lambda_decD_loss).backward()
-            minimaxDecLoss = minimaxDecLoss.item()
+            minimaxDecDLoss = (minimaxDecDLoss + minimaxDecDLoss2) / 2
+            minimaxDecDLoss.mul(self.lambda_decD_loss).backward()
+            minimaxDecDLoss = minimaxDecDLoss.item()
         else:
-            minimaxDecLoss = 0
+            minimaxDecDLoss = 0
 
         opt_dec.step()
 
-        errors = [recon_loss, kld_loss, minimaxDecLoss, decDLoss]
+        errors = [recon_loss, kld_loss, minimaxDecDLoss, decDLoss]
 
         return errors, zLatent
 

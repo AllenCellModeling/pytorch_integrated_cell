@@ -214,7 +214,7 @@ class Enc(nn.Module):
         gpu_ids,
         n_ch_target=1,
         n_ch_ref=2,
-        conv_channels_list=[32, 64, 128, 256, 512],
+        conv_channels_list=[64, 128, 256, 512, 1024],
         imsize_compressed=[5, 3],
     ):
         super(Enc, self).__init__()
@@ -295,7 +295,7 @@ class Dec(nn.Module):
         imsize_compressed=[5, 3],
         n_ch_target=1,
         n_ch_ref=2,
-        conv_channels_list=[512, 256, 128, 64, 32],
+        conv_channels_list=[1024, 512, 256, 128, 64],
         activation_last="sigmoid",
     ):
 
@@ -394,7 +394,7 @@ class DecD(nn.Module):
         n_ch_target=1,
         n_ch_ref=2,
         n_classes=0,
-        conv_channels_list=[32, 64, 128, 256, 512],
+        conv_channels_list=[64, 128, 256, 512, 1024],
         imsize_compressed=[5, 3],
         activation="leakyrelu",
         n_classes_out=1,
@@ -418,7 +418,7 @@ class DecD(nn.Module):
                     n_ch_target,
                     conv_channels_list[0],
                     ch_cond_list=target_cond_list,
-                    activation="leakyrelu",
+                    activation=activation,
                 )
             ]
         )
@@ -426,7 +426,7 @@ class DecD(nn.Module):
         for ch_in, ch_out in zip(conv_channels_list[0:-1], conv_channels_list[1:]):
             self.target_path.append(
                 DownLayerResidual(
-                    ch_in, ch_out, ch_cond_list=target_cond_list, activation="leakyrelu"
+                    ch_in, ch_out, ch_cond_list=target_cond_list, activation=activation
                 )
             )
             ch_in = ch_out
