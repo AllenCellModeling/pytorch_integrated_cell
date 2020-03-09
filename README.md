@@ -11,12 +11,11 @@ Building a 3D Integrated Cell: https://www.biorxiv.org/content/early/2017/12/21/
 Manuscript: https://arxiv.org/abs/1705.00092  
 GitHub: https://github.com/AllenCellModeling/torch_integrated_cell 
 
-## Support
-
-This code is in active development and is used within our organization. We are currently not supporting this code for external use and are simply releasing the code to the community AS IS. The community is welcome to submit issues, but you should not expect an active response.
-
 ## Todo Items
- - Jupyter notebooks  
+- GIT
+    - [ ] Remove old big files from git
+    
+- Jupyter notebooks  
     - [x] Check-in current state to git
     - [x] Make sure notebooks all run and can produce figures
     - [ ] Annotate notebooks (notebook purpose)
@@ -38,6 +37,10 @@ This code is in active development and is used within our organization. We are c
     - [x] Getting Started doc
     - [ ] Demos for different training methods
     - [ ] Update doc figures
+
+## Support
+
+This code is in active development and is used within our organization. We are currently not supporting this code for external use and are simply releasing the code to the community AS IS. The community is welcome to submit issues, but you should not expect an active response.
 
 
 ## System requirements
