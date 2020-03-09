@@ -55,7 +55,7 @@ class ListMSELoss(nn.Module):
 
 
 class BatchMSELoss(nn.Module):
-    # computes mse loss and averages over batch size
+    # computes mse loss (really SSE) and averages over batch size
     def __init__(self):
         super(BatchMSELoss, self).__init__()
 
@@ -313,44 +313,6 @@ class GaussianNLL(nn.Module):
         return loss
 
 
-# class GaussianLikelihoodLoss(nn.Module):
-#     """Loss function to capture heteroscedastic aleatoric uncertainty."""
-
-#     def __init__(self, reduction="mean"):
-#         self.reduction = reduction
-#         super(GaussianLikelihoodLoss, self).__init__()
-
-#     def forward(self, y_hat_batch: torch.Tensor, y: torch.Tensor):
-#         """Calculates loss.
-#         Parameters
-#         ----------
-#         y_hat_batch
-#            Batched, 2-channel model output.
-#         y_batch
-#            Batched, 1-channel target output.
-#         """
-#         mu = y_hat_batch[:, 0::2]
-#         log_var = nn.functional.softplus(y_hat_batch[:, 1::2])
-
-#         var = torch.exp(log_var)
-#         log_scale = torch.log(torch.sqrt(var))
-
-#         loss = (
-#             ((y - mu) ** 2) / (2 * var)
-#             - log_scale
-#             - torch.log(torch.sqrt(2 * torch.tensor(math.pi)))
-#         )
-
-#         if self.reduction == "mean":
-#             loss = torch.mean(loss)
-#         elif self.reduction == "sum":
-#             loss = torch.sum(loss)
-#         elif self.reduction == "none":
-#             pass
-
-#         return loss
-
-
 class HeteroscedasticLoss(nn.Module):
     """Loss function to capture heteroscedastic aleatoric uncertainty.
     Like GaussianLikelihoodLoss but with all the constants removed
@@ -431,49 +393,6 @@ class ChannelMSELoss(nn.Module):
         x_hat = x_hat.view(x_hat.shape[0], x_hat.shape[1], -1)
 
         loss = torch.mean((x - x_hat) ** 2, 2)
-
-        if self.reduction == "mean":
-            loss = torch.mean(loss)
-        elif self.reduction == "sum":
-            loss = torch.sum(loss)
-        elif self.reduction == "none":
-            pass
-
-        return loss
-
-
-class ChannelDirichletNLL(nn.Module):
-    def __init__(self, reduction="mean"):
-        self.reduction = reduction
-        super(ChannelDirichletNLL, self).__init__()
-
-    def forward(self, x_hat: torch.Tensor, x: torch.Tensor):
-        """Calculates loss.
-        Parameters
-        ----------
-        x_hat
-           Batched, concentration parameters, must be postive real
-        x
-           Batched, multinomial, must sum to 1.
-        """
-
-        x = x.view(x.shape[0], x.shape[1], -1) + 1e-8
-        x_hat = x_hat.view(x_hat.shape[0], x_hat.shape[1], -1)
-
-        loss = []
-
-        for b, b_hat in zip(x, x_hat):
-
-            c_loss = torch.stack(
-                [
-                    torch.distributions.dirichlet.Dirichlet(c_hat).log_prob(c)
-                    for (c, c_hat) in zip(b, b_hat)
-                ]
-            )
-
-            loss.append(c_loss)
-
-        loss = -torch.stack(loss)
 
         if self.reduction == "mean":
             loss = torch.mean(loss)

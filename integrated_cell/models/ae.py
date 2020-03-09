@@ -1,16 +1,13 @@
 import torch
 import numpy as np
-from . import cbvae2
+from . import base_model
 from .. import SimpleLogger
 
 import scipy
 
 from ..utils.plots import tensor2im
 from integrated_cell.utils import plots as plots
-from ..utils import reparameterize
 from .. import model_utils
-
-from ..metrics import embeddings_reference as embeddings
 
 import os
 import pickle
@@ -18,48 +15,31 @@ import pickle
 import shutil
 
 
-def kl_divergence(mu, logvar):
-
-    batch_size = mu.size(0)
-    assert batch_size != 0
-
-    if mu.data.ndimension() >= 4:
-        mu = mu.view(mu.size(0), -1)
-
-    if logvar.data.ndimension() >= 4:
-        logvar = logvar.view(logvar.size(0), -1)
-
-    klds = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
-    total_kld = klds.sum(1).mean(0, True)
-    dimension_wise_kld = klds.mean(0)
-    mean_kld = klds.mean(1).mean(0, True)
-
-    return total_kld, dimension_wise_kld, mean_kld
-
-
-class Model(cbvae2.Model):
-    def __init__(self, n_display_imgs=10, **kwargs):
+class Model(base_model.Model):
+    def __init__(
+        self, enc, dec, opt_enc, opt_dec, crit_recon, n_display_imgs=10, **kwargs
+    ):
+        # Train an autoencoder
 
         super(Model, self).__init__(**kwargs)
+
+        self.enc = enc
+        self.dec = dec
+        self.opt_enc = opt_enc
+        self.opt_dec = opt_dec
+
+        self.crit_recon = crit_recon
 
         self.n_display_imgs = n_display_imgs
 
         logger_path = "{}/logger.pkl".format(self.save_dir)
+
         if os.path.exists(logger_path):
             self.logger = pickle.load(open(logger_path, "rb"))
         else:
-            columns = ("epoch", "iter", "reconLoss")
-            print_str = "[%d][%d] reconLoss: %.6f"
-
-            columns += ("kldLoss", "time")
-            print_str += " kld: %.6f time: %.2f"
+            columns = ("epoch", "iter", "reconLoss", "time")
+            print_str = "[%d][%d] reconLoss: %.6f time: %.2f"
             self.logger = SimpleLogger(columns, print_str)
-
-    def reparameterize(self, mu, log_var, *args):
-        return reparameterize(mu, log_var, *args)
-
-    def kld_loss(self, mu, log_var):
-        return kl_divergence(mu, log_var)
 
     def iteration(self):
 
@@ -69,18 +49,18 @@ class Model(cbvae2.Model):
         opt_enc, opt_dec = self.opt_enc, self.opt_dec
         crit_recon = self.crit_recon
 
-        # do this just incase anything upstream changes these values
         enc.train(True)
         dec.train(True)
-
-        x = self.data_provider.get_sample()
-        x = x.cuda()
 
         for p in enc.parameters():
             p.requires_grad = True
 
         for p in dec.parameters():
             p.requires_grad = True
+
+        # Ignore class labels and reference information
+        x, _, _ = self.data_provider.get_sample()
+        x = x.cuda()
 
         opt_enc.zero_grad()
         opt_dec.zero_grad()
@@ -90,29 +70,22 @@ class Model(cbvae2.Model):
         #####################
 
         # Forward passes
-        mu, logsigma = enc(x)
-
-        kld_loss = self.kld_loss(mu, logsigma)
-
-        zLatent = mu.data.cpu()
-
-        z = self.reparameterize(mu, logsigma)
+        z = enc(x)
 
         xHat = dec(z)
 
         # Update the image reconstruction
         recon_loss = crit_recon(xHat, x)
 
-        beta_vae_loss = self.vae_loss(recon_loss, kld_loss)
-
-        beta_vae_loss.backward()
-
-        recon_loss = recon_loss.item()
+        recon_loss.backward()
 
         opt_enc.step()
         opt_dec.step()
 
-        errors = [recon_loss, kld_loss.item()]
+        zLatent = z.data.cpu()
+        recon_loss = recon_loss.item()
+
+        errors = [recon_loss]
 
         return errors, zLatent
 
@@ -132,24 +105,12 @@ class Model(cbvae2.Model):
         ###############
         img_inds = np.arange(self.n_display_imgs)
 
-        x = data_provider.get_sample("train", img_inds)
+        x, _, _ = data_provider.get_sample("train", img_inds)
         x = x.cuda(gpu_id)
 
-        def xHat2sample(xHat, x):
-            if xHat.shape[1] == x.shape[1]:
-                pass
-            else:
-                mu = xHat[:, 0::2, :, :]
-                log_var = torch.log(xHat[:, 1::2, :, :])
-
-                xHat = self.reparameterize(mu, log_var, add_noise=True)
-
-            return xHat
-
         with torch.no_grad():
-            z_mu, _ = enc(x)
-            xHat = dec(z_mu)
-            xHat = xHat2sample(xHat, x)
+            z = enc(x)
+            xHat = dec(z)
 
         imgX = tensor2im(x.data.cpu())
         imgXHat = tensor2im(xHat.data.cpu())
@@ -158,24 +119,17 @@ class Model(cbvae2.Model):
         ###############
         # TESTING DATA
         ###############
-        x = data_provider.get_sample("validate", img_inds)
+        x, _, _ = data_provider.get_sample("validate", img_inds)
         x = x.cuda(gpu_id)
 
         with torch.no_grad():
-            z_mu, _ = enc(x)
-            xHat = dec(z_mu)
-            xHat = xHat2sample(xHat, x)
-
-        z_mu.normal_()
-
-        with torch.no_grad():
-            xHat_z = dec(z_mu)
-            xHat_z = xHat2sample(xHat_z, x)
+            z = enc(x)
+            xHat = dec(z)
 
         imgX = tensor2im(x.data.cpu())
         imgXHat = tensor2im(xHat.data.cpu())
-        imgXHat_z = tensor2im(xHat_z.data.cpu())
-        imgTestOut = np.concatenate((imgX, imgXHat, imgXHat_z), 0)
+
+        imgTestOut = np.concatenate((imgX, imgXHat), 0)
 
         imgOut = np.concatenate((imgTrainOut, imgTestOut))
 
@@ -206,27 +160,6 @@ class Model(cbvae2.Model):
 
         # Embedding figure
         plots.embeddings(embeddings_train, "{0}/embedding.png".format(self.save_dir))
-
-        embeddings_validate = embeddings.get_latent_embeddings(
-            enc,
-            dec,
-            dp=self.data_provider,
-            recon_loss=self.crit_recon,
-            modes=["validate"],
-            batch_size=self.data_provider.batch_size,
-        )
-        embeddings_validate["iteration"] = self.get_current_iter()
-        embeddings_validate["epoch"] = self.get_current_epoch()
-
-        torch.save(
-            embeddings_validate,
-            "{}/embeddings_validate_{}.pth".format(
-                self.save_dir, self.get_current_iter()
-            ),
-        )
-
-        xHat = None
-        x = None
 
         enc.train(True)
         dec.train(True)
