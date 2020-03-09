@@ -5,12 +5,14 @@ import pickle
 import shutil
 
 from .. import utils
-from . import cbvae2
+from . import cbvae2_target
 from .. import SimpleLogger
 from .. import model_utils
 
 
-class Model(cbvae2.Model):
+class Model(cbvae2_target.Model):
+    # Same as cbvaegan_target, but the decD inputs are x, x_ref and outputs are classes + fake insteaad of just real/fake
+
     def __init__(
         self, decD, opt_decD, crit_decD, lambda_decD_loss=1, n_decD_steps=1, **kwargs
     ):
@@ -32,16 +34,8 @@ class Model(cbvae2.Model):
             columns = ("epoch", "iter", "reconLoss")
             print_str = "[%d][%d] reconLoss: %.6f"
 
-            columns += (
-                "kldLossRef",
-                "kldLossStruct",
-                "minimaxDecDLoss",
-                "decDLoss",
-                "time",
-            )
-            print_str += (
-                " kld ref: %.6f kld struct: %.6f mmDecD: %.6f decD: %.6f time: %.2f"
-            )
+            columns += ("kldLoss", "minimaxDecDLoss", "decDLoss", "time")
+            print_str += " kld: %.6f mmDecD: %.6f decD: %.6f time: %.2f"
             self.logger = SimpleLogger(columns, print_str)
 
     def iteration(self):
@@ -88,15 +82,13 @@ class Model(cbvae2.Model):
                 .type_as(x)
                 .long()
             )
-            with torch.no_grad():
-                zAll = enc(x, classes_onehot)
 
-            for i in range(len(zAll)):
-                zAll[i] = self.reparameterize(zAll[i][0], zAll[i][1])
-                zAll[i].detach_()
+            ref = ref.cuda(gpu_id)
 
             with torch.no_grad():
-                xHat = dec([classes_onehot] + zAll)
+                mu, logsigma = enc(x, ref, classes_onehot)
+                z = self.reparameterize(mu, logsigma)
+                xHat = dec(z, ref, classes_onehot)
 
             opt_enc.zero_grad()
             opt_dec.zero_grad()
@@ -107,21 +99,21 @@ class Model(cbvae2.Model):
             ##############
 
             # train with real
-            yHat_xReal = decD(x)
+            yHat_xReal = decD(x, ref, classes_onehot)
             errDecD_real = crit_decD(yHat_xReal, y_xReal)
 
             # train with fake, reconstructed
-            yHat_xFake = decD(xHat)
+            yHat_xFake = decD(xHat, ref)
             errDecD_fake = crit_decD(yHat_xFake, y_xFake)
 
             # train with fake, sampled and decoded
-            for z in zAll:
-                z.normal_()
+            z.normal_()
+            shuffle_inds = torch.randperm(x.shape[0])
 
             with torch.no_grad():
-                xHat = dec([classes_onehot] + zAll)
+                xHat = dec(z, ref, classes_onehot[shuffle_inds])
 
-            yHat_xFake2 = decD(xHat)
+            yHat_xFake2 = decD(x, ref)
             errDecD_fake2 = crit_decD(yHat_xFake2, y_xFake)
 
             decDLoss_tmp = (errDecD_real + (errDecD_fake + errDecD_fake2) / 2) / 2
@@ -154,37 +146,21 @@ class Model(cbvae2.Model):
         torch.cuda.empty_cache()
 
         # Forward passes
-        z_ref, z_struct = enc(x, classes_onehot)
+        mu, logsigma = enc(x, ref, classes_onehot)
 
-        kld_ref = self.kld_loss(z_ref[0], z_ref[1])
-        kld_struct = self.kld_loss(z_struct[0], z_struct[1])
+        z = self.reparameterize(mu, logsigma)
 
-        kld_loss = kld_ref + kld_struct
+        kld_loss = self.kld_loss(mu, logsigma)
 
-        kld_loss_ref = kld_ref.item()
-        kld_loss_struct = kld_struct.item()
+        xHat = dec(z, ref, classes_onehot)
 
-        zLatent = z_struct[0].data.cpu()
-
-        zAll = [z_ref, z_struct]
-        for i in range(len(zAll)):
-            zAll[i] = self.reparameterize(zAll[i][0], zAll[i][1])
-
-        xHat = dec([classes_onehot] + zAll)
-
-        # resample from the structure space and make sure that the reference channel stays the same
-        # shuffle_inds = torch.randperm(x.shape[0])
-        # zAll[-1].normal_()
-        # xHat2 = dec([classes_onehot[shuffle_inds]] + zAll)
-
-        # Update the image reconstruction
         recon_loss = crit_recon(xHat, x)
-
         beta_vae_loss = self.vae_loss(recon_loss, kld_loss)
-
         beta_vae_loss.backward(retain_graph=True)
 
         recon_loss = recon_loss.item()
+        kld_loss = kld_loss.item()
+        zLatent = mu.data.cpu()
 
         opt_enc.step()
 
@@ -192,25 +168,28 @@ class Model(cbvae2.Model):
             for p in enc.parameters():
                 p.requires_grad = False
 
-            # update wrt decD(dec(enc(X)))
-            yHat_xFake = decD(xHat)
+            # update wrt reconstructed images
+            yHat_xFake = decD(xHat, ref)
             minimaxDecDLoss = crit_decD(yHat_xFake, y_xReal)
 
             shuffle_inds = torch.randperm(x.shape[0])
-            xHat = dec([classes_onehot[shuffle_inds]] + zAll)
 
-            yHat_xFake2 = decD(xHat)
+            # update wrt generated imges
+            z = torch.Tensor(z.shape).normal_().type_as(x)
+            xHat = dec(z, ref, classes_onehot[shuffle_inds])
+
+            yHat_xFake2 = decD(xHat, ref)
             minimaxDecDLoss2 = crit_decD(yHat_xFake2, y_xReal[shuffle_inds])
 
-            minimaxDecLoss = (minimaxDecDLoss + minimaxDecDLoss2) / 2
-            minimaxDecLoss.mul(self.lambda_decD_loss).backward()
-            minimaxDecLoss = minimaxDecLoss.item()
+            minimaxDecDLoss = (minimaxDecDLoss + minimaxDecDLoss2) / 2
+            minimaxDecDLoss.mul(self.lambda_decD_loss).backward()
+            minimaxDecDLoss = minimaxDecDLoss.item()
         else:
-            minimaxDecLoss = 0
+            minimaxDecDLoss = 0
 
         opt_dec.step()
 
-        errors = [recon_loss, kld_loss_ref, kld_loss_struct, minimaxDecLoss, decDLoss]
+        errors = [recon_loss, kld_loss, minimaxDecDLoss, decDLoss]
 
         return errors, zLatent
 

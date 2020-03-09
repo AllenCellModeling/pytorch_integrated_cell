@@ -73,7 +73,7 @@ class Model(cbvae2.Model):
         enc.train(True)
         dec.train(True)
 
-        x = self.data_provider.get_sample()
+        x, _, _ = self.data_provider.get_sample()
         x = x.cuda()
 
         for p in enc.parameters():
@@ -132,7 +132,7 @@ class Model(cbvae2.Model):
         ###############
         img_inds = np.arange(self.n_display_imgs)
 
-        x = data_provider.get_sample("train", img_inds)
+        x, _, _ = data_provider.get_sample("train", img_inds)
         x = x.cuda(gpu_id)
 
         def xHat2sample(xHat, x):
@@ -158,7 +158,7 @@ class Model(cbvae2.Model):
         ###############
         # TESTING DATA
         ###############
-        x = data_provider.get_sample("validate", img_inds)
+        x, _, _ = data_provider.get_sample("validate", img_inds)
         x = x.cuda(gpu_id)
 
         with torch.no_grad():
@@ -207,6 +207,9 @@ class Model(cbvae2.Model):
         # Embedding figure
         plots.embeddings(embeddings_train, "{0}/embedding.png".format(self.save_dir))
 
+        def sampler(mode, inds):
+            return data_provider.get_sample(mode, inds)[0]
+
         embeddings_validate = embeddings.get_latent_embeddings(
             enc,
             dec,
@@ -214,6 +217,7 @@ class Model(cbvae2.Model):
             recon_loss=self.crit_recon,
             modes=["validate"],
             batch_size=self.data_provider.batch_size,
+            sampler=sampler,
         )
         embeddings_validate["iteration"] = self.get_current_iter()
         embeddings_validate["epoch"] = self.get_current_epoch()
