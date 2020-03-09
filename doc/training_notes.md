@@ -1,5 +1,10 @@
 # Training Tips and Thoughts
 
+### Compute
+
+Generally need a machine with a GPU
+`dgx-aics-dcp-001.corp.alleninstitute.org` is a good place to start
+
 ### General
 - For short training sessions (for debugging) utilize the cli command `--ndat`. This overwrites the number of data in the `data_provider` object for shorter epoch times. When used, it's generally set to 2x batch size.
 
