@@ -30,5 +30,6 @@ setup(
         "quilt3==3.1.1",
         "seaborn",
         "brokenaxes",
+        "lkaccess",
     ],
 )
