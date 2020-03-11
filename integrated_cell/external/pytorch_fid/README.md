@@ -1,3 +1,5 @@
+Original Repository: [pytorch-fid](https://github.com/mseitzer/pytorch-fid)
+
 # Fréchet Inception Distance (FID score) in PyTorch
 
 This is a port of the official implementation of [Fréchet Inception Distance](https://arxiv.org/abs/1706.08500) to PyTorch. 
