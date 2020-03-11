@@ -13,14 +13,14 @@ GitHub: https://github.com/AllenCellModeling/torch_integrated_cell
 
 ## Todo Items
 - GIT
-    - [ ] Remove old big files from git
+    - [x] Remove old big files from git
     
 - Jupyter notebooks  
     - [x] Check-in current state to git
     - [x] Make sure notebooks all run and can produce figures
-    - [ ] Annotate notebooks (notebook purpose)
-    - [ ] Clear outputs
-    - [ ] Check-in final state to git
+    - [x] Annotate notebooks (notebook purpose)
+    - [x] Clear outputs
+    - [x] Check-in final state to git
     
 - Data
     - [x] Make sure current Quilt data works
