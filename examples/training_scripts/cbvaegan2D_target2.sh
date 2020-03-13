@@ -17,7 +17,7 @@ ic_train_model \
 	--kwargs_decD_optim '{"betas": [0.5, 0.9]}' \
         --kwargs_model '{"beta": 1, "lambda_decD_loss": 1}' \
         --train_module cbvaegan_target2 \
-        --imdir ../../data/ \
+        --imdir $PWD/../../data/ \
         --dataProvider TargetDataProvider \
         --kwargs_dp '{"crop_to": [160, 96], "return2D": 1, "check_files": 0, "csv_name": "metadata.csv"}' \
         --saveStateIter 1 --saveProgressIter 1 \

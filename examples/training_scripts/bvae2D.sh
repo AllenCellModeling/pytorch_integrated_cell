@@ -13,7 +13,7 @@ ic_train_model \
         --kwargs_dec_optim '{"betas": [0.9, 0.999]}' \
         --kwargs_model '{"beta": 1}' \
         --train_module bvae \
-        --imdir ../../data/ \
+        --imdir $PWD/../../data/ \
         --dataProvider DataProvider \
         --kwargs_dp '{"crop_to": [160, 96], "return2D": 1, "check_files": 0, "csv_name": "metadata.csv"}' \
         --saveStateIter 1 --saveProgressIter 1 \
