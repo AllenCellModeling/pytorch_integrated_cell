@@ -17,6 +17,7 @@ setup(
         "matplotlib==2.2.2",
         "numpy>=1.15.0",
         "pandas>=0.23.4",
+        "ipykernel",
         "pip",
         "pillow==5.2.0",
         "scikit-image==0.15.0",
