@@ -213,6 +213,10 @@ class DataProvider(DataProviderABC):
         if self.normalize_intensity:
             im = im.astype("float")
 
+            if str(self.normalize_intensity).lower() == "max":
+                for i, ch in enumerate(im):
+                    im[i] = ch / np.max(ch)
+            
             if str(self.normalize_intensity).lower() == "std":
                 for i, ch in enumerate(im):
                     if np.sum(im[i]) > 0:
