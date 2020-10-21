@@ -215,7 +215,8 @@ class DataProvider(DataProviderABC):
 
             if str(self.normalize_intensity).lower() == "max":
                 for i, ch in enumerate(im):
-                    im[i] = ch / np.max(ch)
+                    if np.max(im[i]) > 0:
+                        im[i] = ch / np.max(ch)
             
             if str(self.normalize_intensity).lower() == "std":
                 for i, ch in enumerate(im):

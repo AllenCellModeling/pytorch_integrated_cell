@@ -1,22 +1,22 @@
 ic_train_model \
         --gpu_ids $1 \
         --model_type ae \
-        --save_dir $PWD/cbvae3D \
+        --save_dir $PWD/cbvae3D_seg \
         --lr_enc 2E-4 --lr_dec 2E-4 \
-        --data_save_path $PWD/cbvae3D/data.pyt \
+        --data_save_path $PWD/cbvae3D_seg/data.pyt \
         --crit_recon integrated_cell.losses.BatchBCELoss \
         --kwargs_crit_recon '{}' \
         --network_name cvaegan3D_residual \
         --kwargs_enc '{"n_latent_dim": 512, "n_ch_target": 1, "n_ch_ref": 2, "n_classes": 24}'  \
         --kwargs_enc_optim '{"betas": [0.9, 0.999]}' \
-        --kwargs_dec '{"n_latent_dim": 512, "activation_last": "softplus", "n_ch_target": 1, "n_ch_ref": 2, "n_classes": 24}' \
+        --kwargs_dec '{"n_latent_dim": 512, "activation_last": "sigmoid", "n_ch_target": 1, "n_ch_ref": 2, "n_classes": 24}' \
         --kwargs_dec_optim '{"betas": [0.9, 0.999]}' \
-        --kwargs_model '{"beta": 1}' \
-        --train_module cbvae2_target \
+        --kwargs_model '{"beta": 0.01}' \
+        --train_module cbvae2_ref \
         --imdir $PWD/../../data/ \
-        --dataProvider TargetDataProvider \
+        --dataProvider RefDataProvider \
         --kwargs_dp '{"crop_to": [160, 96, 64], "return2D": 0, "check_files": 0, "csv_name": "metadata.csv", "normalize_intensity": "max"}' \
         --saveStateIter 1 --saveProgressIter 1 \
-        --channels_pt1 3 4 2 \
+        --channels_pt1 3 1 4 \
         --batch_size 32  \
         --nepochs 300 \
