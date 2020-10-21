@@ -66,6 +66,10 @@ git clone https://github.com/AllenCellModeling/pytorch_integrated_cell
 cd pytorch_integrated_cell
 pip install -e .
 ```
+Next, install the correct cudatoolkit version for your machine
+```
+conda install pytorch torchvision cudatoolkit=10.1 -c pytorch
+```
 
 If you want to do some development, install the pre-commit hooks:
 ```shell

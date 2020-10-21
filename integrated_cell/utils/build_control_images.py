@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from tqdm import tqdm
 import numpy as np
+import imageio
 import scipy
 from scipy.stats import norm
 
@@ -162,7 +163,7 @@ def build_control_images(
                 global_adjust=True,
                 colors=colors,
             )
-            scipy.misc.imsave(
+            imageio.imwrite(
                 row["save_reg_path_flat_proj"], im_flat.transpose(1, 2, 0)
             )
 
@@ -174,7 +175,7 @@ def build_control_images(
                 global_adjust=True,
                 colors=colors,
             )
-            scipy.misc.imsave(row["save_reg_path_flat"], im_flat.transpose(1, 2, 0))
+            imageio.imwrite(row["save_reg_path_flat"], im_flat.transpose(1, 2, 0))
 
         csv_df = csv_df.append(row_list)
 
