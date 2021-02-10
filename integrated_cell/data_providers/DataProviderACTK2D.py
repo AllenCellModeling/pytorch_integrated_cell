@@ -150,7 +150,7 @@ class DataProvider(DataProviderABC):
         im_tmp = im_tmp.get_image_data("CYXZ")
         
         ch_inds = [self.channel_dict[ch_name] for ch_name in self.channel_names]
-        im = np.zeros((im_tmp.shape[1], im_tmp.shape[2]))
+        im = np.zeros((2, im_tmp.shape[1], im_tmp.shape[2]))
         for ch in ch_inds:
             im[ch] = im_tmp[ch].max(axis=2)
 
