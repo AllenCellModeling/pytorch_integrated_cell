@@ -1,9 +1,9 @@
 ic_train_model \
         --gpu_ids $1 \
         --model_type ae \
-        --save_dir $PWD/cbvae2D \
+        --save_dir /allen/aics/modeling/theok/Projects/idle/hackathonfiles/cbvae2D_theo_20210208 \
         --lr_enc 2E-4 --lr_dec 2E-4 \
-        --data_save_path $PWD/cbvae2D/data.pyt \
+        --data_save_path /allen/aics/modeling/theok/Projects/idle/hackathonfiles/cbvae2D_theo_20210208/data.pyt \
         --crit_recon integrated_cell.losses.BatchMSELoss \
         --kwargs_crit_recon '{}' \
         --network_name cvaegan2D_residual \
@@ -13,7 +13,7 @@ ic_train_model \
         --kwargs_dec_optim '{"betas": [0.9, 0.999]}' \
         --kwargs_model '{"beta": 1}' \
         --train_module cbvae2_target \
-        --imdir ../../data/ \
+        --imdir /allen/aics/modeling/rorydm/projects/pytorch_integrated_cell/data/ \
         --dataProvider TargetDataProvider \
         --kwargs_dp '{"crop_to": [160, 96], "return2D": 1, "check_files": 0, "csv_name": "metadata.csv"}' \
         --saveStateIter 1 --saveProgressIter 1 \
