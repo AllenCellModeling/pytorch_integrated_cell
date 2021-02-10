@@ -9,7 +9,10 @@ setup(
     version="0.1",
     packages=PACKAGES,
     entry_points={
-        "console_scripts": ["ic_train_model=integrated_cell.bin.train_model:main"]
+        "console_scripts": [
+            "ic_train_model=integrated_cell.bin.train_model:main",
+            "ic_train_model_actk=integrated_cell.bin.train_model_actk:main"
+        ]
     },
     install_requires=[
         "torch==1.2.0",

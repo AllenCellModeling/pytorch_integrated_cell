@@ -1,0 +1,23 @@
+ic_train_model_actk \
+        --gpu_ids 2 \
+        --model_type ae \
+        --save_dir $PWD/bvae2D_actk_2D_seg \
+        --lr_enc 2E-4 --lr_dec 2E-4 \
+        --data_save_path $PWD/bvae2D_actk_2D_seg/data_ae.pyt \
+        --crit_recon integrated_cell.losses.BatchBCELoss \
+        --kwargs_crit_recon '{}' \
+        --network_name cvaegan2D_residual \
+        --kwargs_enc '{"n_latent_dim": 512, "n_ch_target": 2, "n_ch_ref": 0, "n_classes": 0}'  \
+        --kwargs_enc_optim '{"betas": [0.9, 0.999]}' \
+        --kwargs_dec '{"n_latent_dim": 512, "activation_last": "sigmoid", "n_ch_target": 2, "n_ch_ref": 0, "n_classes": 0}' \
+        --kwargs_dec_optim '{"betas": [0.9, 0.999]}' \
+        --kwargs_model '{"beta": 1}' \
+        --train_module bvae_ref_only \
+        --imdir /allen/aics/modeling/rorydm/results/actk/2020-12-01_no_ceil_adjust/singlecellimages/ \
+        --dataProvider RefDataProviderACTKSeg2D \
+        --kwargs_dp '{"crop_to": [160, 96], "return2D": 1, "check_files": 0, "csv_name": "manifest_mito.csv"}' \
+        --saveStateIter 1 
+        --saveProgressIter 1 \
+        --channels "membrane_segmentation" "structure" "nucleus_segmentation" \
+        --batch_size 32  \
+        --nepochs 1 \

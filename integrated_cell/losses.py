@@ -402,3 +402,15 @@ class ChannelMSELoss(nn.Module):
             pass
 
         return loss
+
+class BatchBCELoss(nn.Module):
+    def __init__(self):
+        super(BatchBCELoss, self).__init__()
+
+        self.bceloss = nn.BCELoss(reduction="sum")
+
+    def forward(self, input, target):
+        losses = self.bceloss(input, target)
+        losses = losses / input.shape[0]
+
+        return losses
