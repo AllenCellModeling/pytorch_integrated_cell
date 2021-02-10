@@ -1,4 +1,4 @@
-ic_train_model \
+ic_train_model_actk \
         --gpu_ids $1 \
         --model_type ae \
         --save_dir $PWD/bvae2D \
