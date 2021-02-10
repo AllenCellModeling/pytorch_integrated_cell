@@ -291,4 +291,5 @@ class DataProvider(DataProviderABC):
         classes = self.get_classes(inds, train_or_test)
         ref = self.get_ref(inds, train_or_test)
 
-        return x, classes, ref
+        #return x, classes, ref
+        return x
