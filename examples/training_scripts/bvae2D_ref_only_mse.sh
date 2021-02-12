@@ -1,15 +1,15 @@
 ic_train_model_actk \
         --gpu_ids $1 \
         --model_type ae \
-        --save_dir $PWD/bvae2D \
+        --save_dir $PWD/bvae2D_mse \
         --lr_enc 2E-4 --lr_dec 2E-4 \
         --data_save_path $PWD/bvae2D/data_ae.pyt \
-        --crit_recon integrated_cell.losses.BatchBCELoss \
+        --crit_recon integrated_cell.losses.BatchMSELoss \
         --kwargs_crit_recon '{}' \
         --network_name cvaegan2D_residual \
         --kwargs_enc '{"n_latent_dim": 512, "n_ch_target": 2, "n_ch_ref": 0, "n_classes": 0}'  \
         --kwargs_enc_optim '{"betas": [0.9, 0.999]}' \
-        --kwargs_dec '{"n_latent_dim": 512, "activation_last": "sigmoid", "n_ch_target": 2, "n_ch_ref": 0, "n_classes": 0}' \
+        --kwargs_dec '{"n_latent_dim": 512, "activation_last": "softplus", "n_ch_target": 2, "n_ch_ref": 0, "n_classes": 0}' \
         --kwargs_dec_optim '{"betas": [0.9, 0.999]}' \
         --kwargs_model '{"beta": 1}' \
         --train_module bvae_ref_only \
