@@ -1,0 +1,22 @@
+ic_train_model_actk \
+        --gpu_ids $1 \
+        --model_type ae \
+        --save_dir $PWD/bvae2D_mnist_ref_only \
+        --lr_enc 2E-4 --lr_dec 2E-4 \
+        --data_save_path $PWD/bvae2D_mnist_ref_only/data_ae.pyt \
+        --crit_recon integrated_cell.losses.BatchMSELoss \
+        --kwargs_crit_recon '{}' \
+        --network_name cvaegan2D_residual \
+        --kwargs_enc '{"n_latent_dim": 64, "n_ch_target": 2, "n_ch_ref": 0, "n_classes": 0, "conv_channels_list": [64, 128, 256], "imsize_compressed": [3, 3]}'  \
+        --kwargs_enc_optim '{"betas": [0.9, 0.999]}' \
+        --kwargs_dec '{"n_latent_dim": 64, "activation_last": "softplus", "n_ch_target": 2, "n_ch_ref": 0, "n_classes": 0, "conv_channels_list": [256, 128, 64], "imsize_compressed": [3, 3], "last_padding": [2, 2]}' \
+        --kwargs_dec_optim '{"betas": [0.9, 0.999]}' \
+        --kwargs_model '{"beta": 0.00011}' \
+        --train_module bvae_ref_only \
+        --imdir /allen/aics/modeling/rorydm/results/actk/2020-12-01_no_ceil_adjust/singlecellimages/ \
+        --dataProvider DataProviderMNIST \
+        --kwargs_dp '{"crop_to": [28, 28], "check_files": 0, "dataset_folder": "/raid/shared/aics_mnist/aics_mnist_rgb" }' \
+        --saveStateIter 1 --saveProgressIter 1 \
+        --channels "membrane" "dna" \
+        --batch_size 32  \
+        --nepochs 300 \

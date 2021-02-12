@@ -47,7 +47,7 @@ class PadLayer(nn.Module):
             return x
         else:
             return nn.functional.pad(
-                x, [self.pad_dims[1], 0, self.pad_dims[0]], "constant", 0
+                x, [self.pad_dims[1], self.pad_dims[1], self.pad_dims[0], self.pad_dims[0]], "constant", 0
             )
 
 
@@ -249,6 +249,7 @@ class Dec(nn.Module):
         n_classes,
         gpu_ids,
         padding_latent=[0, 0],
+        last_padding=[0, 0],
         imsize_compressed=[5, 3],
         n_ch_target=1,
         n_ch_ref=2,
@@ -312,6 +313,8 @@ class Dec(nn.Module):
             )
         )
 
+        self.last_padding = PadLayer(last_padding)
+
     def forward(self, z_target, x_ref=None, x_class=None):
         # gpu_ids = None
         # if isinstance(x.data, torch.cuda.FloatTensor) and len(self.gpu_ids) > 1:
@@ -341,7 +344,7 @@ class Dec(nn.Module):
 
             x_target = target_path(x_target, *target_cond)
 
-        return x_target
+        return self.last_padding(x_target)
 
 
 class DecD(nn.Module):
