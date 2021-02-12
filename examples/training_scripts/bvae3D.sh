@@ -7,11 +7,12 @@ ic_train_model \
         --crit_recon integrated_cell.losses.BatchMSELoss \
         --kwargs_crit_recon '{}' \
         --network_name cvaegan3D_residual \
+        --kwargs_model '{"beta_min": 1e-06, "beta_start": -1, "beta_step": 3e-05, "kld_reduction": "batch", "objective": "A"}' \
         --kwargs_enc '{"n_latent_dim": 512, "n_ch_target": 3, "n_ch_ref": 0, "n_classes": 0}'  \
         --kwargs_enc_optim '{"betas": [0.9, 0.999]}' \
         --kwargs_dec '{"n_latent_dim": 512, "activation_last": "softplus", "n_ch_target": 3, "n_ch_ref": 0, "n_classes": 0}' \
         --kwargs_dec_optim '{"betas": [0.9, 0.999]}' \
-        --kwargs_model '{"beta": 1}' \
+        --kwargs_model '{"beta": 0.01}' \
         --train_module bvae \
         --imdir $PWD/../../data/ \
         --dataProvider DataProvider \
