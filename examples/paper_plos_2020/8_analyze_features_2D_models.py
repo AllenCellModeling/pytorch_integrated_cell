@@ -16,6 +16,7 @@ get_ipython().run_line_magic('autoreload', '2')
 # In[ ]:
 
 
+import os
 import pickle
 import pandas as pd
 from PIL import Image
@@ -52,11 +53,11 @@ get_ipython().run_line_magic('config', "InlineBackend.figure_format = 'retina'")
 feats_parent_dir = '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/results/feats_caleb_20cells_saveimgs_localmean/'
 #feats_parent_dir = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats_caleb_5cells_saveimgs_allsegs/'
 
-intensity_norm   = 0                             # Values = {0, 1}
+intensity_norm   = 0                              # Values = {0, 1}
 show_betas       = ['real', 0.010, 0.296, 0.663]  # Values = {'real', 0.010, 0.296, 0.663}
-#show_betas       = ['real']  # Values = {'real', 0.010, 0.296, 0.663}
-sampling         = 'kld'                        # Values = {real, kld, norm}
-img_type         = 'cell'                        # Value = {'hist', 'cell'}
+#show_betas       = ['real']                      # Values = {'real', 0.010, 0.296, 0.663}
+sampling         = 'kld'                          # Values = {real, kld, norm}
+img_type         = 'cell'                         # Value = {'hist', 'cell'}
 
 
 # In[ ]:
@@ -133,8 +134,11 @@ for objAxis in objAxes.flatten():
 
 # Load the pre-processed and pre-saved cell and nucleus features
 
+all_feats_save_folder = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats_caleb_100cells/'
+all_feats_fn = 'all_feats.pkl'
+
 #all_feats_save_path = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats//all_feats.pkl'
-all_feats_save_path = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats_caleb_100cells/all_feats.pkl'
+all_feats_save_path = os.path.join(all_feats_save_folder, all_feats_fn)
 
 intensity_norms = ['unnormalized', 'normalized']
 
@@ -190,6 +194,9 @@ for key in dct_combined_df_flat.keys():
 # Select a single combination of parameters and genereate a combined embeddings
 # and features dataframe
 
+# TODO: Loop through all the keys in the flattened dictionary and save all the
+#       dataframes into csv files?
+
 key = '1_gen_0.296_rnd_norm'
 #key = '1_real'
 
@@ -219,6 +226,13 @@ else:
 # Visiualize the embeddings and features dataframe
 
 df_combined
+
+
+# In[ ]:
+
+
+# Save the combined embeddings and features dataframe to a csv file
+df_combined.to_csv(os.path.join(all_feats_save_folder, f'df_combined_{key}.csv'), index=False)
 
 
 # In[ ]:
@@ -335,6 +349,7 @@ for sampling in show_samplings:
 
     plt.tight_layout()
 
+    # TODO: Loop through all specified parameter combinations and save all figures into png files?
     #plt.savefig('{}/features_and_betas.png'.format(results_dir), bbox_inches='tight', dpi=90)
     plt.show()
 
