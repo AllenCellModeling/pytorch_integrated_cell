@@ -16,98 +16,13 @@ get_ipython().run_line_magic('autoreload', '2')
 # In[ ]:
 
 
-import datetime
-from pytz import timezone
-
-strTimeZone = 'America/Los_Angeles'
-
-# Returns the current datetime
-def fnNow():
-    return datetime.datetime.now(timezone(strTimeZone))
-
-# Returns a timestamp (for use in filenames) in the format:
-# YYYY/MM/DD-HH:MM:SS
-#def fnGenTimestamp(argDatetime = fnNow()):  # TODO: For some reason this doesn't work
-def fnGenTimestamp(argDatetime = None):
-    if (argDatetime == None):
-        argDatetime = fnNow()
-    return argDatetime.strftime('%Y%m%d-%H%M%S')
-
-# Returns a date and time in human-readable format
-#def fnGetDatetime(argDatetime = fnNow()):  # TODO: For some reason this doesn't work
-def fnGetDatetime(argDatetime = None):
-    if (argDatetime == None):
-        argDatetime = fnNow()
-    return argDatetime.strftime('%m/%d/%Y %H:%M:%S')
-
-
-# In[ ]:
-
-
-import os
-
-# Checks to see if a specified directory exists. If not, create a new one
-def fnOSMakeDir(argPath):
-    if (not os.path.exists(argPath)):
-        print('The specified directory does not exist. Creating a new one: {}'.format(argPath))
-        os.mkdir(argPath)
-        
-def fnSplitFullFilename(argFullFilename, argDebug = False):
-    strPath, strFilename = os.path.split(argFullFilename)
-    strBasename, strExt = os.path.splitext(strFilename)
-    
-    return strPath, strBasename, strExt
-
-# Returns a list of full filenames recursively from a parent directory,
-# sorted and filtered based on argFileExt
-def fnGetFullFilenames(argParentPath, argFileExt, argDebug = False):
-    lstFullFilenames = []
-    
-    # Loop recursively using argParentPath as the starting point
-    for strRoot, lstDirs, lstFilenames in os.walk(argParentPath):
-        if (argDebug):
-            print('strRoot = {}'.format(strRoot))
-            print('lstDirs = {}'.format(lstDirs))
-            print('lstFilenames = {}'.format(lstFilenames))
-            print()
-            
-        if (len(lstFilenames) > 0):
-            lstFilenames.sort()
-            
-            # Loop through the list of filenames and reconstruct
-            # with their full paths
-            for strFilename in lstFilenames:
-                # Process only files with extension argFileExt
-                if strFilename.endswith(argFileExt):
-                    # Append full path to each filename
-                    strFullFilename = os.path.join(strRoot, strFilename)
-                    lstFullFilenames.append(strFullFilename)
-                    if (argDebug): print('  {}'.format(strFullFilename))
-                    
-    lstFullFilenames.sort()
-    
-    return lstFullFilenames
-
-
-# In[ ]:
-
-
-import glob
 import pickle
-import json
-import os
-
-import torch
-import numpy as np
-from natsort import natsorted
-from tqdm import tqdm
-
 import pandas as pd
 from PIL import Image
 
-from integrated_cell import model_utils, utils
-from integrated_cell.metrics.embeddings_reference import get_latent_embeddings
-from integrated_cell.models.bvae import kl_divergence
+import numpy as np
+
+import features_lib as flib
 
 
 # In[ ]:
@@ -120,34 +35,9 @@ get_ipython().run_line_magic('matplotlib', 'inline')
 get_ipython().run_line_magic('config', "InlineBackend.figure_format = 'retina'")
 
 
-# In[ ]:
-
-
-dct_img_type = {
-    'hist': '_hist.png', 
-    'cell': '_img.png', 
-}
-
-def gen_feature_path(feats_parent_dir, intensity_norm, beta, sampling):
-    fn_norm = 'norm_' + str(intensity_norm)
-    
-    # If beta is 'real', there is no sampling
-    if (beta == 'real'):
-        fn_jobname = 'feats_test'
-        fn_sampling = ''
-    else:
-        df_master = pd.read_csv('/allen/aics/modeling/caleb/data/df_master.csv')
-        model_dir = df_master.query('beta == @beta & intensity_norm == @intensity_norm')['model_dir'].to_numpy()[0]
-        
-        fn_jobname = os.path.basename(os.path.normpath(model_dir))
-        fn_sampling = sampling
-        
-    return os.path.join(feats_parent_dir, fn_norm, fn_jobname, fn_sampling)
-
-
 # ## Display cell and binary mask images for real cells and different betas
 
-# ### Configuration
+# ### Configuring the appropriate parameters
 
 # In[ ]:
 
@@ -163,8 +53,8 @@ feats_parent_dir = '/allen/aics/modeling/gregj/results/integrated_cell/test_cbva
 #feats_parent_dir = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats_caleb_5cells_saveimgs_allsegs/'
 
 intensity_norm   = 0                             # Values = {0, 1}
-show_betas       = ['real', 0.01, 0.296, 0.663]  # Values = {'real', 0.01, 0.296, 0.663}
-#show_betas       = ['real']  # Values = {'real', 0.01, 0.296, 0.663}
+show_betas       = ['real', 0.010, 0.296, 0.663]  # Values = {'real', 0.010, 0.296, 0.663}
+#show_betas       = ['real']  # Values = {'real', 0.010, 0.296, 0.663}
 sampling         = 'kld'                        # Values = {real, kld, norm}
 img_type         = 'cell'                        # Value = {'hist', 'cell'}
 
@@ -174,12 +64,12 @@ img_type         = 'cell'                        # Value = {'hist', 'cell'}
 
 # TODO: Image files are sorted by filename, and not by numerical order
 
-file_suffix = dct_img_type[img_type]
+file_suffix = flib.dct_img_type[img_type]
 
 img_paths = []
 
 for col_idx, col_beta in enumerate(show_betas):
-    img_paths.append(fnGetFullFilenames(gen_feature_path(feats_parent_dir, intensity_norm, col_beta, sampling), file_suffix))
+    img_paths.append(flib.fnGetFullFilenames(flib.gen_feature_path(feats_parent_dir, intensity_norm, col_beta, sampling), file_suffix))
     
 num_cells = len(img_paths[0])
 num_betas = len(show_betas)
@@ -209,7 +99,7 @@ for row_idx in np.arange(num_cells):
         else:
             objAxes[row_idx, col_idx].imshow(arrImg, cmap='gray')
 
-    path, basename, ext = fnSplitFullFilename(fn_img)
+    path, basename, ext = flib.fnSplitFullFilename(fn_img)
     if (num_betas == 1):
         objAxes[row_idx].set_ylabel(basename, fontsize=20)
     else:
@@ -240,6 +130,8 @@ for objAxis in objAxes.flatten():
 
 # In[ ]:
 
+
+# Load the pre-processed and pre-saved cell and nucleus features
 
 #all_feats_save_path = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats//all_feats.pkl'
 all_feats_save_path = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats_caleb_100cells/all_feats.pkl'
@@ -277,32 +169,17 @@ for i, intensity_norm in enumerate(intensity_norms):
 # In[ ]:
 
 
-# norm_intensity/real
-# norm_intensity/gen/beta/real/[embeddings/features]
-#                    beta/kld/[embeddings/features]
-#                    beta/norm/[embeddings/features]
+# Flatten the nested features dictionary into a flat dictionary of 1 level
 
-def flatten_dict(in_dict, dict_out=None, parent_key=None, separator="_"):
-    if dict_out is None:
-        dict_out = {}
+# Structure of the nested dictionary:
+#   norm_intensity{0, 1}/real
+#   norm_intensity{0, 1}/gen/beta/real/{embeddings, features}
+#                            beta/kld/{embeddings, features}
+#                            beta/norm/{embeddings, features}
 
-    for k, v in in_dict.items():
-        k = str(k)
-        #print(f'{k}')
-        k = f"{parent_key}{separator}{k}" if parent_key else k
-        #print(f'  {k}')
-        if isinstance(v, dict):
-            #print(f'  Recursing...')
-            flatten_dict(in_dict=v, dict_out=dict_out, parent_key=k)
-            continue
+dct_combined_df_flat = flib.flatten_dict(feature_dict)
 
-        #print(f'  dct = {k}')
-        dict_out[k] = v
-
-    return dict_out
-
-dct_combined_df_flat = flatten_dict(feature_dict)
-
+# Display the keys in the flattened dictionary
 for key in dct_combined_df_flat.keys():
     print(f'{key}')
 
@@ -310,10 +187,13 @@ for key in dct_combined_df_flat.keys():
 # In[ ]:
 
 
+# Select a single combination of parameters and genereate a combined embeddings
+# and features dataframe
+
 key = '1_gen_0.296_rnd_norm'
 #key = '1_real'
 
-#embeddings = feature_dict[0]['gen'][0.01]['real']['embeddings']
+#embeddings = feature_dict[0]['gen'][0.010]['real']['embeddings']
 if (key + '_embeddings' in dct_combined_df_flat.keys()):
     embeddings = dct_combined_df_flat[key + '_embeddings']
     embeddings_shape = embeddings.shape
@@ -322,17 +202,21 @@ if (key + '_embeddings' in dct_combined_df_flat.keys()):
 
     df_embeddings = pd.DataFrame(embeddings, columns=embedding_colnames)
 
-    #df_features = feature_dict[0]['gen'][0.01]['real']['features']
+    #df_features = feature_dict[0]['gen'][0.010]['real']['features']
     df_features = dct_combined_df_flat[key + '_features']
 
     df_combined = pd.concat([df_embeddings, df_features], axis=1)
 
 else:
+    # If we are looking at real cells from the test set, there will only be
+    # features but no embeddings since these cells are not generated
     df_combined = dct_combined_df_flat[key]
 
 
 # In[ ]:
 
+
+# Visiualize the embeddings and features dataframe
 
 df_combined
 
@@ -340,6 +224,8 @@ df_combined
 # In[ ]:
 
 
+# List the shape of the embeddings arrays for all the different combinations
+# of parameters for sanity check
 for key in dct_combined_df_flat.keys():
     if ('_embeddings' in key):
         print(f'{key}: {dct_combined_df_flat[key].shape}')
@@ -360,7 +246,7 @@ from matplotlib.lines import Line2D
 #         -> not a bug, all genereated cells (from real ones) look the same when beta is 0.99
 intensity_norm_meth = 1
 
-betas_to_plot = [0.01, 0.296, 0.663]
+betas_to_plot = [0.010, 0.296, 0.663]
 show_samplings = ['real', 'rnd_kld', 'rnd_norm']
 
 cols_to_plot = [
