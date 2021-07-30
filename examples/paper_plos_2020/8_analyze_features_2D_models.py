@@ -3,6 +3,8 @@
 
 # # 2D model feature analysis
 
+# ## Configuring the script parameters
+
 # In[ ]:
 
 
@@ -143,6 +145,10 @@ def gen_feature_path(feats_parent_dir, intensity_norm, beta, sampling):
     return os.path.join(feats_parent_dir, fn_norm, fn_jobname, fn_sampling)
 
 
+# ## Display cell and binary mask images for real cells and different betas
+
+# ### Configuration
+
 # In[ ]:
 
 
@@ -230,7 +236,7 @@ for objAxis in objAxes.flatten():
     objAxis.spines['right'].set_visible(False)
 
 
-# ## Print off real versus generated feature distributions
+# ## Print latent space embeddings and cell/nucleus features as a dataframe
 
 # In[ ]:
 
@@ -338,6 +344,8 @@ for key in dct_combined_df_flat.keys():
     if ('_embeddings' in key):
         print(f'{key}: {dct_combined_df_flat[key].shape}')
 
+
+# ## Print off real versus generated feature distributions
 
 # In[ ]:
 

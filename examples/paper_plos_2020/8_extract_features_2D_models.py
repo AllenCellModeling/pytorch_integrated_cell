@@ -3,6 +3,73 @@
 
 # # 2D model feature extraction
 
+# ## Display a summary of the 2D models
+
+# In[3]:
+
+
+import pandas as pd
+
+pd.options.display.width = 200
+pd.options.display.max_colwidth = None
+
+# Read df_master, a summary of the 25 2D models used in trained 1_model_compare_2D.py
+strCSVFullFilename_2DModels = '/allen/aics/modeling/caleb/data/df_master.csv'
+print(strCSVFullFilename_2DModels)
+
+dfCSV_2DModels = pd.read_csv(strCSVFullFilename_2DModels)
+print(dfCSV_2DModels[['beta', 'intensity_norm', 'suffix', 'model_dir']].sort_values(['beta', 'intensity_norm'], ascending = [True, True]))
+
+
+# ## Configuring the script parameters
+
+# In[ ]:
+
+
+# 5 cells with save_imgs (all seg methods) = 1 hr
+# 20 cells with save_imgs (1 seg method) = 12 mins
+# 100 cells, no save_imgs, 3 betas = 7 mins
+# 100 cells, no save_imgs, 4 betas = 9 mins
+
+feats_parent_dir = '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/results/feats_caleb/'
+
+intNumCells = 20  # Set to < 0 to select the entire test set
+
+# methods = {'gt_zero', otsu', 'local_gaussian', 'local_mean', 'local_median', 'li', 'mean', 'all'}
+seg_method_real = 'gt_zero'    # Should be gt_zero for real cells
+seg_method_gen = 'local_mean'  # Should be local_mean for generated cells
+
+# Whether to mask the intensity images before feature extraction
+# TODO: Test whether this makes a difference for the generated cells
+mask_intensity_features_real = True
+mask_intensity_features_gen = True
+
+save_imgs = False       # Whether to save the binary masks
+figsize_hist = (16, 2)  # Large = (30, 4), small = (16, 2)
+
+gpu_ids = [5]  # A list of available GPUs
+
+# A list of 2D models to use
+model_dirs = [
+    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_298/', 
+    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_299/', 
+    
+    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_312/', 
+    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_313/', 
+    
+    #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_329/', 
+    
+    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_330/', 
+    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_331/', 
+    
+    # All generated cells look the same since beta is too high, not a good model to use
+    #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_378/', 
+    #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_379/', 
+]
+
+debug = False
+
+
 # In[ ]:
 
 
@@ -261,7 +328,7 @@ if (not fnIsBatchMode()):
 # In[ ]:
 
 
-gpu_ids = [5]
+#gpu_ids = [5]
 os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(ID) for ID in gpu_ids])
 if len(gpu_ids) == 1:
     torch.backends.cudnn.enabled = True
@@ -274,22 +341,22 @@ model_parent = '{}/test_cbvae_beta_ref'.format(parent_dir)
 
 #model_dirs = glob.glob('/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_*/')
 
-model_dirs = [
-    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_298/', 
-    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_299/', 
+# model_dirs = [
+#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_298/', 
+#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_299/', 
     
-    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_312/', 
-    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_313/', 
+#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_312/', 
+#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_313/', 
     
-    #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_329/', 
+#     #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_329/', 
     
-    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_330/', 
-    '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_331/', 
+#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_330/', 
+#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_331/', 
     
-    # All generated cells look the same since beta is too high, not a good model to use
-    #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_378/', 
-    #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_379/', 
-]
+#     # All generated cells look the same since beta is too high, not a good model to use
+#     #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_378/', 
+#     #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_379/', 
+# ]
 
         
 save_dir = '{}/results'.format(model_parent)
@@ -992,27 +1059,6 @@ def fnGenRandomZ(argEmbeddingsParentPath, argModelDir, argRefSuffix, argBatchSiz
 
 from tqdm import tqdm
 
-#--------------------------------------------------------------------
-# 5 cells with save_imgs (all seg methods) = 1 hr
-# 20 cells with save_imgs (1 seg method) = 12 mins
-# 100 cells, no save_imgs, 3 betas = 7 mins
-# 100 cells, no save_imgs, 4 betas = 9 mins
-intNumCells = 20  # Set to < 0 to select the entire test set
-
-# methods = {'gt_zero', otsu', 'local_gaussian', 'local_mean', 'local_median', 'li', 'mean', 'all'}
-seg_method_real = 'gt_zero'  # Should be gt_zero for real cells
-seg_method_gen = 'local_mean'  # Should be local_mean for generated cells
-
-# Whether to mask the intensity images before feature extraction
-# TODO: Test whether this makes a difference for the generated cells
-mask_intensity_features_real = True
-mask_intensity_features_gen = True
-
-save_imgs = True  # Whether to save the binary masks
-figsize_hist = (16, 2)  # Large = (30, 4), small = (16, 2)
-debug = False
-#--------------------------------------------------------------------
-
 # All = (30, 4), single = (10, 4)
 figsize_cells_real = (30, 4) if seg_method_real == 'all' else (10, 4)
 figsize_cells_gen = (30, 4) if seg_method_gen == 'all' else (10, 4)
@@ -1022,7 +1068,7 @@ print(f'Started on {fnGetDatetime(datStart)}')
 print()
 
 #feats_parent_dir = "{}/feats/".format(results_dir)
-feats_parent_dir = "{}/feats_caleb/".format(results_dir)
+#feats_parent_dir = "{}/feats_caleb/".format(results_dir)
 print(f'feats_parent_dir = {feats_parent_dir}')
 
 all_feats_save_path = "{}/all_feats.pkl".format(feats_parent_dir)
