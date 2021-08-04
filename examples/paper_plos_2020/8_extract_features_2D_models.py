@@ -41,12 +41,13 @@ print(dfCSV_2DModels[['beta', 'intensity_norm', 'suffix', 'model_dir']].sort_val
 # 5 cells with save_imgs (all seg methods) = 1 hr
 # 20 cells with save_imgs (1 seg method) = 12 mins
 # 100 cells, no save_imgs, 3 betas = 7 mins
+# 1000 cells, no save_imgs, 3 betas = 38 mins
 # 100 cells, no save_imgs, 4 betas = 9 mins
 
 # Parent directory of where the extracted features will be saved
 feats_parent_dir = '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/results/feats_caleb/'
 
-intNumCells = 5  # Set to < 0 to select the entire test set
+intNumCells = 1000  # Set to < 0 to select the entire test set
 
 # methods = {'gt_zero', otsu', 'local_gaussian', 'local_mean', 'local_median', 'li', 'mean', 'all'}
 seg_method_real = 'gt_zero'    # Should be gt_zero for real cells
@@ -65,6 +66,9 @@ gpu_ids = [5]  # A list of available GPUs
 # A list of 2D models to use
 # TODO: Allow the user to specify these models by listing intensity_norm and beta, and
 #       get the model paths from dfCSV_2DModels above
+
+#model_dirs = glob.glob('/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_*/')
+
 model_dirs = [
     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_298/',  # norm = 0, beta = 0.010
     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_299/',  # norm = 1, beta = 0.010
@@ -120,34 +124,13 @@ if len(gpu_ids) == 1:
 parent_dir = "/allen/aics/modeling/gregj/results/integrated_cell/"
 
 model_parent = '{}/test_cbvae_beta_ref'.format(parent_dir)
-
-#model_dirs = glob.glob('/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_*/')
-
-# model_dirs = [
-#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_298/', 
-#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_299/', 
-    
-#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_312/', 
-#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_313/', 
-    
-#     #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_329/', 
-    
-#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_330/', 
-#     '/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_331/', 
-    
-#     # All generated cells look the same since beta is too high, not a good model to use
-#     #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_378/', 
-#     #'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_379/', 
-# ]
-
         
 save_dir = '{}/results'.format(model_parent)
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
     
 results_dir = save_dir
-    
-    
+
 
 datStart = flib.fnNow()
 print(f'Started on {flib.fnGetDatetime(datStart)}')

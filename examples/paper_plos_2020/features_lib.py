@@ -376,6 +376,7 @@ def save_feats(im, save_path, seg_method='local_mean', mask_intensity_features=T
     im_struct = np.copy(im_tmp)
     if debug: print(f'im_struct.shape = {im_struct.shape}')
     
+    # Contrast-stretch each channel independently to 8-bit (255)
     for i in range(im_struct.shape[0]):
         if debug: print(f'np.max(im_struct[{i}]) = {np.max(im_struct[i])}')
         im_struct[i] = (im_struct[i] / np.max(im_struct[i]))*255
@@ -401,14 +402,29 @@ def save_feats(im, save_path, seg_method='local_mean', mask_intensity_features=T
         cell_binmask = get_binmask(im_struct[0, :, :, 0], method=seg_method, debug=debug)
         nuc_binmask = get_binmask(im_struct[1, :, :, 0], method=seg_method, debug=debug)
     
+    if (mask_intensity_features):
+        cell_img = np.where(cell_binmask[:, :, np.newaxis] > 0, im_struct[0], 0)
+        nuc_img = np.where(nuc_binmask[:, :, np.newaxis] > 0, im_struct[1], 0)
+        
+        cell_img_desc = 'cell_img_norm_seg'
+        nuc_img_desc = 'nuc_img_norm_seg'
+        
+    else:
+        cell_img = im_struct[0]
+        nuc_img = im_struct[1]
+        
+        cell_img_desc = 'cell_img_norm'
+        nuc_img_desc = 'nuc_img_norm'
+    
     #feats['dna_shape'] = get_shape_features(seg=im_struct[1]>0)
     feats['dna_shape'] = get_shape_features(seg=nuc_binmask[:, :, np.newaxis])
     if debug: print(f"dna_shape = {feats['dna_shape']}")
         
-    if (mask_intensity_features):
-        feats['dna_inten'] = get_intensity_features(img=np.where(nuc_binmask[:, :, np.newaxis] > 0, im_struct[1], 0))  # Apply binary mask to image
-    else:
-        feats['dna_inten'] = get_intensity_features(img=im_struct[1])
+    #if (mask_intensity_features):
+    #    feats['dna_inten'] = get_intensity_features(img=np.where(nuc_binmask[:, :, np.newaxis] > 0, im_struct[1], 0))  # Apply binary mask to image
+    #else:
+    #    feats['dna_inten'] = get_intensity_features(img=im_struct[1])
+    feats['dna_inten'] = get_intensity_features(img=nuc_img)
     if debug: print(f"dna_inten = {feats['dna_inten']}")
     
     #try:
@@ -421,10 +437,11 @@ def save_feats(im, save_path, seg_method='local_mean', mask_intensity_features=T
     feats['cell_shape'] = get_shape_features(seg=cell_binmask[:, :, np.newaxis])
     if debug: print(f"cell_shape = {feats['cell_shape']}")
         
-    if (mask_intensity_features):
-        feats['cell_inten'] = get_intensity_features(img=np.where(cell_binmask[:, :, np.newaxis] > 0, im_struct[0], 0))  # Apply binary mask to image
-    else:
-        feats['cell_inten'] = get_intensity_features(img=im_struct[0])
+    #if (mask_intensity_features):
+    #    feats['cell_inten'] = get_intensity_features(img=np.where(cell_binmask[:, :, np.newaxis] > 0, im_struct[0], 0))  # Apply binary mask to image
+    #else:
+    #    feats['cell_inten'] = get_intensity_features(img=im_struct[0])
+    feats['cell_inten'] = get_intensity_features(img=cell_img)
     if debug: print(f"cell_inten = {feats['cell_inten']}")
     
     #try:
@@ -446,12 +463,15 @@ def save_feats(im, save_path, seg_method='local_mean', mask_intensity_features=T
         objAxes_hist[1].set_title('nuc_img')
         objAxes_hist[1].set_yscale('log')
 
-        objAxes_hist[2].hist(im_struct[0, :, :, 0].flatten())
+        #objAxes_hist[2].hist(im_struct[0, :, :, 0].flatten())
+        objAxes_hist[2].hist(cell_img.flatten())
         objAxes_hist[2].set_yscale('log')
-        objAxes_hist[2].set_title('cell_img_norm')
+        objAxes_hist[2].set_title(cell_img_desc)
+        # TODO: Set xlim? ax1.set_xlim([0, 5])
 
-        objAxes_hist[3].hist(im_struct[1, :, :, 0].flatten())
-        objAxes_hist[3].set_title('nuc_img_norm')
+        #objAxes_hist[3].hist(im_struct[1, :, :, 0].flatten())
+        objAxes_hist[3].hist(nuc_img.flatten())
+        objAxes_hist[3].set_title(nuc_img_desc)
         objAxes_hist[3].set_yscale('log')
 
         plt.savefig(save_path.replace('.pkl', '_hist.png'), bbox_inches='tight', pad_inches=0, dpi=dpi)
@@ -466,11 +486,11 @@ def save_feats(im, save_path, seg_method='local_mean', mask_intensity_features=T
             objAxes[1].imshow(im_tmp[1, :, :, 0], cmap='gray')
             objAxes[1].set_title('nuc_img')
 
-            #objAxes[2].imshow(im_struct[0, :, :, 0], cmap='gray')
-            #objAxes[2].set_title('cell_img_norm')
+            #objAxes[2].imshow(cell_img, cmap='gray')
+            #objAxes[2].set_title(cell_img_desc)
 
-            #objAxes[3].imshow(im_struct[1, :, :, 0], cmap='gray')
-            #objAxes[3].set_title('nuc_img_norm')
+            #objAxes[3].imshow(nuc_img, cmap='gray')
+            #objAxes[3].set_title(nuc_img_desc)
 
             #objAxes[2].imshow(im_struct[0, :, :, 0] > 0, cmap='gray')
             objAxes[2].imshow(cell_binmask_gt_zero, cmap='gray')
