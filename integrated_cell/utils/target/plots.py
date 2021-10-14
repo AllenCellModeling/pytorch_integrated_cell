@@ -21,9 +21,10 @@ def summary_images(
     Returns two images, one of sampled real data, and one of sampled generated data
     """
 
-    font = ImageFont.truetype(
-        os.path.dirname(__file__) + "/../../../etc/arial.ttf", font_size
-    )
+    # CC
+    #font = ImageFont.truetype(
+    #    os.path.dirname(__file__) + "/../../../etc/arial.ttf", font_size
+    #)
 
     u_classes, class_inds = np.unique(
         data_provider.get_classes(np.arange(0, data_provider.get_n_dat(mode)), mode),
@@ -56,7 +57,8 @@ def summary_images(
 
         class_im = Image.fromarray((class_im * 255).astype("uint8"))
         draw = ImageDraw.Draw(class_im)
-        draw.text((20, 20), c_name, (255, 255, 255), font=font)
+        #draw.text((20, 20), c_name, (255, 255, 255), font=font)  # CC
+        draw.text((20, 20), c_name, (255, 255, 255))  # CC
         class_im = np.asarray(class_im)
 
         class_list.append(class_im)
@@ -106,7 +108,8 @@ def summary_images(
 
         class_im = Image.fromarray((class_im * 255).astype("uint8"))
         draw = ImageDraw.Draw(class_im)
-        draw.text((20, 20), c_name, (255, 255, 255), font=font)
+        #draw.text((20, 20), c_name, (255, 255, 255), font=font)  # CC
+        draw.text((20, 20), c_name, (255, 255, 255))  # CC
         class_im = np.asarray(class_im)
 
         class_list.append(class_im)
@@ -191,9 +194,10 @@ def summary_images_v2_aux(
     Returns combined image of sampled real data, and sampled generated data
     """
 
-    font = ImageFont.truetype(
-        os.path.dirname(__file__) + "/../../../etc/arial.ttf", font_size
-    )
+    # CC
+    #font = ImageFont.truetype(
+    #    os.path.dirname(__file__) + "/../../../etc/arial.ttf", font_size
+    #)
 
     u_classes, class_inds = np.unique(
         data_provider.get_classes(np.arange(0, data_provider.get_n_dat(mode)), mode),
@@ -284,7 +288,8 @@ def summary_images_v2_aux(
         # the text part
         class_im = Image.fromarray((class_im * 255).astype("uint8"))
         draw = ImageDraw.Draw(class_im)
-        draw.text((20, 20), c_name, (255, 255, 255), font=font)
+        #draw.text((20, 20), c_name, (255, 255, 255), font=font)  # CC
+        draw.text((20, 20), c_name, (255, 255, 255))  # CC
         class_im = np.asarray(class_im)
 
         class_list.append(class_im)
