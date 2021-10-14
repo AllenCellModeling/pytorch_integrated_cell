@@ -122,7 +122,7 @@ def get_embeddings_for_dir(model_dir, parent_dir, use_current_results=False, suf
 #         else:
         embeddings_path = "{}/ref_model/embeddings_{}{}.pth".format(model_dir, mode, suffix)  # CC
     
-        embeddings = get_embeddings_for_model(suffix, model_dir, parent_dir, embeddings_path, use_current_results, mode = mode)
+        embeddings = get_embeddings_for_model(suffix, model_dir, parent_dir, embeddings_path, use_current_results, mode = mode)  # CC
 
         if embeddings is None: continue
 
@@ -159,21 +159,23 @@ def get_embeddings_for_dir(model_dir, parent_dir, use_current_results=False, suf
     return model_summaries
 
 
-gpu_ids = [5]
+gpu_ids = [7]
 os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(ID) for ID in gpu_ids])
 if len(gpu_ids) == 1:
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = True
 
 
-parent_dir = "/allen/aics/modeling/gregj/results/integrated_cell/"  # CC
+#parent_dir = "/allen/aics/modeling/gregj/results/integrated_cell/"  # CC
+parent_dir = "/allen/aics/modeling/ic_data/results/integrated_cell/"  # CC
 
 model_parent = '{}/test_cbvae_beta_ref'.format(parent_dir)  # CC
 
 model_dirs = glob.glob('/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_*/')  # CC
 
         
-save_dir = '{}/results'.format(model_parent)  # CC
+#save_dir = '{}/results'.format(model_parent)  # CC
+save_dir = '{parent_dir}/notebook_1/results'.format(parent_dir)  # CC
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
     
@@ -276,7 +278,8 @@ path_list = list()
 mode_list = list()
 
 _, dp, _ = utils.load_network_from_dir(data_list[0]['model_dir'], parent_dir)  # CC
-dp.image_parent = '/allen/aics/modeling/gregj/results/ipp/scp_19_04_10/'  # CC
+#dp.image_parent = '/allen/aics/modeling/gregj/results/ipp/scp_19_04_10/'  # CC
+dp.image_parent = '/allen/aics/modeling/ic_data/results/ipp/scp_19_04_10/'  # CC
 
 class_list = np.array(class_list)
 path_list = np.array(path_list)
@@ -437,7 +440,7 @@ plt.ylim(ylim)
 plt.xlabel('KL Divergence: KL(q(z|x)|p(z)))')
 plt.ylabel(r'Reconstruction Loss: $- \mathbb{E}_{q(z|x)}[logp(x|z)]$')    
 
-plt.savefig('{}/model_selection_beta.png'.format(save_dir), bbox_inches='tight', dpi=90)
+plt.savefig('{}/model_selection_beta.png'.format(save_dir), bbox_inches='tight', dpi=90)  # CC
 
 plt.show()
 plt.close()
@@ -498,7 +501,7 @@ plt.axis('tight')
 
 # plt.axis('equal')    
 
-plt.savefig('{}/model_selection_beta_clean.png'.format(results_dir), bbox_inches='tight', dpi=90)
+plt.savefig('{}/model_selection_beta_clean.png'.format(results_dir), bbox_inches='tight', dpi=90)  # CC
 
 plt.show()
 
@@ -513,10 +516,11 @@ plt.close()
 
 
 
-best_model = 'asdfasdfasdf'  # CC
+best_model = ''  # CC
 
 for i, data in enumerate(data_list):
-    if data['model_dir'] == "/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae/2019-07-19-09:27:15/":  # CC
+    #if data['model_dir'] == "/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae/2019-07-19-09:27:15/":  # CC
+    if data['model_dir'] == "/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae/2019-07-19-09:27:15/":  # CC
         best_model = i
         break
 
@@ -780,12 +784,12 @@ for intensity_norm in intensity_norms:
     
     for i in range(df_tmp.shape[0]):
         
-        im_out_path = '{}/ref_model/progress_{}.png'.format(df_tmp.iloc[i]['model_dir'], int(df_tmp.iloc[i]['epoch'][0]))  # CC
+        im_out_path = '{}/ref_model/progress_{}.png'.format(df_tmp.iloc[i]['model_dir'], int(df_tmp.iloc[i]['epoch'][0]))
     
         print('Beta: {}, Intensity Norm: {}'.format(df_tmp.iloc[i]['beta'], intensity_norm))
     
-        im_progress = imageio.imread(im_out_path)  # CC
-        display(PIL.Image.fromarray(im_progress))  # CC
+        im_progress = imageio.imread(im_out_path)
+        display(PIL.Image.fromarray(im_progress))
         
         
     
@@ -803,11 +807,11 @@ with open(all_feats_save_path, "rb") as f:
 # In[ ]:
 
 
-all_feats_save_path = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats//all_feats.pkl'  # CC
+#all_feats_save_path = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats//all_feats.pkl'  # CC
 
 intensity_norms = ['unnormalized', 'normalized']
 
-with open(all_feats_save_path, "rb") as f:  # CC
+with open(all_feats_save_path, "rb") as f:
     feature_dict = pickle.load(f) 
 
 for i, intensity_norm in enumerate(intensity_norms):
