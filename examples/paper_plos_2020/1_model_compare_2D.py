@@ -18,7 +18,7 @@
 # 
 # First load each model, and get embeddings and ELBO values
 
-# In[ ]:
+# In[2]:
 
 
 import glob
@@ -122,7 +122,7 @@ def get_embeddings_for_dir(model_dir, parent_dir, use_current_results=False, suf
 #         else:
         embeddings_path = "{}/ref_model/embeddings_{}{}.pth".format(model_dir, mode, suffix)  # CC
     
-        embeddings = get_embeddings_for_model(suffix, model_dir, parent_dir, embeddings_path, use_current_results, mode = mode)
+        embeddings = get_embeddings_for_model(suffix, model_dir, parent_dir, embeddings_path, use_current_results, mode = mode)  # CC
 
         if embeddings is None: continue
 
@@ -159,21 +159,49 @@ def get_embeddings_for_dir(model_dir, parent_dir, use_current_results=False, suf
     return model_summaries
 
 
-gpu_ids = [5]
+gpu_ids = [7]
 os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(ID) for ID in gpu_ids])
 if len(gpu_ids) == 1:
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = True
 
 
-parent_dir = "/allen/aics/modeling/gregj/results/integrated_cell/"  # CC
+#parent_dir = "/allen/aics/modeling/gregj/results/integrated_cell/"  # CC
+parent_dir = "/allen/aics/modeling/ic_data/results/integrated_cell/"  # CC
 
 model_parent = '{}/test_cbvae_beta_ref'.format(parent_dir)  # CC
 
-model_dirs = glob.glob('/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_*/')  # CC
+# Use all models
+#model_dirs = glob.glob('/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_*/')  # CC
+
+# Use a subset of models
+model_dirs = [
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_298/',  # norm = 0, beta = 0.010
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_299/',  # norm = 1, beta = 0.010
+
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_306/',  # norm = 0, beta = 0.173
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_307/',  # norm = 1, beta = 0.173
+    
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_314/',  # norm = 0, beta = 0.337
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_315/',  # norm = 1, beta = 0.337
+    
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_322/',  # norm = 0, beta = 0.500
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_323/',  # norm = 1, beta = 0.500
+    
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_330/',  # norm = 0, beta = 0.663
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_331/',  # norm = 1, beta = 0.663
+    
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_338/',  # norm = 0, beta = 0.827
+    '/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_339/',  # norm = 1, beta = 0.827
+    
+    # All generated cells look the same since beta is too high, will cause error in estimating distribution
+    #'/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_378/',  # norm = 0, beta = 0.990
+    #'/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae_beta_ref/job_379/',  # norm = 1, beta = 0.990
+]
 
         
-save_dir = '{}/results'.format(model_parent)  # CC
+#save_dir = '{}/results'.format(model_parent)  # CC
+save_dir = '{}/notebook_1/results'.format(parent_dir)  # CC
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
     
@@ -239,7 +267,7 @@ for i, model_dir in enumerate(model_dirs):
 
 
 
-# In[ ]:
+# In[3]:
 
 
 # Reorganize the data structure into something slightly more manageable 
@@ -276,7 +304,8 @@ path_list = list()
 mode_list = list()
 
 _, dp, _ = utils.load_network_from_dir(data_list[0]['model_dir'], parent_dir)  # CC
-dp.image_parent = '/allen/aics/modeling/gregj/results/ipp/scp_19_04_10/'  # CC
+#dp.image_parent = '/allen/aics/modeling/gregj/results/ipp/scp_19_04_10/'  # CC
+dp.image_parent = '/allen/aics/modeling/ic_data/results/ipp/scp_19_04_10/'  # CC
 
 class_list = np.array(class_list)
 path_list = np.array(path_list)
@@ -319,7 +348,7 @@ for i, data in enumerate(data_list):
   
 
 
-# In[ ]:
+# In[4]:
 
 
 import pandas as pd
@@ -360,7 +389,7 @@ df_master = df_master.sort_values('beta')
 
 # ## Plot models as a function of $\beta$
 
-# In[ ]:
+# In[5]:
 
 
 import matplotlib.pyplot as plt
@@ -437,7 +466,7 @@ plt.ylim(ylim)
 plt.xlabel('KL Divergence: KL(q(z|x)|p(z)))')
 plt.ylabel(r'Reconstruction Loss: $- \mathbb{E}_{q(z|x)}[logp(x|z)]$')    
 
-plt.savefig('{}/model_selection_beta.png'.format(save_dir), bbox_inches='tight', dpi=90)
+plt.savefig('{}/model_selection_beta.png'.format(save_dir), bbox_inches='tight', dpi=90)  # CC
 
 plt.show()
 plt.close()
@@ -445,7 +474,7 @@ plt.close()
 
 # ## Plot models as a function of $\beta$ but prettier this time
 
-# In[ ]:
+# In[6]:
 
 
 import matplotlib.pyplot as plt
@@ -498,7 +527,7 @@ plt.axis('tight')
 
 # plt.axis('equal')    
 
-plt.savefig('{}/model_selection_beta_clean.png'.format(results_dir), bbox_inches='tight', dpi=90)
+plt.savefig('{}/model_selection_beta_clean.png'.format(results_dir), bbox_inches='tight', dpi=90)  # CC
 
 plt.show()
 
@@ -509,14 +538,15 @@ plt.close()
 
 # ## Print out the best-on-validation set models for each $\beta$
 
-# In[ ]:
+# In[7]:
 
 
 
-best_model = 'asdfasdfasdf'  # CC
+best_model = ''  # CC
 
 for i, data in enumerate(data_list):
-    if data['model_dir'] == "/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae/2019-07-19-09:27:15/":  # CC
+    #if data['model_dir'] == "/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae/2019-07-19-09:27:15/":  # CC
+    if data['model_dir'] == "/allen/aics/modeling/ic_data/results/integrated_cell/test_cbvae/2019-07-19-09:27:15/":  # CC
         best_model = i
         break
 
@@ -536,7 +566,7 @@ for data in data_list:
 
 # ## Do feature calculation for some subset of models
 
-# In[ ]:
+# In[10]:
 
 
 import tqdm
@@ -572,11 +602,11 @@ def save_feats(im, save_path):
     
     feats['dna_shape'] = get_shape_features(seg=im_struct[1]>0)
     feats['dna_inten'] = get_intensity_features(img=im_struct[1])
-    feats['dna_skeleton'] = get_skeleton_features(seg=im_struct[1])
+    #feats['dna_skeleton'] = get_skeleton_features(seg=im_struct[1])  # CC: returning errors, comment out for now
 
     feats['cell_shape'] = get_shape_features(seg=im_struct[0]>0)
     feats['cell_inten'] = get_intensity_features(img=im_struct[0])
-    feats['cell_skeleton'] = get_skeleton_features(seg=im_struct[0])
+    #feats['cell_skeleton'] = get_skeleton_features(seg=im_struct[0])  # CC: returning errors, comment out for now
 #     feats = im2feats(im_struct[0], im_struct[1], im_struct, extra_features=["io_intensity", "bright_spots", "intensity", "skeleton"])
     
     with open(save_path, "wb") as f:  # CC
@@ -603,7 +633,7 @@ def load_feats(save_paths):
     return feats
 
 
-# In[ ]:
+# In[49]:
 
 
 from tqdm import tqdm
@@ -692,7 +722,7 @@ with open(all_feats_save_path, "wb") as f:  # CC
     pickle.dump(feature_path_dict, f)      
 
 
-# In[ ]:
+# In[50]:
 
 
 feature_path_dict[intensity_norm]['real'].columns
@@ -700,7 +730,7 @@ feature_path_dict[intensity_norm]['real'].columns
 
 # ## Print precision/recall manifold stats across betas 
 
-# In[ ]:
+# In[51]:
 
 
 from integrated_cell.metrics.precision_recall import precision_recall
@@ -768,7 +798,7 @@ for intensity_norm in intensity_norms:
 # test output  
 # sampled images  
 
-# In[ ]:
+# In[52]:
 
 
 import PIL.Image
@@ -780,12 +810,12 @@ for intensity_norm in intensity_norms:
     
     for i in range(df_tmp.shape[0]):
         
-        im_out_path = '{}/ref_model/progress_{}.png'.format(df_tmp.iloc[i]['model_dir'], int(df_tmp.iloc[i]['epoch'][0]))  # CC
+        im_out_path = '{}/ref_model/progress_{}.png'.format(df_tmp.iloc[i]['model_dir'], int(df_tmp.iloc[i]['epoch'][0]))
     
         print('Beta: {}, Intensity Norm: {}'.format(df_tmp.iloc[i]['beta'], intensity_norm))
     
-        im_progress = imageio.imread(im_out_path)  # CC
-        display(PIL.Image.fromarray(im_progress))  # CC
+        im_progress = imageio.imread(im_out_path)
+        display(PIL.Image.fromarray(im_progress))
         
         
     
@@ -793,21 +823,21 @@ for intensity_norm in intensity_norms:
 
 # ## Print off real versus generated feature distributions
 
-# In[ ]:
+# In[53]:
 
 
 with open(all_feats_save_path, "rb") as f:
     feature_dict = pickle.load(f)  
 
 
-# In[ ]:
+# In[54]:
 
 
-all_feats_save_path = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats//all_feats.pkl'  # CC
+#all_feats_save_path = '/allen/aics/modeling/gregj/results/integrated_cell//test_cbvae_beta_ref/results/feats//all_feats.pkl'  # CC
 
 intensity_norms = ['unnormalized', 'normalized']
 
-with open(all_feats_save_path, "rb") as f:  # CC
+with open(all_feats_save_path, "rb") as f:
     feature_dict = pickle.load(f) 
 
 for i, intensity_norm in enumerate(intensity_norms):
@@ -835,7 +865,7 @@ for i, intensity_norm in enumerate(intensity_norms):
     
 
 
-# In[ ]:
+# In[55]:
 
 
 from sklearn import preprocessing
@@ -928,7 +958,7 @@ plt.close()
 
 # ## Print off generated images for the models at different $\beta$
 
-# In[ ]:
+# In[56]:
 
 
 import scipy.misc
@@ -971,7 +1001,7 @@ for i in tqdm(range(df.shape[0])):
         scipy.misc.imsave(f'{gen_dir}/im_{j}.png', im)  # CC
 
 
-# In[ ]:
+# In[57]:
 
 
 n_imgs_per_beta = 4
@@ -998,7 +1028,7 @@ plt.imshow(im_out)
 plt.axis('off')
 
 
-# In[ ]:
+# In[58]:
 
 
 n_sampled_to_plot = n_betas_to_plot - 1
@@ -1018,4 +1048,10 @@ plt.show()
 scipy.misc.imsave(f'{results_dir}/im_sampled.png', im_real)  # CC
 
 plt.close()
+
+
+# In[ ]:
+
+
+
 

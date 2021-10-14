@@ -590,7 +590,7 @@ for i, data in enumerate(data_list):
 
 
 
-best_model = 'asdfasdfasdf'  # CC
+best_model = ''  # CC
 
 for i, data in enumerate(data_list):
     #if data['model_dir'] == "/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae/2019-07-19-09:27:15/":  # CC
