@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+<<<<<<< HEAD
 # ### New GitHub branch
 
 # In[ ]:
@@ -61,6 +62,24 @@ New location: '/allen/aics/modeling/ic_data/'
 
 # ### Notebook #1
 
+=======
+# In[ ]:
+
+
+"/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_3D_avg_inten/2019-10-22-15:24:09/"  # 403G
+"/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_3D_avg_inten/2019-10-31-21:48:56/"  # 380G
+"/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_3D_avg_inten/2019-11-27-22:27:04/"  # 370G
+"/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_3D_avg_inten/2019-11-27-22:23:27/"  # 370G
+       
+'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae/2019-07-19-09:27:15/'  # 1.2T
+
+'/allen/aics/modeling/gregj/results/integrated_cell/test_cbvae_beta_ref/job_*/'  # 
+
+'/allen/aics/modeling/gregj/results/ipp/scp_19_04_10/'  # 364G
+'/raid/shared/ipp/scp_19_04_10/'  # 274G
+
+
+>>>>>>> 54d4203e42f613adc5b6b9aa9fce50face40f1d9
 # In[ ]:
 
 
@@ -149,8 +168,11 @@ scipy.misc.imsave(f'{results_dir}/im_sampled.png', im_real)  # CC
 scipy.misc.imsave(f'{results_dir}/im_sampled.png', im_real)  # CC
 
 
+<<<<<<< HEAD
 # ### Notebook #2
 
+=======
+>>>>>>> 54d4203e42f613adc5b6b9aa9fce50face40f1d9
 # In[ ]:
 
 
@@ -215,8 +237,11 @@ caleb.chan@dgx-aics-dcp-001:~/modeling_root/ic_data$ tree
         └── scp_19_04_10_raid -> /raid/shared/ipp/scp_19_04_10/
 
 
+<<<<<<< HEAD
 # ### Notebook #3
 
+=======
+>>>>>>> 54d4203e42f613adc5b6b9aa9fce50face40f1d9
 # In[ ]:
 
 
@@ -274,7 +299,10 @@ if not os.path.exists(embeddings_path):
 else:
     embeddings = torch.load(embeddings_path)
 
+<<<<<<< HEAD
 # TODO
+=======
+>>>>>>> 54d4203e42f613adc5b6b9aa9fce50face40f1d9
 from lkaccess import LabKey  # CC
 lk = LabKey(host="aics")
 mito_data = lk.select_rows_as_list(
@@ -384,8 +412,11 @@ caleb.chan@dgx-aics-dcp-001:~/modeling_root/ic_data$ tree
         └── scp_19_04_10_raid -> /raid/shared/ipp/scp_19_04_10/
 
 
+<<<<<<< HEAD
 # ### Notebook #6
 
+=======
+>>>>>>> 54d4203e42f613adc5b6b9aa9fce50face40f1d9
 # In[ ]:
 
 

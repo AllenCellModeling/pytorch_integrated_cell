@@ -201,7 +201,11 @@ model_dirs = [
 
         
 #save_dir = '{}/results'.format(model_parent)  # CC
+<<<<<<< HEAD
 save_dir = '{}/notebook_1/results'.format(parent_dir)  # CC
+=======
+save_dir = '{parent_dir}/notebook_1/results'.format(parent_dir)  # CC
+>>>>>>> 54d4203e42f613adc5b6b9aa9fce50face40f1d9
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
     
