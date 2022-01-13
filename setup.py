@@ -18,7 +18,7 @@ setup(
         "numpy>=1.15.0",
         "pandas>=0.23.4",
         "pip",
-        "pillow==5.2.0",
+        "pillow==9.0.0",
         "scikit-image==0.15.0",
         "scipy==1.1.0",
         "tqdm>=4.28.1",
