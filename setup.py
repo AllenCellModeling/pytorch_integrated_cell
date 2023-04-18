@@ -12,7 +12,7 @@ setup(
         "console_scripts": ["ic_train_model=integrated_cell.bin.train_model:main"]
     },
     install_requires=[
-        "torch==1.2.0",
+        "torch==1.13.1",
         "torchvision==0.2.1",
         "matplotlib==2.2.2",
         "numpy>=1.15.0",
