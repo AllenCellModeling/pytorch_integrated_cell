@@ -20,7 +20,7 @@ setup(
         "pip",
         "pillow==5.2.0",
         "scikit-image==0.15.0",
-        "scipy==1.1.0",
+        "scipy==1.10.0",
         "tqdm>=4.28.1",
         "natsort==5.3.3",
         "ipykernel",
