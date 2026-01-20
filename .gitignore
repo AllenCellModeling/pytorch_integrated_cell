@@ -1,7 +1,9 @@
+.nfs*
 .DS_Store
 ._.DS_Store
 **.pyc
 **.pyt
+*.png
 .ipynb_checkpoints
 .vscode
 .bash_history

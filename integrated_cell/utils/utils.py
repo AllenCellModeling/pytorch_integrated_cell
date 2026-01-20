@@ -485,7 +485,7 @@ def save_load_mitosis_annotations(data_provider, save_dir=None):
 
 
 def load_data_provider(
-    module_name, save_path, batch_size, im_dir, channelInds=None, n_dat=-1, **kwargs_dp
+    module_name, save_path, batch_size, im_dir, channel_names=None, n_dat=-1, **kwargs_dp
 ):
     DP = importlib.import_module("integrated_cell.data_providers." + module_name)
 
@@ -504,8 +504,8 @@ def load_data_provider(
     dp.batch_size = batch_size
     dp.set_n_dat(n_dat, "train")
 
-    if channelInds is not None:
-        dp.channelInds = channelInds
+    if channel_names is not None:
+        dp.channel_names = channel_names
 
     for k in dp.data:
         dp.data[k]["CellId"] = dp.csv_data["CellId"].values[dp.data[k]["inds"]]
